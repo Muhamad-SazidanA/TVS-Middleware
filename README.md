@@ -1,12 +1,12 @@
 # TVS Middleware - Document Processing & OCR Matching Platform
 
-**TVS Middleware** adalah platform aplikasi web modern yang dibangun menggunakan **Next.js (App Router)** dan **Prisma ORM** untuk memproses, mengategorikan, serta mencocokkan dokumen impor/ekspor (seperti PIB, PIB Lanjutan, Invoice, Packing List, Rekap Document, Master BL, dan BL) secara otomatis melalui integrasi **Nanonets OCR Asynchronous API**.
+**TVS Middleware** adalah platform aplikasi web modern yang dibangun menggunakan **Next.js (App Router)** dan **Prisma ORM** untuk memproses, mengategorikan, serta mencocokkan dokumen secara otomatis melalui integrasi **Nanonets OCR Asynchronous API**.
 
 ---
 
 ## 🚀 Fitur Utama
 
-- **Multi-File Batch Upload**: Mengunggah berkas tunggal atau banyak berkas (*multi-file*) secara bersamaan berdasarkan 7 kategori dokumen resmi.
+- **Multi-File Batch Upload**: Mengunggah berkas tunggal atau banyak berkas (*multi-file*) secara bersamaan berdasarkan 7 kategori dokumen resmi (PIB, PIB Lanjutan, Invoice, Packing List, Rekap Document, Master BL, dan BL).
 - **Integrasi Asynchronous Nanonets OCR**: Pengiriman berkas secara paralel menggunakan API Asynchronous (`LabelFile?async=true`) untuk efisiensi pemrosesan tingkat tinggi.
 - **Sistem Pelacakan Batch Otomatis**:
   - Format **Batch ID** otomatis berurutan (contoh: `0001`, `0002`, `0003`, dst).
@@ -59,11 +59,41 @@ model DetailBatch {
 
 ---
 
+## 🔒 Konfigurasi Environment Variable (`.env`)
+
+> ⚠️ **PENTING (KEAMANAN)**: Berkas `.env` berisi Kunci API rahasia dan kredensial basis data. **JANGAN PERNAH** memublikasikan berkas `.env` asli atau kunci API ke repositori publik/GitHub! Berkas `.env` sudah secara otomatis masuk ke dalam `.gitignore`.
+
+Gunakan berkas `.env.example` sebagai acuan saat membuat `.env` baru pada lingkungan lokal/production:
+
+```env
+# Koneksi Database MySQL
+DATABASE_URL="mysql://username:password@localhost:3306/nama_database"
+
+# Kredensial Nanonets API Key (Secret Key)
+API_KEY="your_nanonets_api_key_here"
+
+# Nanonets Model IDs (Disesuaikan dengan ID Model di Nanonets Console)
+MODEL_PIB="your_pib_model_id_here"
+MODEL_PIB_LANJUTAN="your_pib_lanjutan_model_id_here"
+MODEL_INVOICE="your_invoice_model_id_here"
+MODEL_PACKING_LIST="your_packing_list_model_id_here"
+MODEL_REKAP_DOCUMENT="your_rekap_document_model_id_here"
+MODEL_MASTER_BL="your_master_bl_model_id_here"
+MODEL_BL="your_bl_model_id_here"
+```
+
+### Penjelasan Variabel:
+- **`DATABASE_URL`**: String koneksi MySQL lokal/server basis data Anda.
+- **`API_KEY`**: API Key rahasia yang diperoleh dari dashboard Nanonets.
+- **`MODEL_*`**: ID unik Model OCR di Nanonets untuk masing-masing kategori dokumen.
+
+---
+
 ## ⚙️ Panduan Instalasi & Pengaturan
 
 ### 1. Prasyarat
 - Node.js versi 18.x atau lebih baru
-- MySQL Server (misal: MySQL Server di port 3306 / 3308)
+- MySQL Server
 
 ### 2. Kloning Repositori & Install Dependensi
 ```bash
@@ -72,25 +102,13 @@ cd TVS-Middleware
 npm install
 ```
 
-### 3. Konfigurasi Environment Variable (`.env`)
-Buat atau perbarui berkas `.env` di direktori utama:
-```env
-DATABASE_URL="mysql://root:password@localhost:3308/middleware"
-
-# Nanonets API Configuration
-API_KEY="244bd61f-32b0-11ef-94f2-cec13431d72d"
-
-# Model IDs
-MODEL_PIB="f058f626-44d2-4b98-b529-bf1e521801aa"
-MODEL_PIB_LANJUTAN="422f529a-d099-470a-a194-8397f7c25056"
-MODEL_INVOICE="7e9e801b-9f93-41bb-9426-ed884c98a58a"
-MODEL_PACKING_LIST="8901ebc3-eb95-46bd-89b5-901121d51111"
-MODEL_REKAP_DOCUMENT="3a2072e9-4e00-47b1-91a6-896898b04938"
-MODEL_MASTER_BL="3dcf7ab7-53be-4311-b0db-bca5ca1ceae8"
-MODEL_BL="bb797fef-0e0a-40a2-a9f8-b5efc1c9ca9a"
+### 3. Buat Berkas `.env`
+Salin `.env.example` ke `.env` lalu isi dengan nilai variabel lingkungan Anda:
+```bash
+cp .env.example .env
 ```
 
-### 4. Sinkronisasi Database
+### 4. Sinkronisasi Skema Database
 ```bash
 npx prisma generate
 npx prisma db push
@@ -100,7 +118,7 @@ npx prisma db push
 ```bash
 npm run dev
 ```
-Buka browser dan akses [http://localhost:3000](http://localhost:3000).
+Akses aplikasi melalui browser di [http://localhost:3000](http://localhost:3000).
 
 ---
 
