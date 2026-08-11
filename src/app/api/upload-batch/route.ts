@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { env } from "~/env";
 import { db } from "~/server/db";
-import { getModelIdForCategory } from "~/server/nanonets";
+import { getModelIdForCategory, extractNanonetsId } from "~/server/nanonets";
 
 export const dynamic = "force-dynamic";
 
@@ -108,25 +108,42 @@ export async function POST(req: Request) {
             };
           }
 
-          // Extract request_file_id / request_id from Nanonets response
-          const requestId =
-            jsonResponse?.result?.[0]?.request_file_id ||
-            jsonResponse?.result?.[0]?.request_id ||
-            jsonResponse?.request_file_id ||
-            jsonResponse?.request_id ||
-            jsonResponse?.result?.request_id ||
-            null;
+          // DEBUG: Log Nanonets upload response structure
+          console.log(`[Upload] Nanonets response keys for "${file.name}":`, Object.keys(jsonResponse || {}));
+          if (jsonResponse?.result && !Array.isArray(jsonResponse.result)) {
+            console.log(`[Upload] result is OBJECT, keys:`, Object.keys(jsonResponse.result));
+            console.log(`[Upload] result.request_file_id:`, jsonResponse.result?.request_file_id);
+            console.log(`[Upload] result.request_id:`, jsonResponse.result?.request_id);
+          } else if (Array.isArray(jsonResponse?.result)) {
+            console.log(`[Upload] result is ARRAY[${jsonResponse.result.length}], result[0].request_file_id:`, jsonResponse.result[0]?.request_file_id);
+          }
+          console.log(`[Upload] top-level request_file_id:`, jsonResponse?.request_file_id);
+          console.log(`[Upload] top-level request_id:`, jsonResponse?.request_id);
 
-          // Save into DetailBatch table: ID, Batch_ID, File Type, File ID (request_file_id), Isi (null)
-          if (batch?.id && requestId) {
+          // Extract request_file_id — handle both result as object and as array
+          const requestFileId =
+            jsonResponse?.result?.[0]?.request_file_id ||
+            jsonResponse?.result?.request_file_id ||
+            jsonResponse?.request_file_id ||
+            jsonResponse?.result?.[0]?.request_id ||
+            jsonResponse?.result?.request_id ||
+            jsonResponse?.request_id ||
+            extractNanonetsId(jsonResponse);
+          
+          console.log(`[Upload] Final requestFileId stored as fileId: "${requestFileId}"`);
+
+          console.log(`Saved request_file_id "${requestFileId}" for category "${category}" in batch #${batch?.id}`);
+
+          // Save strictly request_file_id into detail_batches table: batchId, fileType, fileId (request_file_id), isi (null)
+          if (batch?.id && requestFileId) {
             try {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               await (db as any).detailBatch.create({
                 data: {
                   batchId: batch.id,
                   fileType: category,
-                  fileId: requestId,
-                  isi: null, // Empty for now, populated by Webhook
+                  fileId: requestFileId, // Strictly request_file_id per file
+                  isi: null, // Populated asynchronously by Nanonets Webhook
                 },
               });
             } catch (err) {
@@ -138,7 +155,7 @@ export async function POST(req: Request) {
             fileName: file.name,
             category,
             modelId,
-            requestId,
+            requestId: requestFileId,
             status: "SUCCESS",
             rawResponse: jsonResponse,
           };
@@ -157,14 +174,10 @@ export async function POST(req: Request) {
       })
     );
 
-    // Update Batch status in DB (SUCCESS if all files successfully dispatched to nanonets and request_file_id obtained)
+    // Update Batch status in DB (PROSES while awaiting asynchronous Webhook callbacks from Nanonets)
     const failedCount = results.filter((r) => r.status === "FAILED").length;
     const finalBatchStatus =
-      failedCount === 0
-        ? "SUCCESS"
-        : failedCount === results.length
-        ? "FAILED"
-        : "PARTIAL_FAILED";
+      failedCount === results.length ? "FAILED" : "PROSES";
 
     if (batch?.id) {
       try {

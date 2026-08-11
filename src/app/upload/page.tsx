@@ -151,7 +151,7 @@ export default function UploadPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        router.push(`/Mismatched?batchId=${data.batchId}`);
+        router.push(`/matching?batchId=${data.batchId}`);
       } else {
         alert(data.error || "Gagal memproses batch ke Nanonets OCR.");
       }

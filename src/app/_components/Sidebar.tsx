@@ -63,11 +63,8 @@ const LogOutIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
 export default function Sidebar() {
   const pathname = usePathname();
   const isUploadActive = pathname === "/upload" || pathname === "/";
-  const isMatchedActive = pathname === "/Matched" || pathname === "/matched";
-  const isMismatchedActive = pathname === "/Mismatched" || pathname === "/mismatched";
+  const isMatchingActive = pathname === "/matching" || pathname === "/Matching";
 
-  // Automatically close Matching Engine dropdown when active route is Upload Dokumen
-  const [isMatchingOpen, setIsMatchingOpen] = useState(isMatchedActive || isMismatchedActive);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   return (
@@ -86,92 +83,30 @@ export default function Sidebar() {
         {/* 1. Upload Link */}
         <Link
           href="/upload"
-          onClick={() => setIsMatchingOpen(false)}
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 focus:outline-none ${
             isUploadActive
-              ? "text-blue-950 font-bold"
-              : "text-slate-600 hover:text-blue-950"
+              ? "text-blue-950 font-bold bg-blue-50/60"
+              : "text-slate-600 hover:text-blue-950 hover:bg-slate-50"
           }`}
         >
           <UploadCloudIcon className={`w-3.5 h-3.5 ${isUploadActive ? "text-blue-950" : "text-slate-400"}`} />
           <span className={isUploadActive ? "text-blue-950 font-bold" : ""}>Upload Dokumen</span>
         </Link>
 
-        {/* 2. Parent Menu (Collapsible Dropdown) */}
-        <div className="pt-1">
-          <button
-            onClick={() => setIsMatchingOpen(!isMatchingOpen)}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-blue-950 transition-all duration-150 focus:outline-none"
-          >
-            <div className="flex items-center gap-2">
-              <LayersIcon className="w-3.5 h-3.5 text-blue-950" />
-              <span>Matching Engine</span>
-            </div>
-            {isMatchingOpen ? (
-              <ChevronDownIcon className="w-3 h-3 text-slate-400 transition-transform duration-200" />
-            ) : (
-              <ChevronRightIcon className="w-3 h-3 text-slate-400 transition-transform duration-200" />
-            )}
-          </button>
-
-          {/* Sub-menu Dropdown Links */}
-          {isMatchingOpen && (
-            <div className="mt-0.5 ml-3 pl-2 space-y-0.5">
-              {/* Sub-item 1: Matched */}
-              <Link
-                href="/Matched"
-                className={`w-full flex items-center justify-between px-2.5 py-1 rounded-md text-[11px] font-bold transition-all duration-150 focus:outline-none ${
-                  isMatchedActive
-                    ? "text-blue-950 font-bold"
-                    : "text-slate-500 hover:text-blue-950"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <FileCheckIcon className={`w-3 h-3 ${isMatchedActive ? "text-blue-950" : "text-emerald-600"}`} />
-                  <span className={isMatchedActive ? "text-blue-950 font-bold" : ""}>Matched</span>
-                </div>
-                <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
-                  isMatchedActive ? "bg-blue-950 text-white" : "bg-emerald-100 text-emerald-800"
-                }`}>
-                  12
-                </span>
-              </Link>
-
-              {/* Sub-item 2: Mismatched */}
-              <Link
-                href="/Mismatched"
-                className={`w-full flex items-center justify-between px-2.5 py-1 rounded-md text-[11px] font-bold transition-all duration-150 focus:outline-none ${
-                  isMismatchedActive
-                    ? "text-blue-950 font-bold"
-                    : "text-slate-500 hover:text-blue-950"
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <FileXIcon className={`w-3 h-3 ${isMismatchedActive ? "text-blue-950" : "text-rose-600"}`} />
-                  <span className={isMismatchedActive ? "text-blue-950 font-bold" : ""}>Mismatched</span>
-                </div>
-                <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
-                  isMismatchedActive ? "bg-blue-950 text-white" : "bg-rose-100 text-rose-800"
-                }`}>
-                  3
-                </span>
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Additional Navigation Sections */}
-        <div className="pt-3 px-2 pb-1 text-[9px] font-bold text-blue-950/50 uppercase tracking-wider">
-          Reports & History
-        </div>
-
+        {/* 2. Single Matching Engine Link */}
         <Link
-          href="/Matched"
-          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-blue-950 transition-all duration-150 focus:outline-none"
+          href="/matching"
+          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 focus:outline-none ${
+            isMatchingActive
+              ? "text-blue-950 font-bold bg-blue-50/60"
+              : "text-slate-600 hover:text-blue-950 hover:bg-slate-50"
+          }`}
         >
-          <FileTextIcon className="w-3.5 h-3.5 text-slate-400" />
-          <span>Semua Dokumen</span>
+          <LayersIcon className={`w-3.5 h-3.5 ${isMatchingActive ? "text-blue-950" : "text-slate-400"}`} />
+          <span className={isMatchingActive ? "text-blue-950 font-bold" : ""}>Matching Engine</span>
         </Link>
+
+
       </nav>
 
       {/* Compact Minimal Footer */}
@@ -201,13 +136,13 @@ export default function Sidebar() {
                 <button
                   onClick={() => {
                     if (typeof window !== "undefined") {
-                      window.location.href = "/login";
+                      window.location.href = "/upload";
                     }
                   }}
-                  className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-bold text-rose-600 hover:bg-rose-50 transition-all text-left focus:outline-none"
+                  className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-bold text-slate-700 hover:bg-slate-50 transition-all text-left focus:outline-none"
                 >
-                  <LogOutIcon className="w-3.5 h-3.5 text-rose-500" />
-                  <span>Logout</span>
+                  <SettingsIcon className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Reset App</span>
                 </button>
               </div>
             )}
