@@ -151,7 +151,7 @@ export default function UploadPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        router.push(`/matching?batchId=${data.batchId}`);
+        router.push("/matching");
       } else {
         alert(data.error || "Gagal memproses batch ke Nanonets OCR.");
       }
@@ -221,21 +221,35 @@ export default function UploadPage() {
                       ) : (
                         // Dropzone Button Input
                         <div className="flex-1 flex items-center gap-1">
-                          <label className="flex-1 border border-dashed border-slate-300 hover:border-blue-950 bg-slate-50/60 hover:bg-blue-50/50 py-2.5 px-3 rounded-lg text-center cursor-pointer block transition-all group">
+                          <label
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (e.dataTransfer.files?.[0]) {
+                                handleFileChange(cat.num, slot.id, e.dataTransfer.files[0]);
+                              }
+                            }}
+                            className="flex-1 border border-dashed border-slate-300 hover:border-blue-950 bg-slate-50/60 hover:bg-blue-50/50 py-2.5 px-3 rounded-lg text-center cursor-pointer block transition-all group"
+                          >
                             <div className="flex items-center justify-center gap-1.5 text-slate-500 group-hover:text-blue-950">
                               <UploadIcon className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-950" />
                               <span className="text-[11px] font-semibold">
-                                Pilih PDF {cat.allowMultiple && cat.slots.length > 1 ? `#${index + 1}` : ""}
+                                Drag & Drop / Pilih PDF {cat.allowMultiple && cat.slots.length > 1 ? `#${index + 1}` : ""}
                               </span>
                             </div>
                             <input
                               type="file"
-                              accept=".pdf"
+                              accept="application/pdf,.pdf"
                               className="hidden"
                               onChange={(e) => {
                                 if (e.target.files?.[0]) {
                                   handleFileChange(cat.num, slot.id, e.target.files[0]);
                                 }
+                                e.target.value = "";
                               }}
                             />
                           </label>

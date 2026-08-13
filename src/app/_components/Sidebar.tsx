@@ -60,10 +60,17 @@ const LogOutIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
   </svg>
 );
 
+const ServerIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12h14a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+  </svg>
+);
+
 export default function Sidebar() {
   const pathname = usePathname();
   const isUploadActive = pathname === "/upload" || pathname === "/";
   const isMatchingActive = pathname === "/matching" || pathname === "/Matching";
+  const isManageActive = pathname === "/manage-system" || pathname === "/manage-system/";
 
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
@@ -106,7 +113,18 @@ export default function Sidebar() {
           <span className={isMatchingActive ? "text-blue-950 font-bold" : ""}>Matching Engine</span>
         </Link>
 
-
+        {/* 3. Manage System Link */}
+        <Link
+          href="/manage-system"
+          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 focus:outline-none ${
+            isManageActive
+              ? "text-blue-950 font-bold bg-blue-50/60"
+              : "text-slate-600 hover:text-blue-950 hover:bg-slate-50"
+          }`}
+        >
+          <ServerIcon className={`w-3.5 h-3.5 ${isManageActive ? "text-blue-950" : "text-slate-400"}`} />
+          <span className={isManageActive ? "text-blue-950 font-bold" : ""}>Manage System</span>
+        </Link>
       </nav>
 
       {/* Compact Minimal Footer */}

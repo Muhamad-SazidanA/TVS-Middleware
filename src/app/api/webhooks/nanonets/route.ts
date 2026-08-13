@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "~/server/db";
 import { filterCategoryData, evaluateBatchMatching } from "~/server/nanonets";
+import { createBatchLog } from "~/server/logger";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    // 1. Parse JSON body dari Nanonets
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let body: any = null;
     try {
@@ -20,7 +20,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, message: "Empty body" }, { status: 200 });
     }
 
-    // 2. Kumpulkan semua kandidat request_file_id dari webhook body
     const candidateIds: string[] = [];
     const addId = (v: unknown) => {
       if (typeof v === "string" && v.trim() && !candidateIds.includes(v.trim())) {
@@ -28,66 +27,145 @@ export async function POST(req: Request) {
       }
     };
 
-    // Top-level
+    // Top-level candidates
     addId(body?.request_file_id);
     addId(body?.request_id);
     addId(body?.id);
+    addId(body?.file_id);
+    addId(body?.input);
 
-    // result as OBJECT (actual webhook POST format)
+    // result object
     if (body?.result && !Array.isArray(body.result) && typeof body.result === "object") {
       addId(body.result.request_file_id);
       addId(body.result.request_id);
       addId(body.result.id);
+      addId(body.result.file_id);
+      addId(body.result.input);
     }
 
-    // result as ARRAY (GET API format)
+    // result array
     if (Array.isArray(body?.result)) {
       for (const item of body.result) {
         addId(item?.request_file_id);
         addId(item?.request_id);
         addId(item?.id);
+        addId(item?.file_id);
+        addId(item?.input);
       }
     }
 
-    console.log("[Webhook] Candidate IDs:", candidateIds);
-
-    if (candidateIds.length === 0) {
-      console.warn("[Webhook] No IDs found. body keys:", Object.keys(body));
-      return NextResponse.json({ success: false, message: "No IDs found in webhook body" }, { status: 200 });
+    // summary array
+    if (Array.isArray(body?.summary)) {
+      for (const item of body.summary) {
+        addId(item?.request_file_id);
+        addId(item?.request_id);
+        addId(item?.id);
+        addId(item?.file_id);
+      }
     }
 
-    // 3. Cari record di detail_batches yang fileId cocok dengan salah satu kandidat ID
+    console.log("[Webhook] Extracted candidate IDs:", candidateIds);
+
+    // 3. Find matching detailBatch record
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const detail = await (db as any).detailBatch.findFirst({
-      where: { fileId: { in: candidateIds } },
-      select: { id: true, batchId: true, fileId: true, fileType: true },
+    let detail: any = null;
+    if (candidateIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      detail = await (db as any).detailBatch.findFirst({
+        where: { fileId: { in: candidateIds } },
+        select: { id: true, batchId: true, fileId: true, fileType: true },
+      });
+    }
+
+    // Fallback 1: Match by partial ID or filename in pending detailBatches
+    if (!detail && candidateIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pendingDetails = await (db as any).detailBatch.findMany({
+        where: {
+          OR: [{ isi: null }, { isi: "" }],
+        },
+        select: { id: true, batchId: true, fileId: true, fileType: true },
+        orderBy: { createdAt: "desc" },
+      });
+
+      for (const candidate of candidateIds) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        detail = pendingDetails.find(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (d: any) =>
+            d.fileId &&
+            (d.fileId.toLowerCase().includes(candidate.toLowerCase()) ||
+              candidate.toLowerCase().includes(d.fileId.toLowerCase()))
+        );
+        if (detail) break;
+      }
+    }
+
+    // Fallback 2: Take oldest pending detailBatch in a PROSES batch
+    if (!detail) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      detail = await (db as any).detailBatch.findFirst({
+        where: {
+          OR: [{ isi: null }, { isi: "" }],
+          batch: {
+            status: "PROSES",
+          },
+        },
+        select: { id: true, batchId: true, fileId: true, fileType: true },
+        orderBy: { createdAt: "asc" },
+      });
+    }
+
+    if (!detail) {
+      console.warn("[Webhook] No matching detailBatch found in DB.");
+      return NextResponse.json({ success: false, message: "No matching detailBatch record found" }, { status: 200 });
+    }
+
+    console.log(`[Webhook] Matched detailBatch id=${detail.id}, batchId=${detail.batchId}, fileType=${detail.fileType}`);
+
+    // STEP 3 LOG: Webhook Event Received for file
+    await createBatchLog({
+      batchId: detail.batchId,
+      step: "OCR_WEBHOOK",
+      stepNumber: 3,
+      level: "SUCCESS",
+      title: `Webhook Callback Diterima: ${detail.fileType}`,
+      message: `Menerima payload callback dari Nanonets OCR untuk dokumen "${detail.fileType}" (ID: ${detail.fileId}).`,
+      fileType: detail.fileType,
+      details: { detailId: detail.id, fileId: detail.fileId, candidateIds },
     });
 
-    console.log("[Webhook] Matched detail:", detail
-      ? `id=${detail.id} batchId=${detail.batchId} fileId=${detail.fileId} fileType=${detail.fileType}`
-      : `NOT FOUND (candidates: ${candidateIds.join(", ")})`
-    );
-
-    // 4. Filter prediction → minimal { fields, table }
-    const filtered = filterCategoryData(body, detail?.fileType ?? "PIB");
+    // 4. Filter prediction according to detail.fileType
+    const filtered = filterCategoryData(body, detail.fileType || "PIB");
     const jsonContent = JSON.stringify(filtered);
 
-    // 5. Update detail_batches.isi
-    const targetFileId = detail?.fileId ? detail.fileId : candidateIds[0];
-
+    // 5. Update detailBatch.isi by ID!
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const updateRes = await (db as any).detailBatch.updateMany({
-      where: {
-        fileId: detail?.fileId ? detail.fileId : { in: candidateIds },
-      },
+    await (db as any).detailBatch.update({
+      where: { id: detail.id },
       data: { isi: jsonContent },
     });
 
-    console.log(`[Webhook DB] updated=${updateRes.count} rows for fileId="${targetFileId}"`);
+    console.log(`[Webhook DB] Successfully updated detailBatch id=${detail.id}`);
 
-    // 6. Cek kelengkapan Batch & hitung status MATCHING / MISMATCHING otomatis
-    const batchId = detail?.batchId;
-    let batchStatusUpdated: string | null = null;
+    const fieldCount = Object.keys(filtered.fields || {}).length;
+    const tableCount = (filtered.table || []).length;
+
+    // STEP 4 LOG: Data Extracted & Restructured
+    await createBatchLog({
+      batchId: detail.batchId,
+      step: "DATA_EXTRACTED",
+      stepNumber: 4,
+      level: "SUCCESS",
+      title: `Ekstraksi Data Kategori ${detail.fileType}`,
+      message: `Berhasil mengekstrak ${fieldCount} bidang data utama dan ${tableCount} baris tabel untuk ${detail.fileType}.`,
+      fileType: detail.fileType,
+      details: filtered,
+    });
+
+    // 6. Check batch completeness & evaluate matching status
+    const batchId = detail.batchId;
+    let updatedBatchStatus: string | null = null;
 
     if (batchId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -97,44 +175,71 @@ export async function POST(req: Request) {
       });
 
       if (batch && Array.isArray(batch.details)) {
-        const completedDetails = batch.details.filter(
+        const filledDetails = batch.details.filter(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (d: any) => typeof d.isi === "string" && d.isi.trim().length > 0
         );
 
-        const isBatchComplete =
+        const isComplete =
           batch.details.length >= (batch.totalFile || 1) &&
-          completedDetails.length === batch.details.length;
+          filledDetails.length === batch.details.length;
 
-        if (isBatchComplete) {
-          // Evaluasi matching lintas file dalam 1 batch
+        if (isComplete) {
           const matchResult = evaluateBatchMatching(batch.details);
-
-          // Update status batch di MySQL (MATCHING / MISMATCHING)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (db as any).batch.update({
             where: { id: batchId },
             data: { status: matchResult },
           });
+          updatedBatchStatus = matchResult;
+          console.log(`[Webhook] Batch #${batchId} status updated to ${matchResult}`);
 
-          batchStatusUpdated = matchResult;
-          console.log(`[Batch Status Update] Batch #${batchId} COMPLETED (${completedDetails.length}/${batch.totalFile}). Status updated to "${matchResult}".`);
+          // STEP 5 LOG: Matching Cross-Check Evaluated
+          await createBatchLog({
+            batchId,
+            step: "MATCHING_EVAL",
+            stepNumber: 5,
+            level: matchResult === "MATCHING" ? "SUCCESS" : "WARNING",
+            title: "Evaluasi Pencocokan Seluruh Dokumen",
+            message: `Seluruh dokumen pendukung selesai diolah. Hasil evaluasi cross-check: ${matchResult}.`,
+            details: { status: matchResult, totalFilesProcessed: filledDetails.length },
+          });
+
+          // STEP 6 LOG: Data Sempurna (Completion)
+          await createBatchLog({
+            batchId,
+            step: "COMPLETED",
+            stepNumber: 6,
+            level: matchResult === "MATCHING" ? "SUCCESS" : "WARNING",
+            title: "Data Sempurna",
+            message: `Pemrosesan batch #${batchId} telah rampung sempurna. Seluruh data siap diverifikasi dan diekspor.`,
+            details: { status: matchResult },
+          });
         } else {
-          console.log(`[Batch Progress] Batch #${batchId} status remains PROSES (${completedDetails.length}/${batch.totalFile || batch.details.length} files filled).`);
+          // STEP 5 LOG Partial Progress
+          await createBatchLog({
+            batchId,
+            step: "MATCHING_EVAL",
+            stepNumber: 5,
+            level: "INFO",
+            title: "Progres Evaluasi Batch",
+            message: `Dokumen ${detail.fileType} selesai (${filledDetails.length}/${batch.totalFile || batch.details.length} file terisi). Menunggu sisa dokumen.`,
+            details: { filledCount: filledDetails.length, totalFiles: batch.totalFile },
+          });
         }
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: "Webhook processed successfully",
-      matchedFileId: targetFileId,
-      updatedCount: updateRes.count,
-      batchId: batchId || null,
-      batchStatus: batchStatusUpdated,
+      message: "Webhook processed and batch updated successfully",
+      detailId: detail.id,
+      batchId,
+      batchStatus: updatedBatchStatus,
     });
   } catch (error: unknown) {
-    console.error("[Webhook] Error:", error);
-    return NextResponse.json({ success: false, message: "Server error" }, { status: 200 });
+    console.error("[Webhook] Error processing:", error);
+    return NextResponse.json({ success: false, message: "Internal server error" }, { status: 200 });
   }
 }
+

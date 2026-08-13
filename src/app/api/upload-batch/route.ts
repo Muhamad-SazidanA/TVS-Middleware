@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { env } from "~/env";
 import { db } from "~/server/db";
-import { getModelIdForCategory, extractNanonetsId } from "~/server/nanonets";
+import { getModelIdForCategory, extractNanonetsId, filterCategoryData } from "~/server/nanonets";
+import { createBatchLog } from "~/server/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,17 @@ export async function POST(req: Request) {
 
     const batchId = batch?.id || formattedBatchId;
 
+    // STEP 1 LOG: Batch Created & File Upload Initialized
+    await createBatchLog({
+      batchId,
+      step: "UPLOAD_INIT",
+      stepNumber: 1,
+      level: "SUCCESS",
+      title: "Inisiasi Upload Batch",
+      message: `Batch #${batchId} berhasil dibuat dengan total ${files.length} file dokumen.`,
+      details: { totalFile: files.length, fileNames: files.map((f) => f.name), categories },
+    });
+
     // 2. Dispatch all files in parallel via async=true to Nanonets OCR
     const results: ProcessFileResult[] = await Promise.all(
       files.map(async (file, index) => {
@@ -97,6 +109,19 @@ export async function POST(req: Request) {
           if (!res.ok) {
             const errorMsg = jsonResponse?.message || `HTTP ${res.status}: ${res.statusText}`;
 
+            // STEP 2 LOG ERROR
+            await createBatchLog({
+              batchId,
+              step: "OCR_DISPATCH",
+              stepNumber: 2,
+              level: "ERROR",
+              title: `Gagal Kirim OCR: ${category}`,
+              message: `Gagal mengirim file "${file.name}" ke Nanonets OCR: ${errorMsg}`,
+              fileType: category,
+              fileName: file.name,
+              details: { error: errorMsg },
+            });
+
             return {
               fileName: file.name,
               category,
@@ -108,19 +133,7 @@ export async function POST(req: Request) {
             };
           }
 
-          // DEBUG: Log Nanonets upload response structure
-          console.log(`[Upload] Nanonets response keys for "${file.name}":`, Object.keys(jsonResponse || {}));
-          if (jsonResponse?.result && !Array.isArray(jsonResponse.result)) {
-            console.log(`[Upload] result is OBJECT, keys:`, Object.keys(jsonResponse.result));
-            console.log(`[Upload] result.request_file_id:`, jsonResponse.result?.request_file_id);
-            console.log(`[Upload] result.request_id:`, jsonResponse.result?.request_id);
-          } else if (Array.isArray(jsonResponse?.result)) {
-            console.log(`[Upload] result is ARRAY[${jsonResponse.result.length}], result[0].request_file_id:`, jsonResponse.result[0]?.request_file_id);
-          }
-          console.log(`[Upload] top-level request_file_id:`, jsonResponse?.request_file_id);
-          console.log(`[Upload] top-level request_id:`, jsonResponse?.request_id);
-
-          // Extract request_file_id — handle both result as object and as array
+          // Extract request_file_id
           const requestFileId =
             jsonResponse?.result?.[0]?.request_file_id ||
             jsonResponse?.result?.request_file_id ||
@@ -132,9 +145,59 @@ export async function POST(req: Request) {
           
           console.log(`[Upload] Final requestFileId stored as fileId: "${requestFileId}"`);
 
-          console.log(`Saved request_file_id "${requestFileId}" for category "${category}" in batch #${batch?.id}`);
+          // STEP 2 LOG SUCCESS: File dispatched to Nanonets OCR
+          await createBatchLog({
+            batchId,
+            step: "OCR_DISPATCH",
+            stepNumber: 2,
+            level: "INFO",
+            title: `Pengiriman OCR: ${category}`,
+            message: `File "${file.name}" (${category}) berhasil dikirim ke Nanonets OCR Model (${modelId}). Request File ID: "${requestFileId}"`,
+            fileType: category,
+            fileName: file.name,
+            details: { modelId, requestFileId },
+          });
 
-          // Save strictly request_file_id into detail_batches table: batchId, fileType, fileId (request_file_id), isi (null)
+          // Check if predictions exist directly in upload response
+          let initialIsi: string | null = null;
+          try {
+            const hasPrediction =
+              jsonResponse?.result?.[0]?.prediction ||
+              jsonResponse?.result?.prediction ||
+              jsonResponse?.prediction;
+            if (hasPrediction) {
+              const filtered = filterCategoryData(jsonResponse, category);
+              initialIsi = JSON.stringify(filtered);
+
+              // STEP 3 & 4 LOGS for direct inline prediction
+              await createBatchLog({
+                batchId,
+                step: "OCR_COMPLETE",
+                stepNumber: 3,
+                level: "SUCCESS",
+                title: `OCR Langsung Selesai: ${category}`,
+                message: `Hasil OCR file "${file.name}" langsung diterima dari respons upload.`,
+                fileType: category,
+                fileName: file.name,
+              });
+
+              await createBatchLog({
+                batchId,
+                step: "DATA_EXTRACTED",
+                stepNumber: 4,
+                level: "SUCCESS",
+                title: `Ekstraksi Data: ${category}`,
+                message: `Data ${category} berhasil difilter dan tersimpan di database.`,
+                fileType: category,
+                fileName: file.name,
+                details: filtered,
+              });
+            }
+          } catch {
+            initialIsi = null;
+          }
+
+          // Save request_file_id into detail_batches table
           if (batch?.id && requestFileId) {
             try {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -142,8 +205,8 @@ export async function POST(req: Request) {
                 data: {
                   batchId: batch.id,
                   fileType: category,
-                  fileId: requestFileId, // Strictly request_file_id per file
-                  isi: null, // Populated asynchronously by Nanonets Webhook
+                  fileId: requestFileId,
+                  isi: initialIsi,
                 },
               });
             } catch (err) {
@@ -162,6 +225,17 @@ export async function POST(req: Request) {
         } catch (fetchErr: unknown) {
           const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
 
+          await createBatchLog({
+            batchId,
+            step: "OCR_DISPATCH",
+            stepNumber: 2,
+            level: "ERROR",
+            title: `Error Pengiriman OCR: ${category}`,
+            message: `Terjadi kendala jaringan saat pengiriman file "${file.name}": ${errMsg}`,
+            fileType: category,
+            fileName: file.name,
+          });
+
           return {
             fileName: file.name,
             category,
@@ -174,21 +248,61 @@ export async function POST(req: Request) {
       })
     );
 
-    // Update Batch status in DB (PROSES while awaiting asynchronous Webhook callbacks from Nanonets)
+    // Evaluate final batch status
     const failedCount = results.filter((r) => r.status === "FAILED").length;
-    const finalBatchStatus =
-      failedCount === results.length ? "FAILED" : "PROSES";
+    let finalBatchStatus = failedCount === results.length ? "FAILED" : "PROSES";
 
-    if (batch?.id) {
+    if (batch?.id && finalBatchStatus !== "FAILED") {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (db as any).batch.update({
+        const fullBatch = await (db as any).batch.findUnique({
           where: { id: batch.id },
-          data: { status: finalBatchStatus },
+          include: { details: true },
         });
+
+        if (fullBatch && Array.isArray(fullBatch.details)) {
+          const filled = fullBatch.details.filter(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (d: any) => typeof d.isi === "string" && d.isi.trim().length > 0
+          );
+          if (filled.length === fullBatch.details.length && fullBatch.details.length > 0) {
+            const { evaluateBatchMatching } = await import("~/server/nanonets");
+            const matchResult = evaluateBatchMatching(fullBatch.details);
+            finalBatchStatus = matchResult;
+          }
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (db as any).batch.update({
+            where: { id: batch.id },
+            data: { status: finalBatchStatus },
+          });
+        }
       } catch (err) {
-        console.warn("Batch status update failed:", err);
+        console.warn("Batch status evaluation failed:", err);
       }
+    }
+
+    // STEP 5 & STEP 6 LOGS
+    await createBatchLog({
+      batchId,
+      step: "MATCHING_EVAL",
+      stepNumber: 5,
+      level: finalBatchStatus === "MATCHING" ? "SUCCESS" : finalBatchStatus === "MISMATCHING" ? "WARNING" : "INFO",
+      title: "Evaluasi Pencocokan Document Batch",
+      message: `Evaluasi awal batch #${batchId} menghasilkan status: ${finalBatchStatus}`,
+      details: { finalBatchStatus },
+    });
+
+    if (finalBatchStatus === "MATCHING" || finalBatchStatus === "MISMATCHING") {
+      await createBatchLog({
+        batchId,
+        step: "COMPLETED",
+        stepNumber: 6,
+        level: finalBatchStatus === "MATCHING" ? "SUCCESS" : "WARNING",
+        title: "Data Sempurna",
+        message: `Pemrosesan batch #${batchId} telah rampung sempurna dengan status akhir: ${finalBatchStatus}.`,
+        details: { status: finalBatchStatus },
+      });
     }
 
     return NextResponse.json({
@@ -208,3 +322,4 @@ export async function POST(req: Request) {
     );
   }
 }
+

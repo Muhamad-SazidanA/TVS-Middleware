@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "~/server/db";
+import { evaluateDbBatchStatus } from "../route";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,18 @@ export async function GET(
 
     if (!batch) {
       return NextResponse.json({ error: "Batch tidak ditemukan" }, { status: 404 });
+    }
+
+    // Evaluate live status from DB details
+    const evaluatedStatus = evaluateDbBatchStatus(batch.details || [], batch.totalFile);
+    const dbStatusStr = evaluatedStatus === "Matching" ? "MATCHING" : evaluatedStatus === "Mismatching" ? "MISMATCHING" : "PROSES";
+    if (batch.status !== dbStatusStr) {
+      batch.status = dbStatusStr;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (db as any).batch.update({
+        where: { id },
+        data: { status: dbStatusStr },
+      }).catch((e: unknown) => console.warn("Failed async DB status update:", e));
     }
 
     return NextResponse.json({ success: true, batch });

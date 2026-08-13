@@ -63,12 +63,14 @@ export function extractNanonetsId(payload: any): string | null {
 // ─── Target labels per category (normalized: lowercase, space, no dots) ───────
 
 const PIB_FIELDS = new Set([
-  "nomor pengajuan", "alamat importir", "alamat pemilik barang", "alamat pengirim",
-  "alamat penjual", "berat bersih", "berat kotor", "house bl date", "invoice date",
-  "invoice number", "jumlah", "master bl date", "merk", "nama importir",
-  "nama pemilik barang", "nama pengirim", "nama penjual", "nama sarana pengangkutan",
-  "nilai", "no house bl", "no master bl", "no peti", "no voy",
+  "nomor pengajuan", "no pengajuan", "no aju", "nomor aju",
+  "alamat importir", "alamat pemilik barang", "alamat pengirim", "alamat penjual",
+  "berat bersih", "berat kotor", "house bl date", "invoice date", "invoice number",
+  "jumlah", "master bl date", "merk", "nama importir", "nama pemilik barang",
+  "nama pengirim", "nama penjual", "nama sarana pengangkutan", "nilai",
+  "no house bl", "house bl", "no master bl", "master bl", "no peti", "peti", "no voy", "voy",
   "pelabuhan muat", "pelabuhan tujuan", "tipe peti",
+  "ket fob", "cara penyerahan", "incoterm", "terms of delivery", "fob",
 ]);
 const PIB_TABLE = new Set(["pos tarif", "kode barang", "uraian", "jumlah barang", "jenis satuan barang"]);
 
@@ -76,7 +78,7 @@ const PIB_LANJUTAN_TABLE = new Set(["nama document", "no document", "tanggal doc
 
 const REKAP_TABLE = new Set(["no part", "part no", "desc", "part desc", "qty", "hs code", "sat"]);
 
-const INVOICE_FIELDS = new Set(["consignee", "exporter", "invoice date", "invoice number", "port of loading", "term of delivery", "terms of delivery", "total"]);
+const INVOICE_FIELDS = new Set(["consignee", "exporter", "invoice date", "invoice number", "port of loading", "destination", "term of delivery", "terms of delivery", "total"]);
 
 const PACKING_FIELDS = new Set(["invoice date", "invoice number", "total net weight"]);
 

@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 // SVG Icons
+
 const SearchIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path
@@ -153,8 +154,37 @@ const getVal = (fields?: Record<string, string>, ...keys: string[]) => {
   return "-";
 };
 
+function parseNumericValue(val: any): number {
+  if (val === undefined || val === null || val === "" || val === "-") return 0;
+  const s = String(val).trim();
+  const cleaned = s.replace(/[^0-9.,]/g, "");
+  if (!cleaned) return 0;
+
+  if (cleaned.includes(",") && cleaned.includes(".")) {
+    if (cleaned.lastIndexOf(",") > cleaned.lastIndexOf(".")) {
+      return parseFloat(cleaned.replace(/\./g, "").replace(",", ".")) || 0;
+    } else {
+      return parseFloat(cleaned.replace(/,/g, "")) || 0;
+    }
+  } else if (cleaned.includes(",")) {
+    const parts = cleaned.split(",");
+    if (parts.length > 2 || (parts[1] && parts[1].length === 3)) {
+      return parseFloat(cleaned.replace(/,/g, "")) || 0;
+    } else {
+      return parseFloat(cleaned.replace(",", ".")) || 0;
+    }
+  } else {
+    return parseFloat(cleaned) || 0;
+  }
+}
+
+function formatNumericValue(num: number): string {
+  if (isNaN(num) || num === 0) return "0";
+  return num.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 4 });
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function checkDetailFileMatch(pibData: any, pibLanjutanData: any, detail: any): boolean {
+function checkDetailFileMatch(pibData: any, pibLanjutanData: any, detail: any, allDetails?: any[]): boolean {
   if (!detail || !detail.isi) return false;
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -191,9 +221,41 @@ function checkDetailFileMatch(pibData: any, pibLanjutanData: any, detail: any): 
 
       if (!isMatch(getPib("Invoice_Date", "Invoice Date"), getF("Invoice_Date", "Invoice Date"))) return false;
       if (!isMatch(getPib("Pelabuhan_Muat", "Pelabuhan Muat"), getF("Port_of_Loading", "Port of Loading"))) return false;
+      
+      const pibDest = getPib("Pelabuhan_Tujuan", "Pelabuhan Tujuan");
+      const invDest = getF("Destination", "destination");
+      if (pibDest && invDest && pibDest !== "-" && invDest !== "-") {
+        const cd = invDest.trim().toLowerCase();
+        const cpd = pibDest.trim().toLowerCase();
+        if (cd !== cpd && !cd.includes(cpd) && !cpd.includes(cd)) return false;
+      }
       if (!isMatch(getPib("Nama_Penjual", "Nama Penjual"), getF("Exporter"))) return false;
       if (!isMatch(getPib("Nama_Importir", "Nama Importir"), getF("Consignee"))) return false;
-      if (!isMatch(getPib("Nilai", "Nilai Total"), getF("Total"))) return false;
+      if (!isMatch(getPib("Ket_FOB", "Ket FOB", "Incoterm", "Terms_of_Delivery", "Cara_Penyerahan"), getF("Terms_of_Delivery", "Terms of Delivery", "Incoterm", "Delivery_Terms"))) return false;
+
+      // Invoice Total Check (Single vs Multiple Invoices)
+      const allInvDetails = (allDetails || []).filter((d: any) =>
+        (d.fileType || "").trim().toLowerCase().includes("invoice")
+      );
+      const pibTotalVal = getPib("Nilai", "Nilai Total");
+      const pibTotalNum = parseNumericValue(pibTotalVal);
+
+      if (allInvDetails.length > 1 && pibTotalNum > 0) {
+        const sumAllInvoices = allInvDetails.reduce((sum: number, d: any) => {
+          const p = typeof d.isi === "string" ? JSON.parse(d.isi) : d.isi;
+          const f = p?.fields || {};
+          return sum + parseNumericValue(getVal(f, "Total", "Nilai Total"));
+        }, 0);
+        if (sumAllInvoices > 0 && Math.abs(pibTotalNum - sumAllInvoices) > 0.01) {
+          return false;
+        }
+      } else if (pibTotalNum > 0) {
+        const invTotalNum = parseNumericValue(getF("Total", "Nilai Total"));
+        if (invTotalNum > 0 && Math.abs(pibTotalNum - invTotalNum) > 0.01) {
+          return false;
+        }
+      }
+
       return true;
     }
 
@@ -216,7 +278,31 @@ function checkDetailFileMatch(pibData: any, pibLanjutanData: any, detail: any): 
       if (!invNoMatch) return false;
 
       if (!isMatch(getPib("Invoice_Date", "Invoice Date"), getF("Invoice_Date", "Invoice Date"))) return false;
-      if (!isMatch(getPib("Berat_Bersih", "Berat Bersih"), getF("Total_Net_Weight", "Total Net Weight"))) return false;
+
+      // Packing List Net Weight Check (Single vs Multiple Packing Lists)
+      const allPkgDetails = (allDetails || []).filter((d: any) => {
+        const f = (d.fileType || "").trim().toLowerCase();
+        return f.includes("packing") || f.includes("paking");
+      });
+      const pibNetWtVal = getPib("Berat_Bersih", "Berat Bersih");
+      const pibNetWtNum = parseNumericValue(pibNetWtVal);
+
+      if (allPkgDetails.length > 1 && pibNetWtNum > 0) {
+        const sumAllPkgWts = allPkgDetails.reduce((sum: number, d: any) => {
+          const p = typeof d.isi === "string" ? JSON.parse(d.isi) : d.isi;
+          const f = p?.fields || {};
+          return sum + parseNumericValue(getVal(f, "Total_Net_Weight", "Total Net Weight", "Net_Weight", "Net Weight", "Berat_Bersih", "Berat Bersih"));
+        }, 0);
+        if (sumAllPkgWts > 0 && Math.abs(pibNetWtNum - sumAllPkgWts) > 0.01) {
+          return false;
+        }
+      } else if (pibNetWtNum > 0) {
+        const pkgNetWtNum = parseNumericValue(getF("Total_Net_Weight", "Total Net Weight", "Net_Weight", "Net Weight", "Berat_Bersih", "Berat Bersih"));
+        if (pkgNetWtNum > 0 && Math.abs(pibNetWtNum - pkgNetWtNum) > 0.01) {
+          return false;
+        }
+      }
+
       return true;
     }
 
@@ -240,19 +326,27 @@ function checkDetailFileMatch(pibData: any, pibLanjutanData: any, detail: any): 
     if (ft.includes("rekap")) {
       const pibTable = pibData?.table || [];
       const maxRows = Math.max(pibTable.length, table.length);
+      if (maxRows === 0) return true;
       for (let i = 0; i < maxRows; i++) {
         const pibRow = pibTable[i] || {};
         const rekapRow = table[i] || {};
-        const pibHs = (pibRow["Pos_Tarif"] || "").trim().toLowerCase();
-        const rekapHs = (rekapRow["HS_Code"] || rekapRow["hs code"] || "").trim().toLowerCase();
-        const pibPart = (pibRow["Kode_Barang"] || "").trim().toLowerCase();
-        const rekapPart = (rekapRow["Part_No"] || rekapRow["part_no"] || "").trim().toLowerCase();
-        const pibQty = (pibRow["Jumlah_Barang"] || "").trim().toLowerCase();
-        const rekapQty = (rekapRow["QTY"] || rekapRow["qty"] || "").trim().toLowerCase();
+        const pibHs = (pibRow["Pos_Tarif"] || pibRow["pos tarif"] || pibRow["pos_tarif"] || pibRow["HS_Code"] || pibRow["hs code"] || "").trim();
+        const rekapHs = (rekapRow["HS_Code"] || rekapRow["hs code"] || rekapRow["pos tarif"] || rekapRow["pos_tarif"] || rekapRow["Pos_Tarif"] || "").trim();
+        const pibPart = (pibRow["Kode_Barang"] || pibRow["kode barang"] || pibRow["kode_barang"] || pibRow["Part_No"] || pibRow["part_no"] || "").trim();
+        const rekapPart = (rekapRow["Part_No"] || rekapRow["part_no"] || rekapRow["no part"] || rekapRow["part no"] || rekapRow["Kode_Barang"] || rekapRow["kode_barang"] || rekapRow["kode barang"] || "").trim();
+        const pibQty = (pibRow["Jumlah_Barang"] || pibRow["jumlah barang"] || pibRow["jumlah_barang"] || pibRow["QTY"] || pibRow["qty"] || pibRow["jumlah"] || "").trim();
+        const rekapQty = (rekapRow["QTY"] || rekapRow["qty"] || rekapRow["jumlah"] || rekapRow["jumlah_barang"] || rekapRow["jumlah barang"] || "").trim();
 
-        if (pibHs && rekapHs && pibHs !== rekapHs) return false;
-        if (pibPart && rekapPart && pibPart !== rekapPart) return false;
-        if (pibQty && rekapQty && pibQty !== rekapQty) return false;
+        const cleanVal = (s: string) => s.toLowerCase().trim();
+        const cleanNum = (s: string) => s.toLowerCase().replace(/,/g, "").replace(/\.00$/, "").replace(/\s+/g, "").trim();
+
+        const hasBoth = Boolean((pibHs || pibPart || pibQty) && (rekapHs || rekapPart || rekapQty));
+        const isHsMatch = pibHs !== "" && rekapHs !== "" && cleanVal(pibHs) === cleanVal(rekapHs);
+        const isPartMatch = pibPart !== "" && rekapPart !== "" && cleanVal(pibPart) === cleanVal(rekapPart);
+        const isQtyMatch = pibQty !== "" && rekapQty !== "" && cleanNum(pibQty) === cleanNum(rekapQty);
+
+        const isRowMatch = hasBoth && (isHsMatch || isPartMatch) && (isQtyMatch || !pibQty || !rekapQty);
+        if (hasBoth && !isRowMatch) return false;
       }
       return true;
     }
@@ -349,8 +443,10 @@ const getBatchComparisonReport = (batch: BatchItem) => {
         checkField(docLabel, "Invoice Number", pibInvNum, invNum, invMatch);
         checkField(docLabel, "Invoice Date", getVal(pibData.fields, "Invoice_Date", "Invoice Date"), getVal(data.fields, "Invoice_Date", "Invoice Date"));
         checkField(docLabel, "Port of Loading", getVal(pibData.fields, "Pelabuhan_Muat", "Pelabuhan Muat"), getVal(data.fields, "Port_of_Loading", "Port of Loading"));
+        checkField(docLabel, "Destination", getVal(pibData.fields, "Pelabuhan_Tujuan", "Pelabuhan Tujuan"), getVal(data.fields, "Destination", "destination"));
         checkField(docLabel, "Exporter", getVal(pibData.fields, "Nama_Penjual", "Nama Penjual"), getVal(data.fields, "Exporter"));
         checkField(docLabel, "Consignee", getVal(pibData.fields, "Nama_Importir", "Nama Importir"), getVal(data.fields, "Consignee"));
+        checkField(docLabel, "Terms of Delivery", getVal(pibData.fields, "Ket_FOB", "Ket FOB", "Incoterm", "Terms_of_Delivery", "Cara_Penyerahan"), getVal(data.fields, "Terms_of_Delivery", "Terms of Delivery", "Incoterm", "Delivery_Terms"));
         checkField(docLabel, "Total", getVal(pibData.fields, "Nilai", "Nilai Total"), getVal(data.fields, "Total"));
       } else if (ftLower.includes("packing") || ftLower.includes("paking")) {
         const pkgInv = getVal(data.fields, "Invoice_Number", "Invoice Number");
@@ -369,7 +465,26 @@ const getBatchComparisonReport = (batch: BatchItem) => {
         }
         checkField(docLabel, "Invoice Number", pibInvNum, pkgInv, invMatch);
         checkField(docLabel, "Invoice Date", getVal(pibData.fields, "Invoice_Date", "Invoice Date"), getVal(data.fields, "Invoice_Date", "Invoice Date"));
-        checkField(docLabel, "Total Net Weight", getVal(pibData.fields, "Berat_Bersih", "Berat Bersih"), getVal(data.fields, "Total_Net_Weight", "Total Net Weight"));
+
+        // Net weight check (single vs multi packing list)
+        const pibNetWtVal = getVal(pibData.fields, "Berat_Bersih", "Berat Bersih");
+        const pkgNetWtVal = getVal(data.fields, "Total_Net_Weight", "Total Net Weight", "Net_Weight", "Net Weight", "Berat_Bersih", "Berat Bersih");
+        const allPkgDets = (batch.details || []).filter((d) => {
+          const f = (d.fileType || "").trim().toLowerCase();
+          return f.includes("packing") || f.includes("paking");
+        });
+
+        if (allPkgDets.length > 1) {
+          const sumPkgWts = allPkgDets.reduce((acc, d) => {
+            const p = parseIsi(d.isi);
+            return acc + parseNumericValue(getVal(p.fields, "Total_Net_Weight", "Total Net Weight", "Net_Weight", "Net Weight", "Berat_Bersih", "Berat Bersih"));
+          }, 0);
+          const pibWtNum = parseNumericValue(pibNetWtVal);
+          const isWtMatch = pibWtNum > 0 && sumPkgWts > 0 && Math.abs(pibWtNum - sumPkgWts) < 0.01;
+          checkField(docLabel, `Total Net Weight (${docLabel})`, pibNetWtVal, pkgNetWtVal, isWtMatch);
+        } else {
+          checkField(docLabel, "Total Net Weight", pibNetWtVal, pkgNetWtVal);
+        }
       } else if (ftLower === "bl" || (ftLower.includes("bl") && !ftLower.includes("master"))) {
         checkField(docLabel, "Sea Waybill Number", getVal(pibData.fields, "No_House_BL", "No House BL"), getVal(data.fields, "Sea_Waybill_Number", "Sea Waybill Number"));
         checkField(docLabel, "Date", getVal(pibData.fields, "House_BL_Date", "House BL Date"), getVal(data.fields, "Date"));
@@ -386,68 +501,171 @@ const getBatchComparisonReport = (batch: BatchItem) => {
         for (let i = 0; i < maxRows; i++) {
           const pibRow = pibData.table[i] || {};
           const rekapRow = data.table[i] || {};
-          const pibHs = (pibRow["Pos_Tarif"] || "").trim();
-          const rekapHs = (rekapRow["HS_Code"] || rekapRow["hs code"] || "").trim();
-          const pibPart = (pibRow["Kode_Barang"] || "").trim();
-          const rekapPart = (rekapRow["Part_No"] || rekapRow["part_no"] || "").trim();
-          const pibQty = (pibRow["Jumlah_Barang"] || "").trim();
-          const rekapQty = (rekapRow["QTY"] || rekapRow["qty"] || "").trim();
+          const pibHs = (pibRow["Pos_Tarif"] || pibRow["pos tarif"] || pibRow["pos_tarif"] || pibRow["HS_Code"] || pibRow["hs code"] || "").trim();
+          const rekapHs = (rekapRow["HS_Code"] || rekapRow["hs code"] || rekapRow["pos tarif"] || rekapRow["pos_tarif"] || rekapRow["Pos_Tarif"] || "").trim();
+          const pibPart = (pibRow["Kode_Barang"] || pibRow["kode barang"] || pibRow["kode_barang"] || pibRow["Part_No"] || pibRow["part_no"] || "").trim();
+          const rekapPart = (rekapRow["Part_No"] || rekapRow["part_no"] || rekapRow["no part"] || rekapRow["part no"] || rekapRow["Kode_Barang"] || rekapRow["kode_barang"] || rekapRow["kode barang"] || "").trim();
+          const pibQty = (pibRow["Jumlah_Barang"] || pibRow["jumlah barang"] || pibRow["jumlah_barang"] || pibRow["QTY"] || pibRow["qty"] || pibRow["jumlah"] || "").trim();
+          const rekapQty = (rekapRow["QTY"] || rekapRow["qty"] || rekapRow["jumlah"] || rekapRow["jumlah_barang"] || rekapRow["jumlah barang"] || "").trim();
 
-          checkField(docLabel, `Item #${i + 1} HS Code`, pibHs, rekapHs);
-          checkField(docLabel, `Item #${i + 1} Part No`, pibPart, rekapPart);
-          checkField(docLabel, `Item #${i + 1} Qty`, pibQty, rekapQty);
+          const cleanVal = (s: string) => s.toLowerCase().trim();
+          const cleanNum = (s: string) => s.toLowerCase().replace(/,/g, "").replace(/\.00$/, "").replace(/\s+/g, "").trim();
+
+          const isHsMatch = pibHs !== "" && rekapHs !== "" && cleanVal(pibHs) === cleanVal(rekapHs);
+          const isPartMatch = pibPart !== "" && rekapPart !== "" && cleanVal(pibPart) === cleanVal(rekapPart);
+          const isQtyMatch = pibQty !== "" && rekapQty !== "" && cleanNum(pibQty) === cleanNum(rekapQty);
+
+          checkField(docLabel, `Item #${i + 1} HS Code`, pibHs, rekapHs, isHsMatch);
+          checkField(docLabel, `Item #${i + 1} Part No`, pibPart, rekapPart, isPartMatch);
+          checkField(docLabel, `Item #${i + 1} Qty`, pibQty, rekapQty, isQtyMatch);
         }
       }
     }
   }
 
   return { allFields, mismatches };
-};
-
-const exportBatchExcel = (batch: BatchItem) => {
+};const exportBatchExcel = (batch: BatchItem) => {
   const { allFields, mismatches } = getBatchComparisonReport(batch);
 
-  const rows: string[][] = [];
-  rows.push(["TVS MIDDLEWARE - LAPORAN MATCHING BATCH"]);
-  rows.push(["Batch ID", batch.id]);
-  rows.push(["Nama Batch", batch.nama]);
-  rows.push(["Status Batch Utama", batch.status]);
-  rows.push(["Total File", String(batch.totalFile)]);
-  rows.push(["Jumlah Field Mismatching", String(mismatches.length)]);
-  rows.push(["Tanggal Evaluasi", batch.subtext || "-"]);
-  rows.push([]);
-
-  // SECTION 1: CATATAN DETAIL FIELD MISMATCHING
-  rows.push(["=== DAFTAR FIELD MISMATCHING (DATA TIDAK COCOK / BERBEDA) ==="]);
-  rows.push(["Dokumen Pembanding", "Nama Field", "Nilai PIB (Acuan Utama)", "Nilai Dokumen Pembanding", "Penjelasan Ketidakcocokan"]);
-
-  if (mismatches.length === 0) {
-    rows.push(["-", "Semua Field Matching", "-", "-", "Seluruh data dokumen pendukung 100% cocok dengan PIB."]);
-  } else {
+  let mismatchRowsHtml = "";
+  if (mismatches.length > 0) {
     for (const m of mismatches) {
-      rows.push([m.documentType, m.fieldName, m.pibValue, m.pembandingValue, m.notes]);
+      mismatchRowsHtml += `
+        <tr>
+          <td style="border: 1px solid #fecdd3; background-color: #fff1f2; padding: 6px 10px; font-weight: bold; color: #9f1239; text-align: left; vertical-align: top; word-break: break-word; white-space: normal; mso-wrap-text: true;">${m.documentType}</td>
+          <td style="border: 1px solid #fecdd3; background-color: #fff1f2; padding: 6px 10px; font-weight: bold; text-align: left; vertical-align: top; word-break: break-word; white-space: normal; mso-wrap-text: true;">${m.fieldName}</td>
+          <td style="border: 1px solid #fecdd3; background-color: #fff1f2; padding: 6px 10px; font-family: Consolas, monospace; color: #1e3a8a; text-align: left; vertical-align: top; word-break: break-word; white-space: normal; mso-wrap-text: true;">${m.pibValue}</td>
+          <td style="border: 1px solid #fecdd3; background-color: #fff1f2; padding: 6px 10px; font-family: Consolas, monospace; color: #b91c1c; font-weight: bold; text-align: left; vertical-align: top; word-break: break-word; white-space: normal; mso-wrap-text: true;">${m.pembandingValue}</td>
+          <td style="border: 1px solid #fecdd3; background-color: #fff1f2; padding: 6px 10px; font-size: 10pt; color: #9f1239; text-align: left; vertical-align: top; word-break: break-word; white-space: normal; mso-wrap-text: true;">${m.notes}</td>
+        </tr>
+      `;
     }
+  } else {
+    mismatchRowsHtml = `
+      <tr>
+        <td colspan="5" style="border: 1px solid #a7f3d0; background-color: #ecfdf5; padding: 10px; color: #047857; font-weight: bold; text-align: left; vertical-align: top; word-break: break-word; white-space: normal; mso-wrap-text: true;">
+          ✅ SELURUH DATA MATCHING: tidak ditemukan ketidakcocokan data di seluruh dokumen pendukung.
+        </td>
+      </tr>
+    `;
   }
 
-  rows.push([]);
-  // SECTION 2: RINCIAN DETAIL SELURUH FIELD
-  rows.push(["=== RINCIAN DETAIL SELURUH FIELD PEMBANDING ==="]);
-  rows.push(["Dokumen Pembanding", "Nama Field", "Nilai PIB (Acuan Utama)", "Nilai Dokumen Pembanding", "Status Matching", "Catatan Evaluasi"]);
+  let allRowsHtml = "";
   for (const f of allFields) {
-    rows.push([f.documentType, f.fieldName, f.pibValue, f.pembandingValue, f.isMatch ? "MATCHING" : "MISMATCHING", f.notes]);
+    const bgColor = f.isMatch ? "#ffffff" : "#fff1f2";
+    const statusBg = f.isMatch ? "#ecfdf5" : "#ffe4e6";
+    const statusColor = f.isMatch ? "#047857" : "#b91c1c";
+    allRowsHtml += `
+      <tr>
+        <td style="border: 1px solid #e2e8f0; background-color: ${bgColor}; padding: 6px 10px; font-weight: bold; text-align: left; vertical-align: top; word-break: break-word; white-space: normal; mso-wrap-text: true;">${f.documentType}</td>
+        <td style="border: 1px solid #e2e8f0; background-color: ${bgColor}; padding: 6px 10px; text-align: left; vertical-align: top; word-break: break-word; white-space: normal; mso-wrap-text: true;">${f.fieldName}</td>
+        <td style="border: 1px solid #e2e8f0; background-color: ${bgColor}; padding: 6px 10px; font-family: Consolas, monospace; color: #1e3a8a; text-align: left; vertical-align: top; word-break: break-word; white-space: normal; mso-wrap-text: true;">${f.pibValue}</td>
+        <td style="border: 1px solid #e2e8f0; background-color: ${bgColor}; padding: 6px 10px; font-family: Consolas, monospace; ${!f.isMatch ? "color: #b91c1c; font-weight: bold;" : ""} text-align: left; vertical-align: top; word-break: break-word; white-space: normal; mso-wrap-text: true;">${f.pembandingValue}</td>
+        <td style="border: 1px solid #e2e8f0; background-color: ${statusBg}; padding: 6px 10px; text-align: center; vertical-align: top; font-weight: bold; color: ${statusColor}; white-space: nowrap;">
+          ${f.isMatch ? "MATCH" : "MISMATCH"}
+        </td>
+      </tr>
+    `;
   }
 
-  const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map((e) => e.map((c) => `"${(c || "").replace(/"/g, '""')}"`).join(",")).join("\n");
-  const encodedUri = encodeURI(csvContent);
+  const excelHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8">
+  <!--[if gte mso 9]>
+  <xml>
+    <x:ExcelWorkbook>
+      <x:ExcelWorksheets>
+        <x:ExcelWorksheet>
+          <x:Name>Laporan Matching</x:Name>
+          <x:WorksheetOptions>
+            <x:DisplayGridlines/>
+          </x:WorksheetOptions>
+        </x:ExcelWorksheet>
+      </x:ExcelWorksheets>
+    </x:ExcelWorkbook>
+  </xml>
+  <![endif]-->
+  <style>
+    body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #0f172a; }
+    table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+    td, th { text-align: left; vertical-align: top; word-break: break-word; white-space: normal; mso-wrap-text: true; }
+  </style>
+</head>
+<body>
+  <table>
+    <colgroup>
+      <col style="width: 120px;" />
+      <col style="width: 160px;" />
+      <col style="width: 280px;" />
+      <col style="width: 300px;" />
+      <col style="width: 380px;" />
+    </colgroup>
+    <tr>
+      <td colspan="5" style="font-size: 16pt; font-weight: bold; color: #091e42; padding-bottom: 4px; text-align: left;">TVS MIDDLEWARE - LAPORAN DETAIL MATCHING BATCH</td>
+    </tr>
+    <tr>
+      <td colspan="5" style="font-size: 10pt; color: #64748b; font-style: italic; padding-bottom: 12px; text-align: left;">Analisis Evaluasi Ketidakcocokan Dokumen Import</td>
+    </tr>
+    <tr><td colspan="5"></td></tr>
+    <tr>
+      <td colspan="5" style="font-size: 11pt; font-weight: bold; background-color: #091e42; color: #ffffff; padding: 6px 10px; text-align: left;">RINGKASAN BATCH</td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold; background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left;">Nama Batch</td>
+      <td colspan="4" style="border: 1px solid #cbd5e1; padding: 6px 10px; font-weight: bold; text-align: left;">${batch.nama}</td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold; background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left;">Status Batch</td>
+      <td colspan="4" style="border: 1px solid #cbd5e1; padding: 6px 10px; font-weight: bold; color: ${batch.status === "Matching" ? "#047857" : "#b91c1c"}; text-align: left;">${batch.status}</td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold; background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left;">Total File</td>
+      <td colspan="4" style="border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left;">${batch.totalFile} File</td>
+    </tr>
+    <tr>
+      <td style="font-weight: bold; background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left;">Jumlah Mismatch</td>
+      <td colspan="4" style="border: 1px solid #cbd5e1; padding: 6px 10px; font-weight: bold; color: ${mismatches.length > 0 ? "#b91c1c" : "#047857"}; text-align: left;">${mismatches.length} Field Berbeda</td>
+    </tr>
+    <tr><td colspan="5"></td></tr>
+    <tr>
+      <td colspan="5" style="font-size: 11pt; font-weight: bold; background-color: #9f1239; color: #ffffff; padding: 6px 10px; text-align: left;">⚠️ DAFTAR FIELD MISMATCHING (${mismatches.length} Field Berbeda)</td>
+    </tr>
+    <tr>
+      <td style="border: 1px solid #fecdd3; background-color: #ffe4e6; color: #9f1239; font-weight: bold; padding: 6px 10px; text-align: left;">Dokumen</td>
+      <td style="border: 1px solid #fecdd3; background-color: #ffe4e6; color: #9f1239; font-weight: bold; padding: 6px 10px; text-align: left;">Field</td>
+      <td style="border: 1px solid #fecdd3; background-color: #ffe4e6; color: #9f1239; font-weight: bold; padding: 6px 10px; text-align: left;">PIB (Acuan Utama)</td>
+      <td style="border: 1px solid #fecdd3; background-color: #ffe4e6; color: #9f1239; font-weight: bold; padding: 6px 10px; text-align: left;">Pembanding</td>
+      <td style="border: 1px solid #fecdd3; background-color: #ffe4e6; color: #9f1239; font-weight: bold; padding: 6px 10px; text-align: left;">Penjelasan Ketidakcocokan</td>
+    </tr>
+    ${mismatchRowsHtml}
+    <tr><td colspan="5"></td></tr>
+    <tr>
+      <td colspan="5" style="font-size: 11pt; font-weight: bold; background-color: #334155; color: #ffffff; padding: 6px 10px; text-align: left;">RINCIAN EVALUASI SELURUH FIELD</td>
+    </tr>
+    <tr>
+      <td style="border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; font-weight: bold; padding: 6px 10px; text-align: left;">Dokumen</td>
+      <td style="border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; font-weight: bold; padding: 6px 10px; text-align: left;">Field</td>
+      <td style="border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; font-weight: bold; padding: 6px 10px; text-align: left;">PIB (Acuan Utama)</td>
+      <td style="border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; font-weight: bold; padding: 6px 10px; text-align: left;">Pembanding</td>
+      <td style="border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #334155; font-weight: bold; padding: 6px 10px; text-align: center;">Status</td>
+    </tr>
+    ${allRowsHtml}
+  </table>
+</body>
+</html>`;
+
+  const blob = new Blob(["\uFEFF" + excelHtml], { type: "application/vnd.ms-excel;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `Laporan_Matching_Batch_${batch.id}.csv`);
+  link.href = url;
+  link.download = `Laporan_Matching_Batch_${batch.id}.xls`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 };
 
-const exportBatchPdf = (batch: BatchItem) => {
+const exportBatchPdf = async (batch: BatchItem) => {
   const { allFields, mismatches } = getBatchComparisonReport(batch);
 
   let mismatchSectionHtml = "";
@@ -456,11 +674,11 @@ const exportBatchPdf = (batch: BatchItem) => {
     for (const m of mismatches) {
       rowsHtml += `
         <tr style="background: #fff1f2;">
-          <td style="border: 1px solid #fecdd3; padding: 6px 8px; font-weight: bold; color: #9f1239;">${m.documentType}</td>
-          <td style="border: 1px solid #fecdd3; padding: 6px 8px; font-weight: bold;">${m.fieldName}</td>
-          <td style="border: 1px solid #fecdd3; padding: 6px 8px; font-family: monospace; color: #1e3a8a;">${m.pibValue}</td>
-          <td style="border: 1px solid #fecdd3; padding: 6px 8px; font-family: monospace; color: #b91c1c; font-weight: bold;">${m.pembandingValue}</td>
-          <td style="border: 1px solid #fecdd3; padding: 6px 8px; font-size: 10px; color: #9f1239;">${m.notes}</td>
+          <td style="border: 1px solid #fecdd3; padding: 6px 8px; font-weight: bold; color: #9f1239; word-break: break-word;">${m.documentType}</td>
+          <td style="border: 1px solid #fecdd3; padding: 6px 8px; font-weight: bold; word-break: break-word;">${m.fieldName}</td>
+          <td style="border: 1px solid #fecdd3; padding: 6px 8px; font-family: monospace; color: #1e3a8a; word-break: break-word;">${m.pibValue}</td>
+          <td style="border: 1px solid #fecdd3; padding: 6px 8px; font-family: monospace; color: #b91c1c; font-weight: bold; word-break: break-word;">${m.pembandingValue}</td>
+          <td style="border: 1px solid #fecdd3; padding: 6px 8px; font-size: 10px; color: #9f1239; word-break: break-word;">${m.notes}</td>
         </tr>
       `;
     }
@@ -500,42 +718,41 @@ const exportBatchPdf = (batch: BatchItem) => {
   let allTableRowsHtml = "";
   for (const f of allFields) {
     allTableRowsHtml += `
-      <tr style="background: ${f.isMatch ? '#ffffff' : '#fff1f2'};">
-        <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-weight: 600;">${f.documentType}</td>
-        <td style="border: 1px solid #e2e8f0; padding: 6px 8px;">${f.fieldName}</td>
-        <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-family: monospace; color: #1e3a8a;">${f.pibValue}</td>
-        <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-family: monospace; ${!f.isMatch ? 'color: #b91c1c; font-weight: bold;' : ''}">${f.pembandingValue}</td>
-        <td style="border: 1px solid #e2e8f0; padding: 6px 8px; text-align: center; font-weight: bold; color: ${f.isMatch ? '#047857' : '#b91c1c'}; background: ${f.isMatch ? '#ecfdf5' : '#ffe4e6'};">
-          ${f.isMatch ? 'MATCH' : 'MISMATCH'}
+      <tr style="background: ${f.isMatch ? "#ffffff" : "#fff1f2"};">
+        <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-weight: 600; word-break: break-word;">${f.documentType}</td>
+        <td style="border: 1px solid #e2e8f0; padding: 6px 8px; word-break: break-word;">${f.fieldName}</td>
+        <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-family: monospace; color: #1e3a8a; word-break: break-word;">${f.pibValue}</td>
+        <td style="border: 1px solid #e2e8f0; padding: 6px 8px; font-family: monospace; ${!f.isMatch ? "color: #b91c1c; font-weight: bold;" : ""} word-break: break-word;">${f.pembandingValue}</td>
+        <td style="border: 1px solid #e2e8f0; padding: 6px 8px; text-align: center; font-weight: bold; color: ${f.isMatch ? "#047857" : "#b91c1c"}; background: ${f.isMatch ? "#ecfdf5" : "#ffe4e6"};">
+          ${f.isMatch ? "MATCH" : "MISMATCH"}
         </td>
       </tr>
     `;
   }
 
-  const htmlDocument = `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Laporan Matching Batch #${batch.id}</title>
-    <style>
-      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 24px; color: #0f172a; }
-      .header { border-bottom: 2px solid #091e42; padding-bottom: 12px; margin-bottom: 16px; }
-      .badge { padding: 4px 10px; border-radius: 9999px; font-weight: bold; font-size: 11px; }
-      .badge-match { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
-      .badge-mismatch { background: #fff1f2; color: #b91c1c; border: 1px solid #fecdd3; }
-      @page { size: auto; margin: 15mm; }
-    </style>
-  </head>
-  <body>
-    <div class="header">
+  const tempDiv = document.createElement("div");
+  tempDiv.style.position = "fixed";
+  tempDiv.style.left = "0";
+  tempDiv.style.top = "0";
+  tempDiv.style.width = "794px";
+  tempDiv.style.padding = "24px";
+  tempDiv.style.background = "#ffffff";
+  tempDiv.style.color = "#0f172a";
+  tempDiv.style.zIndex = "-99999";
+  tempDiv.style.opacity = "0.01";
+  tempDiv.style.pointerEvents = "none";
+  tempDiv.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+  tempDiv.innerHTML = `
+    <div style="border-bottom: 2px solid #091e42; padding-bottom: 12px; margin-bottom: 16px;">
       <h1 style="margin: 0; font-size: 18px; color: #091e42;">TVS Middleware - Laporan Detail Matching Batch</h1>
       <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748b;">Analisis Evaluasi Ketidakcocokan Dokumen Import</p>
     </div>
     <div style="font-size: 12px; line-height: 1.6; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
       <p style="margin: 2px 0;"><strong>Nama Batch:</strong> ${batch.nama}</p>
-      <p style="margin: 2px 0;"><strong>Status Batch:</strong> <span class="badge ${batch.status === 'Matching' ? 'badge-match' : 'badge-mismatch'}">${batch.status}</span></p>
+      <p style="margin: 2px 0;"><strong>Status Batch:</strong> <span style="padding: 2px 8px; border-radius: 9999px; font-weight: bold; font-size: 11px; ${batch.status === "Matching" ? "background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0;" : "background: #fff1f2; color: #b91c1c; border: 1px solid #fecdd3;"}">${batch.status}</span></p>
       <p style="margin: 2px 0;"><strong>Total File:</strong> ${batch.totalFile} File</p>
-      <p style="margin: 2px 0;"><strong>Jumlah Mismatch:</strong> <strong style="color: ${mismatches.length > 0 ? '#b91c1c' : '#047857'};">${mismatches.length} Field Berbeda</strong></p>
+      <p style="margin: 2px 0;"><strong>Jumlah Mismatch:</strong> <strong style="color: ${mismatches.length > 0 ? "#b91c1c" : "#047857"};">${mismatches.length} Field Berbeda</strong></p>
     </div>
 
     ${mismatchSectionHtml}
@@ -557,34 +774,90 @@ const exportBatchPdf = (batch: BatchItem) => {
         </tbody>
       </table>
     </div>
-  </body>
-</html>`;
+  `;
 
-  // Create a hidden iframe to trigger the browser's native PDF save dialog over the current page (0 new tabs!)
-  const iframe = document.createElement("iframe");
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "0";
-  document.body.appendChild(iframe);
+  document.body.appendChild(tempDiv);
 
-  const doc = iframe.contentWindow?.document;
-  if (doc) {
-    doc.open();
-    doc.write(htmlDocument);
-    doc.close();
-
-    setTimeout(() => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (!(window as any).html2pdf) {
+      await new Promise<void>((resolve, reject) => {
+        const existingScript = document.querySelector('script[src*="html2pdf"]');
+        if (existingScript) {
+          let count = 0;
+          const checkInterval = setInterval(() => {
+            count++;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            if ((window as any).html2pdf) {
+              clearInterval(checkInterval);
+              resolve();
+            } else if (count > 30) {
+              clearInterval(checkInterval);
+              reject(new Error("Timeout loading PDF library"));
+            }
+          }, 100);
+          return;
         }
-      }, 1000);
-    }, 250);
+
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Failed to load PDF library"));
+        document.body.appendChild(script);
+      });
+    }
+
+    const opt = {
+      margin: [8, 8, 8, 8],
+      filename: `Laporan_Matching_Batch_${batch.id}.pdf`,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 800 },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      pagebreak: { mode: ["avoid-all", "css", "legacy"] },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (window as any).html2pdf().set(opt).from(tempDiv).save();
+  } catch (err) {
+    console.warn("Direct html2pdf render failed, falling back to print window:", err);
+    const printWin = window.open("", "_blank");
+    if (printWin) {
+      printWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8"/>
+            <title>Laporan_Matching_Batch_${batch.id}</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; color: #0f172a; }
+              table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
+              th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
+              @media print {
+                body { padding: 0; }
+                @page { margin: 10mm; size: A4; }
+              }
+            </style>
+          </head>
+          <body>
+            ${tempDiv.innerHTML}
+            <script>
+              window.onload = function() {
+                setTimeout(function() {
+                  window.print();
+                }, 300);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWin.document.close();
+    } else {
+      alert("Gagal mengunduh PDF. Silakan izinkan pop-up browser Anda.");
+    }
+  } finally {
+    if (document.body.contains(tempDiv)) {
+      document.body.removeChild(tempDiv);
+    }
   }
 };
 
@@ -618,9 +891,9 @@ export default function MatchingPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchBatches = useCallback(async () => {
+  const fetchBatches = useCallback(async (isSilent = false) => {
     try {
-      setLoading(true);
+      if (!isSilent) setLoading(true);
       const res = await fetch("/api/batches");
       if (res.ok) {
         const data = await res.json();
@@ -631,15 +904,30 @@ export default function MatchingPage() {
     } catch (err) {
       console.error("Failed to fetch batches:", err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchBatches();
-    const interval = setInterval(fetchBatches, 10000);
+    fetchBatches(false);
+
+    // Real-time automatic polling every 2 seconds
+    const interval = setInterval(() => {
+      fetchBatches(true);
+    }, 2000);
+
     return () => clearInterval(interval);
   }, [fetchBatches]);
+
+  // Real-time sync for active viewingBatch modal
+  useEffect(() => {
+    if (viewingBatch) {
+      const latest = batches.find((b) => b.id === viewingBatch.id);
+      if (latest && (latest.status !== viewingBatch.status || JSON.stringify(latest.details) !== JSON.stringify(viewingBatch.details))) {
+        setViewingBatch(latest);
+      }
+    }
+  }, [batches, viewingBatch]);
 
   // Filter batches
   const filteredBatches = batches.filter((batch) => {
@@ -807,7 +1095,7 @@ export default function MatchingPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={fetchBatches}
+            onClick={() => fetchBatches(false)}
             className="px-3 py-2 text-slate-600 hover:text-blue-950 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all text-xs font-semibold flex items-center gap-1.5 shadow-2xs focus:outline-none"
             title="Refresh Data"
           >
@@ -859,8 +1147,8 @@ export default function MatchingPage() {
       </div>
 
       {/* Main Table Container (Light Mode) */}
-      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs">
+        <div className="overflow-x-auto rounded-xl">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider group/header">
@@ -922,11 +1210,50 @@ export default function MatchingPage() {
                   const isHighlighted = highlightedBatchId === batch.id;
                   const isSelected = selectedBatchIds.includes(batch.id);
 
+                  const statusLower = (batch.status || "").toLowerCase().trim();
+                  const isProsesStatus =
+                    statusLower === "proses" ||
+                    statusLower === "pending" ||
+                    statusLower === "processing";
+
+                  const filledCount = (batch.details || []).filter((d) => {
+                    if (!d.isi || typeof d.isi !== "string" || !d.isi.trim() || d.isi.trim() === "{}" || d.isi.trim() === "[]") return false;
+                    try {
+                      const p = JSON.parse(d.isi);
+                      const fields = p?.fields || {};
+                      const table = Array.isArray(p?.table) ? p.table : [];
+                      const hasFields = Object.keys(fields).length > 0 && Object.values(fields).some((v: any) => v && String(v).trim() !== "" && String(v).trim() !== "-");
+                      const hasTable = table.length > 0;
+                      return hasFields || hasTable;
+                    } catch {
+                      return false;
+                    }
+                  }).length;
+
+                  const isDetailsIncomplete =
+                    !batch.details ||
+                    batch.details.length === 0 ||
+                    (batch.totalFile && batch.totalFile > 0 && batch.details.length < batch.totalFile) ||
+                    filledCount < (batch.details ? batch.details.length : 1);
+
+                  const isProses = isProsesStatus || isDetailsIncomplete;
+
                   return (
                     <tr
                       key={batch.id}
-                      onClick={() => setViewingBatch(batch)}
-                      className={`group hover:bg-slate-50/80 transition-colors cursor-pointer ${
+                      onClick={(e) => {
+                        if (isProses) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          return;
+                        }
+                        setViewingBatch(batch);
+                      }}
+                      className={`group transition-colors ${
+                        isProses
+                          ? "hover:bg-amber-50/30 cursor-not-allowed"
+                          : "hover:bg-slate-50/80 cursor-pointer"
+                      } ${
                         isSelected
                           ? "bg-blue-50/70 hover:bg-blue-50"
                           : isHighlighted
@@ -960,12 +1287,12 @@ export default function MatchingPage() {
                         </div>
                       </td>
 
-                      {/* 2. Nama */}
+                      {/* 2. Nama Batch / Importir */}
                       <td className="py-3.5 px-4 text-center">
-                        <div className="font-bold text-slate-900 text-xs group-hover:text-blue-950 transition-colors">
+                        <div className="font-bold text-slate-800 text-xs leading-snug group-hover:text-blue-950 transition-colors">
                           {batch.nama}
                         </div>
-                        <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                        <div className="text-[10px] text-slate-400 font-mono font-medium tracking-wide mt-0.5">
                           {batch.subtext}
                         </div>
                       </td>
@@ -973,21 +1300,21 @@ export default function MatchingPage() {
                       {/* 3. Status */}
                       <td className="py-3.5 px-4 text-center">
                         <div className="inline-flex justify-center">
-                          {batch.status === "Matching" && (
+                          {isProses ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80">
+                              <svg className="w-3 h-3 animate-spin text-amber-600" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Proses
+                            </span>
+                          ) : batch.status === "Matching" ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
                               Matching
                             </span>
-                          )}
-
-                          {batch.status === "Mismatching" && (
+                          ) : (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200/80">
                               Mismatching
-                            </span>
-                          )}
-
-                          {batch.status === "Proses" && (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80">
-                              Proses
                             </span>
                           )}
                         </div>
@@ -998,17 +1325,24 @@ export default function MatchingPage() {
                         {batch.totalFile} File
                       </td>
 
-                      {/* 5. File Pendukung (Supporting comparison files only, excluding PIB reference) */}
+                      {/* 5. File Pendukung */}
                       <td className="py-3.5 px-4 text-center">
                         <div className="flex flex-wrap items-center justify-center gap-1 max-w-xs mx-auto">
-                          {batch.details && batch.details.length > 0 ? (
+                          {isProses ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-50/70 text-amber-800 border border-amber-200/60">
+                              <svg className="w-3 h-3 animate-spin text-amber-600" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Memproses Data ({filledCount}/{batch.totalFile || (batch.details ? batch.details.length : 0)} File)...
+                            </span>
+                          ) : batch.details && batch.details.length > 0 ? (
                             (() => {
                               const pibDet = batch.details.find((d) => (d.fileType || "").trim().toLowerCase() === "pib");
                               const pibLanjutanDet = batch.details.find((d) => (d.fileType || "").trim().toLowerCase().includes("lanjutan"));
                               const pibData = parseIsi(pibDet?.isi);
                               const pibLanjutanData = parseIsi(pibLanjutanDet?.isi);
 
-                              // Filter out PIB and PIB Lanjutan because they are reference (Acuan Utama)
                               const supportingDetails = batch.details.filter((d) => {
                                 const ftLower = (d.fileType || "").trim().toLowerCase();
                                 return ftLower !== "pib" && !ftLower.includes("lanjutan");
@@ -1018,7 +1352,6 @@ export default function MatchingPage() {
                                 return <span className="text-slate-400 text-[11px] italic">-</span>;
                               }
 
-                              // Count file types for multi-file numbering (#1, #2)
                               const typeCounts: Record<string, number> = {};
                               const typeTotals: Record<string, number> = {};
 
@@ -1036,7 +1369,7 @@ export default function MatchingPage() {
 
                                 const isFileMatch =
                                   batch.status === "Matching" ||
-                                  checkDetailFileMatch(pibData, pibLanjutanData, det);
+                                  checkDetailFileMatch(pibData, pibLanjutanData, det, batch.details);
 
                                 return (
                                   <span
@@ -1061,91 +1394,103 @@ export default function MatchingPage() {
 
                       {/* 6. Aksi Column */}
                       <td className="py-3.5 px-4 text-center">
-                        <div className="inline-flex items-center justify-center gap-1">
-                          {/* View Detail Button */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setViewingBatch(batch);
-                            }}
-                            className="p-1 text-slate-400 hover:text-blue-950 hover:bg-slate-100 rounded transition-colors"
-                            title="Lihat Detail"
-                          >
-                            <EyeIcon className="w-4 h-4" />
-                          </button>
-
-                          {/* Download Button with Dropdown Menu */}
-                          <div className="relative">
+                        {isProses ? (
+                          <div className="inline-flex items-center justify-center">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50/90 text-amber-800 border border-amber-200/80 shadow-2xs select-none">
+                              <svg className="w-3.5 h-3.5 animate-spin text-amber-600" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span>Proses</span>
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center justify-center gap-1">
+                            {/* View Detail Button */}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setDownloadMenuBatchId(downloadMenuBatchId === batch.id ? null : batch.id);
+                                setViewingBatch(batch);
                               }}
-                              className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
-                              title="Download Laporan Batch"
+                              className="p-1 text-slate-400 hover:text-blue-950 hover:bg-slate-100 rounded transition-colors"
+                              title="Lihat Detail"
                             >
-                              <DownloadIcon className="w-4 h-4" />
+                              <EyeIcon className="w-4 h-4" />
                             </button>
 
-                            {downloadMenuBatchId === batch.id && (
-                              <div
-                                onClick={(e) => e.stopPropagation()}
-                                className="absolute right-0 top-full mt-1.5 w-36 bg-white rounded-xl border border-slate-200/90 shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 text-left"
+                            {/* Download Button with Dropdown Menu */}
+                            <div className="relative">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDownloadMenuBatchId(downloadMenuBatchId === batch.id ? null : batch.id);
+                                }}
+                                className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded transition-colors"
+                                title="Download Laporan Batch"
                               >
-                                <div className="px-2.5 py-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
-                                  Format File
+                                <DownloadIcon className="w-4 h-4" />
+                              </button>
+
+                              {downloadMenuBatchId === batch.id && (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="absolute right-full mr-2 top-1/2 -translate-y-1/2 w-36 bg-white rounded-xl border border-slate-200/90 shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100 text-left"
+                                >
+                                  <div className="px-2.5 py-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+                                    Format File
+                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      exportBatchExcel(batch);
+                                      setDownloadMenuBatchId(null);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:bg-emerald-50/70 font-semibold hover:text-emerald-900 transition-colors whitespace-nowrap"
+                                  >
+                                    <div className="w-6 h-6 rounded-md bg-emerald-100/80 text-emerald-700 flex items-center justify-center shrink-0">
+                                      <FileDocIcon className="w-3.5 h-3.5" />
+                                    </div>
+                                    <span>Excel (.csv)</span>
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      exportBatchPdf(batch);
+                                      setDownloadMenuBatchId(null);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:bg-rose-50/70 font-semibold hover:text-rose-900 transition-colors whitespace-nowrap"
+                                  >
+                                    <div className="w-6 h-6 rounded-md bg-rose-100/80 text-rose-700 flex items-center justify-center shrink-0">
+                                      <FileDocIcon className="w-3.5 h-3.5" />
+                                    </div>
+                                    <span>PDF (.pdf)</span>
+                                  </button>
                                 </div>
-                                <button
-                                  onClick={() => {
-                                    exportBatchExcel(batch);
-                                    setDownloadMenuBatchId(null);
-                                  }}
-                                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:bg-emerald-50/70 font-semibold hover:text-emerald-900 transition-colors whitespace-nowrap"
-                                >
-                                  <div className="w-6 h-6 rounded-md bg-emerald-100/80 text-emerald-700 flex items-center justify-center shrink-0">
-                                    <FileDocIcon className="w-3.5 h-3.5" />
-                                  </div>
-                                  <span>Excel (.csv)</span>
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    exportBatchPdf(batch);
-                                    setDownloadMenuBatchId(null);
-                                  }}
-                                  className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:bg-rose-50/70 font-semibold hover:text-rose-900 transition-colors whitespace-nowrap"
-                                >
-                                  <div className="w-6 h-6 rounded-md bg-rose-100/80 text-rose-700 flex items-center justify-center shrink-0">
-                                    <FileDocIcon className="w-3.5 h-3.5" />
-                                  </div>
-                                  <span>PDF (.pdf)</span>
-                                </button>
-                              </div>
-                            )}
+                              )}
+                            </div>
+
+                             {/* Edit Button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingBatch(batch);
+                                setEditStatus(batch.status);
+                                setEditTotalFile(batch.totalFile);
+                              }}
+                              className="p-1 text-slate-400 hover:text-blue-950 hover:bg-slate-100 rounded transition-colors"
+                              title="Edit Status Batch"
+                            >
+                              <PencilIcon className="w-4 h-4" />
+                            </button>
+
+                            {/* Delete Button */}
+                            <button
+                              onClick={(e) => handleDeleteSingle(batch.id, e)}
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
+                              title="Hapus Batch"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
                           </div>
-
-                          {/* Edit Button */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingBatch(batch);
-                              setEditStatus(batch.status);
-                              setEditTotalFile(batch.totalFile);
-                            }}
-                            className="p-1 text-slate-400 hover:text-blue-950 hover:bg-slate-100 rounded transition-colors"
-                            title="Edit Status Batch"
-                          >
-                            <PencilIcon className="w-4 h-4" />
-                          </button>
-
-                          {/* Delete Button */}
-                          <button
-                            onClick={(e) => handleDeleteSingle(batch.id, e)}
-                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors"
-                            title="Hapus Batch"
-                          >
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
-                        </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -1409,25 +1754,27 @@ export default function MatchingPage() {
         const rekapData = parseIsi(rekapDetail?.isi);
         const pibLanjutanData = parseIsi(pibLanjutanDetail?.isi);
 
-        const isInvoiceMatch = (invNum?: string) => {
-          if (!invNum || invNum === "-") return null;
+        const getInvoiceMatchInfo = (invNum?: string) => {
+          const defaultPib = getVal(pibData.fields, "Invoice_Number", "Invoice Number");
+          if (!invNum || invNum === "-") return { isMatch: null, valLeft: defaultPib, noteLeft: undefined };
           const cleanInv = invNum.trim().toLowerCase();
-          if (!cleanInv) return null;
+          if (!cleanInv) return { isMatch: null, valLeft: defaultPib, noteLeft: undefined };
 
-          const pibInv = getVal(pibData.fields, "Invoice_Number", "Invoice Number");
-          if (pibInv && pibInv.trim().toLowerCase() === cleanInv) {
-            return true;
+          if (defaultPib && defaultPib.trim().toLowerCase() === cleanInv) {
+            return { isMatch: true, valLeft: defaultPib, noteLeft: undefined };
           }
 
-          for (const row of pibLanjutanData.table) {
-            const docName = (row["Nama_Document"] || row["nama document"] || "").toLowerCase();
-            const docNo = (row["No_Document"] || row["no document"] || "").trim().toLowerCase();
-            if (docName.includes("invoice") && docNo === cleanInv) {
-              return true;
+          if (pibLanjutanData?.table) {
+            for (const row of pibLanjutanData.table) {
+              const docName = (row["Nama_Document"] || row["nama document"] || "").toLowerCase();
+              const docNo = (row["No_Document"] || row["no document"] || "").trim();
+              if (docName.includes("invoice") && docNo.toLowerCase() === cleanInv) {
+                return { isMatch: true, valLeft: docNo, noteLeft: "PIB Lanjutan" };
+              }
             }
           }
 
-          return false;
+          return { isMatch: false, valLeft: defaultPib && defaultPib !== "-" ? defaultPib : "-", noteLeft: undefined };
         };
 
         const isMatch = (v1?: string, v2?: string) => {
@@ -1438,20 +1785,29 @@ export default function MatchingPage() {
           return s1 === s2;
         };
 
+        const displayValue = (val?: string) => {
+          if (val === undefined || val === null || val === "" || val === "-") return "-";
+          return String(val);
+        };
+
         const CompareRow = ({
           lblLeft,
           valLeft,
           lblRight,
           valRight,
           customStatus,
+          noteLeft,
         }: {
           lblLeft: string;
           valLeft?: string;
           lblRight: string;
           valRight?: string;
           customStatus?: boolean | null;
+          noteLeft?: string;
         }) => {
-          const status = customStatus !== undefined ? customStatus : isMatch(valLeft, valRight);
+          const rawLeft = displayValue(valLeft);
+          const rawRight = displayValue(valRight);
+          const status = customStatus !== undefined ? customStatus : isMatch(rawLeft, rawRight);
 
           const boxBgClass =
             status === true
@@ -1478,15 +1834,24 @@ export default function MatchingPage() {
             <div className="grid grid-cols-2 gap-3 text-xs">
               {/* Left Column Box: PIB Reference (Acuan Utama) */}
               <div
-                className={`p-2.5 rounded-xl border flex items-center justify-between transition-colors ${boxBgClass}`}
+                className={`p-2.5 rounded-xl border flex flex-col justify-between transition-colors ${boxBgClass}`}
               >
-                <span className={labelClass}>{lblLeft}:</span>
-                <span
-                  className={`font-mono text-[11px] text-right ml-2 line-clamp-2 break-words max-w-[65%] ${valueClass}`}
-                  title={valLeft || "-"}
-                >
-                  {valLeft || "-"}
-                </span>
+                <div className="flex items-center justify-between w-full">
+                  <span className={labelClass}>{lblLeft}:</span>
+                  <span
+                    className={`font-sans text-xs text-right ml-2 line-clamp-2 break-words max-w-[65%] leading-snug ${valueClass}`}
+                    title={rawLeft}
+                  >
+                    {rawLeft}
+                  </span>
+                </div>
+                {noteLeft && (
+                  <div className="mt-0.5 flex items-center justify-end">
+                    <span className="text-[9.5px] text-slate-500 font-normal italic opacity-80">
+                      ({noteLeft})
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Right Column Box: Pembanding */}
@@ -1495,10 +1860,10 @@ export default function MatchingPage() {
               >
                 <span className={labelClass}>{lblRight}:</span>
                 <span
-                  className={`font-mono text-[11px] text-right ml-2 line-clamp-2 break-words max-w-[65%] ${valueClass}`}
-                  title={valRight || "-"}
+                  className={`font-sans text-xs text-right ml-2 line-clamp-2 break-words max-w-[65%] leading-snug ${valueClass}`}
+                  title={rawRight}
                 >
-                  {valRight || "-"}
+                  {rawRight}
                 </span>
               </div>
             </div>
@@ -1541,6 +1906,123 @@ export default function MatchingPage() {
 
               {/* Body Comparison */}
               <div className="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1 bg-slate-50/40 text-xs">
+                {/* 0. INFORMASI DOKUMEN PIB & PIB LANJUTAN */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+                  <div className="px-4 py-3 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between">
+                    <div className="font-bold text-blue-950 text-xs flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-blue-950 text-white flex items-center justify-center text-[10px]">
+                        0
+                      </span>
+                      <span>INFORMASI DOKUMEN PIB & DOKUMEN LANJUTAN</span>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded font-bold border bg-blue-50 text-blue-800 border-blue-200">
+                      Info PIB
+                    </span>
+                  </div>
+
+                  <div className="p-4 space-y-4">
+                    {/* Non-Matching PIB Fields Grid */}
+                    <div>
+                      <h4 className="text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                        <span>Informasi Field PIB (Non-Matching)</span>
+                      </h4>
+                      {(() => {
+                        const nonMatchingKeys = [
+                          { label: "Nomor Pengajuan", alt: ["Nomor Pengajuan", "No_Aju", "No Aju", "No_Pengajuan"] },
+                          { label: "Alamat Importir", alt: ["Alamat_Importir", "Alamat Importir"] },
+                          { label: "Nama Pemilik Barang", alt: ["Nama_Pemilik_Barang", "Nama Pemilik Barang"] },
+                          { label: "Alamat Pemilik Barang", alt: ["Alamat_Pemilik_Barang", "Alamat Pemilik Barang"] },
+                          { label: "Nama Pengirim", alt: ["Nama_Pengirim", "Nama Pengirim"] },
+                          { label: "Alamat Pengirim", alt: ["Alamat_Pengirim", "Alamat Pengirim"] },
+                          { label: "Alamat Penjual", alt: ["Alamat_Penjual", "Alamat Penjual"] },
+                          { label: "Nama Sarana Pengangkutan", alt: ["Nama_Sarana_Pengangkutan", "Nama Sarana Pengangkutan"] },
+                          { label: "No Voy", alt: ["No_Voy", "No Voy"] },
+                          { label: "Merk", alt: ["Merk"] },
+                        ];
+
+                        const nonMatchingFields: Array<{ label: string; value: string }> = [];
+
+                        nonMatchingKeys.forEach(({ label, alt }) => {
+                          const val = getVal(pibData.fields, label, ...alt);
+                          if (val && val !== "-") {
+                            nonMatchingFields.push({ label, value: val });
+                          }
+                        });
+
+                        const matchedKeysNorm = new Set([
+                          "invoicenumber", "invoicedate", "pelabuhanmuat", "pelabuhantujuan", "destination", "namapenjual",
+                          "namaimportir", "ketfob", "carapenyerahan", "incoterm", "termsofdelivery",
+                          "fob", "nilai", "nilaitotal", "beratbersih", "nohousebl", "housebldate",
+                          "beratkotor", "jumlah", "nomasterbl", "masterbldate", "nopeti", "tipepeti"
+                        ]);
+
+                        if (pibData.fields) {
+                          Object.entries(pibData.fields).forEach(([k, v]) => {
+                            const normKey = k.toLowerCase().replace(/[^a-z0-9]/g, "");
+                            if (
+                              !matchedKeysNorm.has(normKey) &&
+                              !nonMatchingFields.some((f) => f.label.toLowerCase().replace(/[^a-z0-9]/g, "") === normKey) &&
+                              v && String(v).trim() !== "" && String(v).trim() !== "-"
+                            ) {
+                              nonMatchingFields.push({ label: k.replace(/_/g, " "), value: String(v).trim() });
+                            }
+                          });
+                        }
+
+                        if (nonMatchingFields.length === 0) {
+                          return <p className="text-slate-400 italic text-[11px] p-2 bg-slate-50 rounded-lg">Tidak ada informasi field PIB non-matching.</p>;
+                        }
+
+                        return (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                            {nonMatchingFields.map((f, i) => (
+                              <div key={i} className="p-2.5 rounded-xl border border-slate-200/80 bg-slate-50/70 flex flex-col justify-between">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{f.label}</span>
+                                <span className="font-semibold text-slate-800 text-xs mt-1 break-words line-clamp-3" title={f.value}>{f.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+
+                    {/* PIB Lanjutan Table (if available) */}
+                    {pibLanjutanDetail && (
+                      <div className="pt-3 border-t border-slate-100">
+                        <h4 className="text-[11px] font-bold text-blue-950 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <span>Tabel Dokumen PIB Lanjutan</span>
+                        </h4>
+                        {pibLanjutanData.table && pibLanjutanData.table.length > 0 ? (
+                          <div className="overflow-x-auto rounded-lg border border-slate-200">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="bg-slate-100/90 text-slate-600 font-bold border-b border-slate-200 text-[10.5px]">
+                                  <th className="py-2 px-3">No</th>
+                                  <th className="py-2 px-3">Nama Document</th>
+                                  <th className="py-2 px-3">No Document</th>
+                                  <th className="py-2 px-3">Tanggal Document</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 bg-white">
+                                {pibLanjutanData.table.map((row, idx) => (
+                                  <tr key={idx} className="hover:bg-slate-50">
+                                    <td className="py-2 px-3 text-slate-400 font-mono text-[10px]">{idx + 1}</td>
+                                    <td className="py-2 px-3 font-semibold text-slate-800">{row["Nama_Document"] || row["nama document"] || row["Nama Document"] || "-"}</td>
+                                    <td className="py-2 px-3 font-mono text-blue-950 font-bold">{row["No_Document"] || row["no document"] || row["No Document"] || "-"}</td>
+                                    <td className="py-2 px-3 text-slate-600">{row["Tanggal_Document"] || row["tanggal document"] || row["Tanggal Document"] || "-"}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p className="text-slate-400 italic text-[11px] p-2 bg-slate-50 rounded-lg">Tabel Dokumen PIB Lanjutan Kosong.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* 1. INVOICE SECTION */}
                 <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
                   <div className="px-4 py-3 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between">
@@ -1573,71 +2055,179 @@ export default function MatchingPage() {
                     {invDetails.length === 0 ? (
                       <p className="text-slate-400 italic text-[11px] p-2">Tidak ada file Invoice diunggah.</p>
                     ) : (
-                      invDetails.map((invDet, idx) => {
-                        const invData = parseIsi(invDet.isi);
-                        const invNum = getVal(invData.fields, "Invoice_Number", "Invoice Number");
-                        const isMatchVal = isInvoiceMatch(invNum);
+                      (() => {
+                        const pibTotalVal = getVal(pibData.fields, "Nilai", "Nilai Total");
+                        const pibTotalNum = parseNumericValue(pibTotalVal);
+                        const sumInvoiceTotal = invDetails.reduce((acc, det) => {
+                          const dData = parseIsi(det.isi);
+                          return acc + parseNumericValue(getVal(dData.fields, "Total", "Nilai Total"));
+                        }, 0);
+                        const isCombinedMatch =
+                          invDetails.length > 1 && pibTotalNum > 0 && sumInvoiceTotal > 0
+                            ? Math.abs(pibTotalNum - sumInvoiceTotal) < 0.01
+                            : undefined;
+
                         return (
-                          <div
-                            key={invDet.id || idx}
-                            className="space-y-1 bg-slate-50/60 p-3 rounded-lg border border-slate-200/80"
-                          >
+                          <>
                             {invDetails.length > 1 && (
-                              <div className="font-bold text-[11px] text-blue-950 pb-1.5 border-b border-slate-200/80 flex items-center justify-between">
-                                <span className="px-2 py-0.5 bg-blue-950 text-white rounded text-[10px] font-bold">
-                                  Invoice #{idx + 1}
-                                </span>
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                  ID: {invDet.fileId}
+                              <div
+                                className={`p-2.5 px-3.5 rounded-lg border flex flex-wrap items-center justify-between gap-2 text-xs font-medium transition-all ${
+                                  isCombinedMatch === true
+                                    ? "bg-emerald-50/70 border-emerald-200/90 text-emerald-950"
+                                    : isCombinedMatch === false
+                                    ? "bg-rose-50/70 border-rose-200/90 text-rose-950"
+                                    : "bg-blue-50/70 border-blue-200/90 text-blue-950"
+                                }`}
+                              >
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                                    <span
+                                      className={`w-5 h-5 rounded font-bold text-[10px] flex items-center justify-center text-white ${
+                                        isCombinedMatch === true
+                                          ? "bg-emerald-600"
+                                          : isCombinedMatch === false
+                                          ? "bg-rose-600"
+                                          : "bg-blue-600"
+                                      }`}
+                                    >
+                                      ∑
+                                    </span>
+                                    <span>Akumulasi Total Invoice ({invDetails.length} File):</span>
+                                  </span>
+
+                                  <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+                                    <span className="bg-white px-2 py-0.5 rounded border border-slate-200/90 font-bold text-slate-800 shadow-2xs">
+                                      PIB: {pibTotalVal || "-"}
+                                    </span>
+                                    <span className="text-slate-400 font-bold">=</span>
+                                    {invDetails.map((det, i) => {
+                                      const dData = parseIsi(det.isi);
+                                      const v = parseNumericValue(getVal(dData.fields, "Total", "Nilai Total"));
+                                      return (
+                                        <React.Fragment key={i}>
+                                          {i > 0 && <span className="text-slate-400 font-bold">+</span>}
+                                          <span className="bg-white/80 px-2 py-0.5 rounded border border-slate-200/80 text-slate-700">
+                                            <span className="text-slate-400 font-sans text-[10px] mr-1">Inv #{i + 1}:</span>
+                                            {formatNumericValue(v)}
+                                          </span>
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                    <span
+                                      className={`px-2 py-0.5 rounded border font-bold ${
+                                        isCombinedMatch === true
+                                          ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                          : isCombinedMatch === false
+                                          ? "bg-rose-100 text-rose-800 border-rose-300"
+                                          : "bg-blue-100 text-blue-800 border-blue-300"
+                                      }`}
+                                    >
+                                      = {formatNumericValue(sumInvoiceTotal)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                                    isCombinedMatch === true
+                                      ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                      : isCombinedMatch === false
+                                      ? "bg-rose-100 text-rose-800 border-rose-300"
+                                      : "bg-blue-100 text-blue-800 border-blue-300"
+                                  }`}
+                                >
+                                  {isCombinedMatch === true
+                                    ? "✓ Match"
+                                    : isCombinedMatch === false
+                                    ? "✕ Mismatch"
+                                    : "Multiple"}
                                 </span>
                               </div>
                             )}
-                            <div className="grid grid-cols-2 gap-3 pb-2 border-b border-slate-200 font-bold text-[11px] text-slate-700">
-                              <div className="text-blue-950">PIB (Acuan Utama)</div>
-                              <div className="text-slate-700 pl-2 border-l border-slate-200">
-                                Invoice {invDetails.length > 1 ? `#${idx + 1}` : ""} (Pembanding)
-                              </div>
-                            </div>
-                            <CompareRow
-                              lblLeft="Invoice Number"
-                              valLeft={getVal(pibData.fields, "Invoice_Number", "Invoice Number", "no_pib", "nomor_pib")}
-                              lblRight="Invoice Number"
-                              valRight={invNum}
-                              customStatus={isMatchVal}
-                            />
-                            <CompareRow
-                              lblLeft="Invoice Date"
-                              valLeft={getVal(pibData.fields, "Invoice_Date", "Invoice Date")}
-                              lblRight="Invoice Date"
-                              valRight={getVal(invData.fields, "Invoice_Date", "Invoice Date")}
-                            />
-                            <CompareRow
-                              lblLeft="Port of Loading"
-                              valLeft={getVal(pibData.fields, "Pelabuhan_Muat", "Pelabuhan Muat")}
-                              lblRight="Port of Loading"
-                              valRight={getVal(invData.fields, "Port_of_Loading", "Port of Loading")}
-                            />
-                            <CompareRow
-                              lblLeft="Exporter"
-                              valLeft={getVal(pibData.fields, "Nama_Penjual", "Nama Penjual")}
-                              lblRight="Exporter"
-                              valRight={getVal(invData.fields, "Exporter")}
-                            />
-                            <CompareRow
-                              lblLeft="Consignee"
-                              valLeft={getVal(pibData.fields, "Nama_Importir", "Nama Importir")}
-                              lblRight="Consignee"
-                              valRight={getVal(invData.fields, "Consignee")}
-                            />
-                            <CompareRow
-                              lblLeft="Total"
-                              valLeft={getVal(pibData.fields, "Nilai", "Nilai Total")}
-                              lblRight="Total"
-                              valRight={getVal(invData.fields, "Total")}
-                            />
-                          </div>
+
+                            {invDetails.map((invDet, idx) => {
+                              const invData = parseIsi(invDet.isi);
+                              const invNum = getVal(invData.fields, "Invoice_Number", "Invoice Number");
+                              const matchInfo = getInvoiceMatchInfo(invNum);
+                              return (
+                                <div
+                                  key={invDet.id || idx}
+                                  className="space-y-1 bg-slate-50/60 p-3 rounded-lg border border-slate-200/80"
+                                >
+                                  {invDetails.length > 1 && (
+                                    <div className="font-bold text-[11px] text-blue-950 pb-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                                      <span className="px-2 py-0.5 bg-blue-950 text-white rounded text-[10px] font-bold">
+                                        Invoice #{idx + 1}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400 font-mono">
+                                        ID: {invDet.fileId}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="grid grid-cols-2 gap-3 pb-2 border-b border-slate-200 font-bold text-[11px] text-slate-700">
+                                    <div className="text-blue-950">PIB (Acuan Utama)</div>
+                                    <div className="text-slate-700 pl-2 border-l border-slate-200">
+                                      Invoice {invDetails.length > 1 ? `#${idx + 1}` : ""} (Pembanding)
+                                    </div>
+                                  </div>
+                                  <CompareRow
+                                    lblLeft="Invoice Number"
+                                    valLeft={matchInfo.valLeft}
+                                    lblRight="Invoice Number"
+                                    valRight={invNum}
+                                    customStatus={matchInfo.isMatch}
+                                    noteLeft={matchInfo.noteLeft}
+                                  />
+                                  <CompareRow
+                                    lblLeft="Invoice Date"
+                                    valLeft={getVal(pibData.fields, "Invoice_Date", "Invoice Date")}
+                                    lblRight="Invoice Date"
+                                    valRight={getVal(invData.fields, "Invoice_Date", "Invoice Date")}
+                                  />
+                                  <CompareRow
+                                    lblLeft="Port of Loading"
+                                    valLeft={getVal(pibData.fields, "Pelabuhan_Muat", "Pelabuhan Muat")}
+                                    lblRight="Port of Loading"
+                                    valRight={getVal(invData.fields, "Port_of_Loading", "Port of Loading")}
+                                  />
+                                  <CompareRow
+                                    lblLeft="Destination"
+                                    valLeft={getVal(pibData.fields, "Pelabuhan_Tujuan", "Pelabuhan Tujuan")}
+                                    lblRight="Destination"
+                                    valRight={getVal(invData.fields, "Destination", "destination")}
+                                  />
+                                  <CompareRow
+                                    lblLeft="Exporter"
+                                    valLeft={getVal(pibData.fields, "Nama_Penjual", "Nama Penjual")}
+                                    lblRight="Exporter"
+                                    valRight={getVal(invData.fields, "Exporter")}
+                                  />
+                                  <CompareRow
+                                    lblLeft="Consignee"
+                                    valLeft={getVal(pibData.fields, "Nama_Importir", "Nama Importir")}
+                                    lblRight="Consignee"
+                                    valRight={getVal(invData.fields, "Consignee")}
+                                  />
+                                  <CompareRow
+                                    lblLeft="Terms of Delivery"
+                                    valLeft={getVal(pibData.fields, "Ket_FOB", "Ket FOB", "Incoterm", "Terms_of_Delivery", "Terms of Delivery", "Cara_Penyerahan", "cara penyerahan")}
+                                    lblRight="Terms of Delivery"
+                                    valRight={getVal(invData.fields, "Terms_of_Delivery", "Terms of Delivery", "Incoterm", "Delivery_Terms", "Delivery Terms")}
+                                  />
+                                  <CompareRow
+                                    lblLeft="Total"
+                                    valLeft={getVal(pibData.fields, "Nilai", "Nilai Total")}
+                                    lblRight="Total"
+                                    valRight={getVal(invData.fields, "Total", "Nilai Total")}
+                                    customStatus={invDetails.length > 1 ? isCombinedMatch : undefined}
+                                    noteLeft={invDetails.length > 1 ? `Akumulasi Total (${invDetails.length} Invoice)` : undefined}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </>
                         );
-                      })
+                      })()
                     )}
                   </div>
                 </div>
@@ -1674,53 +2264,184 @@ export default function MatchingPage() {
                     {pkgDetails.length === 0 ? (
                       <p className="text-slate-400 italic text-[11px] p-2">Tidak ada file Packing List diunggah.</p>
                     ) : (
-                      pkgDetails.map((pkgDet, idx) => {
-                        const pkgData = parseIsi(pkgDet.isi);
-                        const pkgInvNum = getVal(pkgData.fields, "Invoice_Number", "Invoice Number");
-                        const isMatchVal = isInvoiceMatch(pkgInvNum);
+                      (() => {
+                        const pibNetWtVal = getVal(pibData.fields, "Berat_Bersih", "Berat Bersih");
+                        const pibNetWtNum = parseNumericValue(pibNetWtVal);
+                        const sumPkgNetWt = pkgDetails.reduce((acc, det) => {
+                          const dData = parseIsi(det.isi);
+                          return (
+                            acc +
+                            parseNumericValue(
+                              getVal(
+                                dData.fields,
+                                "Total_Net_Weight",
+                                "Total Net Weight",
+                                "Net_Weight",
+                                "Net Weight",
+                                "Berat_Bersih",
+                                "Berat Bersih"
+                              )
+                            )
+                          );
+                        }, 0);
+                        const isCombinedWtMatch =
+                          pkgDetails.length > 1 && pibNetWtNum > 0 && sumPkgNetWt > 0
+                            ? Math.abs(pibNetWtNum - sumPkgNetWt) < 0.01
+                            : undefined;
+
                         return (
-                          <div
-                            key={pkgDet.id || idx}
-                            className="space-y-1 bg-slate-50/60 p-3 rounded-lg border border-slate-200/80"
-                          >
+                          <>
                             {pkgDetails.length > 1 && (
-                              <div className="font-bold text-[11px] text-blue-950 pb-1.5 border-b border-slate-200/80 flex items-center justify-between">
-                                <span className="px-2 py-0.5 bg-blue-950 text-white rounded text-[10px] font-bold">
-                                  Packing List #{idx + 1}
-                                </span>
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                  ID: {pkgDet.fileId}
+                              <div
+                                className={`p-2.5 px-3.5 rounded-lg border flex flex-wrap items-center justify-between gap-2 text-xs font-medium transition-all ${
+                                  isCombinedWtMatch === true
+                                    ? "bg-emerald-50/70 border-emerald-200/90 text-emerald-950"
+                                    : isCombinedWtMatch === false
+                                    ? "bg-rose-50/70 border-rose-200/90 text-rose-950"
+                                    : "bg-blue-50/70 border-blue-200/90 text-blue-950"
+                                }`}
+                              >
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-bold text-slate-800 flex items-center gap-1.5 text-xs">
+                                    <span
+                                      className={`w-5 h-5 rounded font-bold text-[10px] flex items-center justify-center text-white ${
+                                        isCombinedWtMatch === true
+                                          ? "bg-emerald-600"
+                                          : isCombinedWtMatch === false
+                                          ? "bg-rose-600"
+                                          : "bg-blue-600"
+                                      }`}
+                                    >
+                                      ∑
+                                    </span>
+                                    <span>Akumulasi Net Weight ({pkgDetails.length} File PL):</span>
+                                  </span>
+
+                                  <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px]">
+                                    <span className="bg-white px-2 py-0.5 rounded border border-slate-200/90 font-bold text-slate-800 shadow-2xs">
+                                      PIB: {pibNetWtVal || "-"}
+                                    </span>
+                                    <span className="text-slate-400 font-bold">=</span>
+                                    {pkgDetails.map((det, i) => {
+                                      const dData = parseIsi(det.isi);
+                                      const v = parseNumericValue(
+                                        getVal(
+                                          dData.fields,
+                                          "Total_Net_Weight",
+                                          "Total Net Weight",
+                                          "Net_Weight",
+                                          "Net Weight",
+                                          "Berat_Bersih",
+                                          "Berat Bersih"
+                                        )
+                                      );
+                                      return (
+                                        <React.Fragment key={i}>
+                                          {i > 0 && <span className="text-slate-400 font-bold">+</span>}
+                                          <span className="bg-white/80 px-2 py-0.5 rounded border border-slate-200/80 text-slate-700">
+                                            <span className="text-slate-400 font-sans text-[10px] mr-1">PL #{i + 1}:</span>
+                                            {formatNumericValue(v)}
+                                          </span>
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                    <span
+                                      className={`px-2 py-0.5 rounded border font-bold ${
+                                        isCombinedWtMatch === true
+                                          ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                          : isCombinedWtMatch === false
+                                          ? "bg-rose-100 text-rose-800 border-rose-300"
+                                          : "bg-blue-100 text-blue-800 border-blue-300"
+                                      }`}
+                                    >
+                                      = {formatNumericValue(sumPkgNetWt)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                                    isCombinedWtMatch === true
+                                      ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                      : isCombinedWtMatch === false
+                                      ? "bg-rose-100 text-rose-800 border-rose-300"
+                                      : "bg-blue-100 text-blue-800 border-blue-300"
+                                  }`}
+                                >
+                                  {isCombinedWtMatch === true
+                                    ? "✓ Match"
+                                    : isCombinedWtMatch === false
+                                    ? "✕ Mismatch"
+                                    : "Multiple"}
                                 </span>
                               </div>
                             )}
-                            <div className="grid grid-cols-2 gap-3 pb-2 border-b border-slate-200 font-bold text-[11px] text-slate-700">
-                              <div className="text-blue-950">PIB (Acuan Utama)</div>
-                              <div className="text-slate-700 pl-2 border-l border-slate-200">
-                                Packing List {pkgDetails.length > 1 ? `#${idx + 1}` : ""} (Pembanding)
-                              </div>
-                            </div>
-                            <CompareRow
-                              lblLeft="Invoice Number"
-                              valLeft={getVal(pibData.fields, "Invoice_Number", "Invoice Number")}
-                              lblRight="Invoice Number"
-                              valRight={pkgInvNum}
-                              customStatus={isMatchVal}
-                            />
-                            <CompareRow
-                              lblLeft="Invoice Date"
-                              valLeft={getVal(pibData.fields, "Invoice_Date", "Invoice Date")}
-                              lblRight="Invoice Date"
-                              valRight={getVal(pkgData.fields, "Invoice_Date", "Invoice Date")}
-                            />
-                            <CompareRow
-                              lblLeft="Total Net Weight"
-                              valLeft={getVal(pibData.fields, "Berat_Bersih", "Berat Bersih")}
-                              lblRight="Total Net Weight"
-                              valRight={getVal(pkgData.fields, "Total_Net_Weight", "Total Net Weight")}
-                            />
-                          </div>
+
+                            {pkgDetails.map((pkgDet, idx) => {
+                              const pkgData = parseIsi(pkgDet.isi);
+                              const pkgInvNum = getVal(pkgData.fields, "Invoice_Number", "Invoice Number");
+                              const matchInfo = getInvoiceMatchInfo(pkgInvNum);
+                              return (
+                                <div
+                                  key={pkgDet.id || idx}
+                                  className="space-y-1 bg-slate-50/60 p-3 rounded-lg border border-slate-200/80"
+                                >
+                                  {pkgDetails.length > 1 && (
+                                    <div className="font-bold text-[11px] text-blue-950 pb-1.5 border-b border-slate-200/80 flex items-center justify-between">
+                                      <span className="px-2 py-0.5 bg-blue-950 text-white rounded text-[10px] font-bold">
+                                        Packing List #{idx + 1}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400 font-mono">
+                                        ID: {pkgDet.fileId}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="grid grid-cols-2 gap-3 pb-2 border-b border-slate-200 font-bold text-[11px] text-slate-700">
+                                    <div className="text-blue-950">PIB (Acuan Utama)</div>
+                                    <div className="text-slate-700 pl-2 border-l border-slate-200">
+                                      Packing List {pkgDetails.length > 1 ? `#${idx + 1}` : ""} (Pembanding)
+                                    </div>
+                                  </div>
+                                  <CompareRow
+                                    lblLeft="Invoice Number"
+                                    valLeft={matchInfo.valLeft}
+                                    lblRight="Invoice Number"
+                                    valRight={pkgInvNum}
+                                    customStatus={matchInfo.isMatch}
+                                    noteLeft={matchInfo.noteLeft}
+                                  />
+                                  <CompareRow
+                                    lblLeft="Invoice Date"
+                                    valLeft={getVal(pibData.fields, "Invoice_Date", "Invoice Date")}
+                                    lblRight="Invoice Date"
+                                    valRight={getVal(pkgData.fields, "Invoice_Date", "Invoice Date")}
+                                  />
+                                  <CompareRow
+                                    lblLeft="Total Net Weight"
+                                    valLeft={getVal(pibData.fields, "Berat_Bersih", "Berat Bersih")}
+                                    lblRight="Total Net Weight"
+                                    valRight={getVal(
+                                      pkgData.fields,
+                                      "Total_Net_Weight",
+                                      "Total Net Weight",
+                                      "Net_Weight",
+                                      "Net Weight",
+                                      "Berat_Bersih",
+                                      "Berat Bersih"
+                                    )}
+                                    customStatus={pkgDetails.length > 1 ? isCombinedWtMatch : undefined}
+                                    noteLeft={
+                                      pkgDetails.length > 1
+                                        ? `Akumulasi Net Weight (${pkgDetails.length} PL)`
+                                        : undefined
+                                    }
+                                  />
+                                </div>
+                              );
+                            })}
+                          </>
                         );
-                      })
+                      })()
                     )}
                   </div>
                 </div>
@@ -1886,53 +2607,56 @@ export default function MatchingPage() {
                           for (let i = 0; i < maxRows; i++) {
                             const pibRow = pibData.table[i] || {};
                             const rekapRow = rekapData.table[i] || {};
+                            const pibHs = displayValue(pibRow["Pos_Tarif"] || pibRow["pos tarif"] || pibRow["pos_tarif"] || pibRow["HS_Code"] || pibRow["hs code"]);
+                            const rekapHs = displayValue(
+                              rekapRow["HS_Code"] || rekapRow["hs code"] || rekapRow["pos tarif"] || rekapRow["pos_tarif"] || rekapRow["Pos_Tarif"]
+                            );
 
-                            const pibHs = (pibRow["Pos_Tarif"] || "").trim();
-                            const rekapHs = (
-                              rekapRow["HS_Code"] ||
-                              rekapRow["hs code"] ||
-                              rekapRow["hs_code"] ||
-                              ""
-                            ).trim();
-
-                            const pibPart = (pibRow["Kode_Barang"] || "").trim();
-                            const rekapPart = (
+                            const pibPart = displayValue(pibRow["Kode_Barang"] || pibRow["kode barang"] || pibRow["kode_barang"] || pibRow["Part_No"] || pibRow["part_no"]);
+                            const rekapPart = displayValue(
                               rekapRow["Part_No"] ||
                               rekapRow["part_no"] ||
                               rekapRow["no part"] ||
-                              ""
-                            ).trim();
+                              rekapRow["part no"] ||
+                              rekapRow["Kode_Barang"] ||
+                              rekapRow["kode_barang"] ||
+                              rekapRow["kode barang"]
+                            );
 
-                            const pibQty = (pibRow["Jumlah_Barang"] || "").trim();
-                            const rekapQty = (
+                            const pibQty = displayValue(pibRow["Jumlah_Barang"] || pibRow["jumlah barang"] || pibRow["jumlah_barang"] || pibRow["QTY"] || pibRow["qty"] || pibRow["jumlah"]);
+                            const rekapQty = displayValue(
                               rekapRow["QTY"] ||
                               rekapRow["qty"] ||
                               rekapRow["jumlah"] ||
-                              ""
-                            ).trim();
-
-                            const pibDesc = (pibRow["Uraian"] || "").trim();
-                            const rekapDesc = (
-                              rekapRow["Part_Desc"] ||
-                              rekapRow["desc"] ||
-                              rekapRow["uraian"] ||
-                              ""
-                            ).trim();
-
-                            const hasBoth = Boolean(
-                              (pibHs || pibPart || pibQty) && (rekapHs || rekapPart || rekapQty)
+                              rekapRow["jumlah_barang"] ||
+                              rekapRow["jumlah barang"]
                             );
 
-                            const isHsMatch =
-                              pibHs && rekapHs && pibHs.toLowerCase() === rekapHs.toLowerCase();
-                            const isPartMatch =
-                              pibPart &&
-                              rekapPart &&
-                              pibPart.toLowerCase() === rekapPart.toLowerCase();
-                            const isQtyMatch =
-                              pibQty && rekapQty && pibQty.toLowerCase() === rekapQty.toLowerCase();
+                            const pibDesc = displayValue(pibRow["Uraian"] || pibRow["uraian"] || pibRow["Desc"] || pibRow["desc"]);
+                            const rekapDesc = displayValue(
+                              rekapRow["Part_Desc"] ||
+                              rekapRow["part desc"] ||
+                              rekapRow["desc"] ||
+                              rekapRow["uraian"]
+                            );
 
-                            const isRowMatch = hasBoth && (isHsMatch || isPartMatch) && isQtyMatch;
+                            const hasBoth = Boolean(
+                              (pibHs !== "-" || pibPart !== "-" || pibQty !== "-") && (rekapHs !== "-" || rekapPart !== "-" || rekapQty !== "-")
+                            );
+
+                            const cleanVal = (s: string) => s.toLowerCase().trim();
+                            const cleanNum = (s: string) => s.toLowerCase().replace(/,/g, "").replace(/\.00$/, "").replace(/\s+/g, "").trim();
+
+                            const isHsMatch =
+                              pibHs !== "-" && rekapHs !== "-" && cleanVal(pibHs) === cleanVal(rekapHs);
+                            const isPartMatch =
+                              pibPart !== "-" &&
+                              rekapPart !== "-" &&
+                              cleanVal(pibPart) === cleanVal(rekapPart);
+                            const isQtyMatch =
+                              pibQty !== "-" && rekapQty !== "-" && cleanNum(pibQty) === cleanNum(rekapQty);
+
+                            const isRowMatch = hasBoth && (isHsMatch || isPartMatch) && (isQtyMatch || pibQty === "-" || rekapQty === "-");
                             const isRowMismatch = hasBoth && !isRowMatch;
 
                             const itemBoxClass = isRowMatch
@@ -1942,20 +2666,20 @@ export default function MatchingPage() {
                               : "bg-slate-50 text-slate-800 border-slate-200/80";
 
                             renderedRows.push(
-                              <div key={i} className="grid grid-cols-2 gap-3 text-[11px]">
+                              <div key={i} className="grid grid-cols-2 gap-3 text-xs">
                                 {/* PIB Item Box */}
                                 <div
                                   className={`p-3 rounded-xl border space-y-1.5 transition-colors ${itemBoxClass}`}
                                 >
-                                  <div className="flex items-center justify-between font-mono font-bold text-[11px] border-b border-black/10 pb-1">
-                                    <span>HS: {pibHs || "-"}</span>
-                                    <span>Qty: {pibQty || "-"}</span>
+                                  <div className="flex items-center justify-between font-bold text-xs border-b border-black/10 pb-1">
+                                    <span>HS: {pibHs}</span>
+                                    <span>Qty: {pibQty}</span>
                                   </div>
-                                  <div className="font-mono text-[10px] font-semibold opacity-90">
-                                    Part No: {pibPart || "-"}
+                                  <div className="font-semibold text-xs opacity-90">
+                                    Part No: {pibPart}
                                   </div>
-                                  <div className="break-words whitespace-normal font-sans text-[11px] leading-snug pt-0.5">
-                                    {pibDesc || "-"}
+                                  <div className="break-words font-sans text-xs leading-normal pt-0.5">
+                                    {pibDesc}
                                   </div>
                                 </div>
 
@@ -1963,15 +2687,15 @@ export default function MatchingPage() {
                                 <div
                                   className={`p-3 rounded-xl border space-y-1.5 transition-colors ${itemBoxClass}`}
                                 >
-                                  <div className="flex items-center justify-between font-mono font-bold text-[11px] border-b border-black/10 pb-1">
-                                    <span>HS: {rekapHs || "-"}</span>
-                                    <span>Qty: {rekapQty || "-"}</span>
+                                  <div className="flex items-center justify-between font-bold text-xs border-b border-black/10 pb-1">
+                                    <span>HS: {rekapHs}</span>
+                                    <span>Qty: {rekapQty}</span>
                                   </div>
-                                  <div className="font-mono text-[10px] font-semibold opacity-90">
-                                    Part No: {rekapPart || "-"}
+                                  <div className="font-semibold text-xs opacity-90">
+                                    Part No: {rekapPart}
                                   </div>
-                                  <div className="break-words whitespace-normal font-sans text-[11px] leading-snug pt-0.5">
-                                    {rekapDesc || "-"}
+                                  <div className="break-words font-sans text-xs leading-normal pt-0.5">
+                                    {rekapDesc}
                                   </div>
                                 </div>
                               </div>
@@ -1979,59 +2703,6 @@ export default function MatchingPage() {
                           }
                           return renderedRows;
                         })()}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 6. PIB LANJUTAN SECTION (IF PRESENT) */}
-                {pibLanjutanDetail && (
-                  <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-                    <div className="px-4 py-3 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between">
-                      <div className="font-bold text-blue-950 text-xs flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-full bg-blue-950 text-white flex items-center justify-center text-[10px]">
-                          6
-                        </span>
-                        <span>PIB LANJUTAN (DOKUMEN PENDUKUNG)</span>
-                      </div>
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded font-bold border ${
-                          pibLanjutanDetail.isi
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : "bg-slate-100 text-slate-500 border-slate-200"
-                        }`}
-                      >
-                        {pibLanjutanDetail.isi ? "Uploaded" : "Pending OCR"}
-                      </span>
-                    </div>
-                    <div className="p-3.5">
-                      <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-[11px]">
-                          <thead>
-                            <tr className="border-b border-slate-200 text-[10px] text-slate-500 uppercase">
-                              <th className="py-1 px-2">Nama Document</th>
-                              <th className="py-1 px-2">No Document</th>
-                              <th className="py-1 px-2">Tanggal Document</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-200/60 font-mono text-[10px]">
-                            {pibLanjutanData.table.length > 0 ? (
-                              pibLanjutanData.table.map((row, idx) => (
-                                <tr key={idx}>
-                                  <td className="py-1.5 px-2 font-bold">{row["Nama_Document"] || row["nama document"] || "-"}</td>
-                                  <td className="py-1.5 px-2">{row["No_Document"] || row["no document"] || "-"}</td>
-                                  <td className="py-1.5 px-2">{row["Tanggal_Document"] || row["tanggal document"] || "-"}</td>
-                                </tr>
-                              ))
-                            ) : (
-                              <tr>
-                                <td colSpan={3} className="py-3 text-center text-slate-400 italic font-sans">
-                                  Tabel PIB Lanjutan Kosong
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
                       </div>
                     </div>
                   </div>

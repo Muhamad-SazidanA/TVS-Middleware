@@ -80,6 +80,7 @@ model Batch {
     createdAt DateTime      @default(now())
     updatedAt DateTime      @updatedAt
     details   DetailBatch[]
+    logs      BatchLog[]
 
     @@map("batches")
 }
@@ -97,4 +98,23 @@ model DetailBatch {
 
     @@map("detail_batches")
 }
+
+model BatchLog {
+    id         Int      @id @default(autoincrement())
+    batchId    String
+    step       String
+    stepNumber Int      @default(1)
+    level      String   @default("INFO")
+    title      String
+    message    String   @db.Text
+    fileType   String?
+    fileName   String?
+    details    String?  @db.Text
+    createdAt  DateTime @default(now())
+
+    batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+    @@map("batch_logs")
+}
+
 
