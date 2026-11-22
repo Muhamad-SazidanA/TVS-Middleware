@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "~/server/db";
+import { logSystemAudit } from "~/server/auditLogger";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,20 @@ export async function POST(req: Request) {
       },
       include: { values: true },
     });
+
+    await logSystemAudit({
+      action: "CREATE",
+      category: "EQUIVALENCY",
+      title: `Tambah Aturan Kamus: ${group.name}`,
+      details: `Kategori: ${group.category}, Canonical: "${group.canonical}", ${cleanValues.length} variasi nilai didaftarkan.`,
+      metadata: {
+        groupId: group.id,
+        name: group.name,
+        category: group.category,
+        canonical: group.canonical,
+        values: cleanValues,
+      },
+    }).catch((err) => console.warn("[Audit] Failed to log Equivalency create:", err));
 
     return NextResponse.json({
       success: true,

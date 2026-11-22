@@ -174,3 +174,21 @@ model EquivalencyValue {
   @@index([groupId])
   @@map("equivalency_values")
 }
+
+model SystemAuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    String?
+  userName  String?
+  userEmail String?
+  action    String   // CREATE, UPDATE, DELETE, OVERRIDE
+  category  String   // DATA_ACTION, EQUIVALENCY, BATCH_DATA, SYSTEM_SETTING
+  title     String
+  details   String?  @db.Text
+  metadata  String?  @db.Text
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([category])
+  @@index([createdAt])
+  @@map("system_audit_logs")
+}

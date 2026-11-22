@@ -4,6 +4,7 @@ import { auth } from "~/server/auth";
 import { createBatchLog } from "~/server/logger";
 import { evaluateDbBatchStatus } from "~/server/matchingEngine";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
+import { logSystemAudit } from "~/server/auditLogger";
 
 export const dynamic = "force-dynamic";
 
@@ -198,6 +199,24 @@ export async function POST(
     } catch (alErr) {
       console.warn("Failed recording actionLog:", alErr);
     }
+
+    await logSystemAudit({
+      action: "OVERRIDE",
+      category: "BATCH_DATA",
+      title: `Koreksi Manual: ${fieldName} (${detail.fileType})`,
+      details: `Field "${fieldName}" diubah dari "${cleanOldVal || "-"}" menjadi "${cleanNewVal}". Dokumen: ${detail.fileType} (Batch #${batchId})`,
+      metadata: {
+        batchId,
+        detailId,
+        fileType: detail.fileType,
+        fieldName,
+        oldValue: cleanOldVal || "-",
+        newValue: cleanNewVal,
+      },
+      userName: actionByName,
+      userEmail: session?.user?.email || undefined,
+      userId: session?.user?.id || undefined,
+    }).catch((err) => console.warn("[Audit] Failed to log field-edit override:", err));
 
     // 5. Re-evaluate overall batch matching status
     const serverGroups = await loadServerEquivalencyGroups();

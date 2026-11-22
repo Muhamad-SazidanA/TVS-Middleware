@@ -1497,11 +1497,7 @@ export default function WorkflowBuilder() {
             if (!isMounted) return;
             setSteps(data.steps);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data.steps));
-            const exp: Record<string, boolean> = {};
-            data.steps.forEach((s: WorkflowStep) => {
-              exp[s.id] = true;
-            });
-            setExpandedSteps(exp);
+            setExpandedSteps({});
             return;
           }
         }
@@ -1515,11 +1511,7 @@ export default function WorkflowBuilder() {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed) && isMounted) {
             setSteps(parsed);
-            const exp: Record<string, boolean> = {};
-            parsed.forEach((s: WorkflowStep) => {
-              exp[s.id] = true;
-            });
-            setExpandedSteps(exp);
+            setExpandedSteps({});
           }
         }
       } catch {
@@ -1616,7 +1608,7 @@ export default function WorkflowBuilder() {
     };
 
     setSteps([...steps, newStep]);
-    setExpandedSteps((prev) => ({ ...prev, [newId]: true }));
+    setExpandedSteps({ [newId]: true });
     setShowAddModal(false);
     setHasChanges(true);
   };
@@ -1648,7 +1640,7 @@ export default function WorkflowBuilder() {
     const updated = [...steps];
     updated.splice(idx + 1, 0, dup);
     setSteps(updated);
-    setExpandedSteps((prev) => ({ ...prev, [newId]: true }));
+    setExpandedSteps({ [newId]: true });
     setHasChanges(true);
   };
 
@@ -1924,6 +1916,26 @@ export default function WorkflowBuilder() {
 
   const activeDocDef = USC_DOCUMENT_TABS.find((t) => t.id === activeDocTab) || USC_DOCUMENT_TABS[0]!;
 
+  const toggleStepExpand = (stepId: string) => {
+    setExpandedSteps((prev) => (prev[stepId] ? {} : { [stepId]: true }));
+  };
+
+  const isAllExpanded =
+    activeDocumentSteps.length > 0 &&
+    activeDocumentSteps.every((s) => !!expandedSteps[s.id]);
+
+  const handleToggleAllExpand = () => {
+    if (isAllExpanded) {
+      setExpandedSteps({});
+    } else {
+      const all: Record<string, boolean> = {};
+      activeDocumentSteps.forEach((s) => {
+        all[s.id] = true;
+      });
+      setExpandedSteps(all);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Toast Alert (Clean & Slim, Zero Emojis) */}
@@ -2078,6 +2090,36 @@ export default function WorkflowBuilder() {
 
       {/* ACTIVE DOCUMENT DATA ACTIONS CONTAINER */}
       <div className="space-y-3">
+        {/* Step List Controls Toolbar */}
+        <div className="flex items-center justify-between pb-1 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-800">Pipeline Urutan Aksi</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+              {activeDocumentSteps.length} aturan aktif
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            {activeDocumentSteps.length > 0 && (
+              <button
+                type="button"
+                onClick={handleToggleAllExpand}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                <span>{isAllExpanded ? "Tutup Semua" : "Buka Semua"}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-950 hover:bg-blue-900 text-white rounded-lg text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+            >
+              <PlusIcon className="w-3 h-3" />
+              <span>Tambah Aksi</span>
+            </button>
+          </div>
+        </div>
+
         {activeDocumentSteps.length === 0 ? (
           // Clean & Slim Empty State (Zero Emojis)
           <div className="bg-white rounded-xl border border-dashed border-slate-300 p-8 text-center space-y-2.5">
@@ -2132,16 +2174,24 @@ export default function WorkflowBuilder() {
                 {/* Slim Step Card */}
                 <div
                   className={`bg-white rounded-xl border transition-all ${
-                    step.enabled
+                    isExpanded
+                      ? "border-blue-900/40 ring-1 ring-blue-900/10 shadow-xs"
+                      : step.enabled
                       ? "border-slate-200/90 shadow-2xs hover:border-slate-300"
                       : "border-slate-200 opacity-60 bg-slate-50/50"
                   }`}
                 >
-                  {/* SLIM CARD HEADER */}
-                  <div className="px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100">
+                  {/* SLIM CARD HEADER (Click to toggle accordion focus) */}
+                  <div
+                    onClick={() => toggleStepExpand(step.id)}
+                    className="px-3.5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 cursor-pointer select-none hover:bg-slate-50/60 transition-colors"
+                  >
                     <div className="flex items-center gap-2.5 min-w-0">
                       {/* Drag Handle */}
-                      <div className="text-slate-300 cursor-grab hover:text-slate-500 shrink-0">
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-slate-300 cursor-grab hover:text-slate-500 shrink-0"
+                      >
                         <DragHandleIcon className="w-3.5 h-3.5" />
                       </div>
 
@@ -2161,8 +2211,9 @@ export default function WorkflowBuilder() {
                           <input
                             type="text"
                             value={step.name}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => updateStep(step.id, { name: e.target.value })}
-                            className="text-xs font-semibold text-slate-900 bg-transparent hover:bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-950 px-1 py-0.5 rounded transition-all"
+                            className="text-xs font-semibold text-slate-900 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-950 px-1 py-0.5 rounded transition-all"
                           />
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-600 bg-slate-100 border border-slate-200/70">
                             {actionDef.badge}
@@ -2183,7 +2234,10 @@ export default function WorkflowBuilder() {
                     </div>
 
                     {/* Right Controls Toolbar */}
-                    <div className="flex items-center gap-1 self-end sm:self-auto shrink-0">
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-1 self-end sm:self-auto shrink-0"
+                    >
                       {/* Toggle */}
                       <label className="relative inline-flex items-center cursor-pointer mr-1.5">
                         <input
@@ -2235,7 +2289,7 @@ export default function WorkflowBuilder() {
 
                       {/* Expand / Collapse */}
                       <button
-                        onClick={() => setExpandedSteps((prev) => ({ ...prev, [step.id]: !isExpanded }))}
+                        onClick={() => toggleStepExpand(step.id)}
                         className="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 ml-0.5 cursor-pointer"
                       >
                         <ChevronDownIcon
@@ -2759,8 +2813,16 @@ export default function WorkflowBuilder() {
                         );
                       })()}
 
-                      {/* CARD FOOTER BAR (Done button only) */}
-                      <div className="pt-2.5 flex items-center justify-end border-t border-slate-100">
+                      {/* CARD FOOTER BAR */}
+                      <div className="pt-2.5 flex items-center justify-between border-t border-slate-100">
+                        <button
+                          type="button"
+                          onClick={() => toggleStepExpand(step.id)}
+                          className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-medium transition-colors cursor-pointer"
+                        >
+                          Tutup Langkah
+                        </button>
+
                         <button
                           type="button"
                           disabled={savingStepId === step.id}
@@ -2769,7 +2831,7 @@ export default function WorkflowBuilder() {
                             savingStepId === step.id ? "opacity-70 cursor-not-allowed" : ""
                           }`}
                         >
-                          {savingStepId === step.id ? "Menyimpan..." : "Done"}
+                          {savingStepId === step.id ? "Menyimpan..." : "Simpan & Selesai"}
                         </button>
                       </div>
                     </div>

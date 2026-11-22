@@ -23,14 +23,25 @@ const CATEGORIES: Array<{ id: string; label: string }> = [
   { id: "general", label: "Umum (General)" },
 ];
 
-const CATEGORY_LABELS: Record<string, string> = {
-  port: "Pelabuhan",
-  company: "Perusahaan",
-  incoterms: "Incoterms",
-  general: "Umum",
+const CATEGORY_STYLES: Record<string, { label: string; badge: string }> = {
+  port: { label: "Pelabuhan", badge: "bg-teal-50 text-teal-800 border-teal-200" },
+  company: { label: "Perusahaan", badge: "bg-indigo-50 text-indigo-800 border-indigo-200" },
+  incoterms: { label: "Incoterms", badge: "bg-amber-50 text-amber-800 border-amber-200" },
+  general: { label: "Umum", badge: "bg-slate-100 text-slate-800 border-slate-200" },
 };
 
 // SVG Icons (Zero Emojis)
+const InfoIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+    />
+  </svg>
+);
+
 const PlusIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -169,28 +180,46 @@ export default function EquivalencyManager() {
     setIsModalOpen(true);
   };
 
-  // Add alias to form (case-insensitive deduplication)
+  // Add alias to form (case-insensitive deduplication, supports multiline or comma separated paste)
   const handleAddAlias = () => {
-    const val = inputValue.trim();
-    if (!val) return;
-    if (formValues.some((v) => v.toLowerCase() === val.toLowerCase())) {
-      setFormError(`Nilai "${val}" sudah ada dalam daftar (huruf besar/kecil dianggap sama).`);
-      return;
+    const raw = inputValue.trim();
+    if (!raw) return;
+
+    // Split by newlines or commas
+    const tokens = raw
+      .split(/[\r\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (tokens.length === 0) return;
+
+    const newValues = [...formValues];
+    let addedCount = 0;
+
+    for (const val of tokens) {
+      if (
+        !newValues.some((v) => v.toLowerCase() === val.toLowerCase()) &&
+        val.toLowerCase() !== formCanonical.trim().toLowerCase()
+      ) {
+        newValues.push(val);
+        addedCount++;
+      }
     }
-    if (formCanonical.trim() && val.toLowerCase() === formCanonical.trim().toLowerCase()) {
-      setFormError(`"${val}" adalah nilai Canonical (acuan utama), otomatis sudah termasuk dalam grup.`);
-      return;
+
+    if (addedCount === 0 && tokens.length === 1) {
+      if (formValues.some((v) => v.toLowerCase() === raw.toLowerCase())) {
+        setFormError(`Nilai "${raw}" sudah ada dalam daftar.`);
+        return;
+      }
+      if (formCanonical.trim() && raw.toLowerCase() === formCanonical.trim().toLowerCase()) {
+        setFormError(`"${raw}" adalah nilai Acuan Utama (Canonical), otomatis sudah termasuk.`);
+        return;
+      }
     }
-    setFormValues([...formValues, val]);
+
+    setFormValues(newValues);
     setInputValue("");
     setFormError(null);
-  };
-
-  const handleKeyDownInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      handleAddAlias();
-    }
   };
 
   const handleRemoveAlias = (valToRemove: string) => {
@@ -447,24 +476,31 @@ export default function EquivalencyManager() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {filteredGroups.map((group) => {
-            const catLabel = CATEGORY_LABELS[group.category] || group.category;
+            const catBadge =
+              CATEGORY_STYLES[group.category] || {
+                label: group.category,
+                badge: "bg-slate-100 text-slate-800 border-slate-200",
+              };
+
             return (
               <div
                 key={group.id}
                 className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs hover:border-slate-300 transition-all flex flex-col justify-between"
               >
-                <div className="space-y-2.5">
+                <div className="space-y-3">
                   {/* Top Bar: Category badge & Actions */}
                   <div className="flex items-center justify-between gap-2">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-900 border border-blue-200">
-                      {catLabel}
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${catBadge.badge}`}
+                    >
+                      {catBadge.label}
                     </span>
 
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => handleOpenEdit(group)}
-                        title="Edit Grup"
+                        title="Edit Aturan"
                         className="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
                       >
                         <EditIcon className="w-3.5 h-3.5" />
@@ -472,7 +508,7 @@ export default function EquivalencyManager() {
                       <button
                         type="button"
                         onClick={() => setDeleteTarget(group)}
-                        title="Hapus Grup"
+                        title="Hapus Aturan"
                         className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                       >
                         <TrashIcon className="w-3.5 h-3.5" />
@@ -480,49 +516,68 @@ export default function EquivalencyManager() {
                     </div>
                   </div>
 
-                  {/* Group Name */}
-                  <div>
-                    <h3 className="text-xs font-bold text-slate-900">{group.name}</h3>
+                  {/* Group Name (Clear semantic concept header) */}
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Aturan Representasi:
+                    </span>
+                    <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                      {group.name}
+                    </h3>
                   </div>
 
-                  {/* Canonical Value */}
-                  <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 space-y-1">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                      <StarIcon className="w-3 h-3 text-amber-500" />
-                      <span>Nilai Acuan Utama (Canonical):</span>
-                    </span>
-                    <span className="block text-xs font-mono font-bold text-blue-950 truncate">
+                  {/* Canonical Value (Standard target banner) */}
+                  <div className="p-2.5 rounded-lg bg-blue-50/70 border border-blue-200/90 space-y-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                        <span>Nilai Standar Acuan (Canonical):</span>
+                      </span>
+                      <span className="text-[9px] font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.2 rounded">
+                        Target Match
+                      </span>
+                    </div>
+                    <span className="block text-xs font-mono font-bold text-blue-950 break-words leading-relaxed">
                       {group.canonical}
                     </span>
                   </div>
 
-                  {/* Equivalent Values Chips */}
+                  {/* Equivalent Values (Field variations) */}
                   <div className="space-y-1.5">
-                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                      Variasi Nilai Setara ({group.values.length}):
-                    </span>
-                    <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto no-scrollbar">
-                      {group.values.length === 0 ? (
-                        <span className="text-[11px] text-slate-400 italic">
-                          Belum ada variasi nilai tambahan.
-                        </span>
-                      ) : (
-                        group.values.map((v, idx) => (
-                          <span
-                            key={v.id || idx}
-                            className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono bg-slate-100 text-slate-700 border border-slate-200"
-                          >
-                            {v.value}
-                          </span>
-                        ))
-                      )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                        Variasi Teks Lapangan ({group.values.length}):
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Otomatis disamakan
+                      </span>
                     </div>
+
+                    {group.values.length === 0 ? (
+                      <span className="text-[11px] text-slate-400 italic block py-1">
+                        Belum ada variasi nilai tambahan.
+                      </span>
+                    ) : (
+                      <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                        {group.values.map((v, idx) => (
+                          <div
+                            key={v.id || idx}
+                            className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200/90 text-[11px] font-mono text-slate-700 break-words leading-relaxed flex items-start gap-2"
+                          >
+                            <span className="text-[10px] font-sans font-bold text-slate-400 select-none pt-0.5">
+                              #{idx + 1}
+                            </span>
+                            <span className="flex-1">{v.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Footer Count */}
-                <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-400 flex items-center justify-between">
-                  <span>Total {group.values.length + 1} entri dalam grup ini</span>
+                <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-400 flex items-center justify-between mt-3">
+                  <span>Total {group.values.length + 1} entri teks terdaftar</span>
                   <span className="font-mono text-slate-300">ID #{group.id}</span>
                 </div>
               </div>
@@ -534,14 +589,14 @@ export default function EquivalencyManager() {
       {/* CREATE / EDIT MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-lg p-5 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-lg p-5 space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">
-                  {editingGroup ? "Edit Grup Ekuivalensi" : "Tambah Grup Ekuivalensi Baru"}
+                  {editingGroup ? "Edit Aturan Kamus Ekuivalensi" : "Tambah Aturan Kamus Baru"}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Semua nilai dalam grup ini akan dianggap MATCH satu sama lain dalam sistem matching.
+                  Menghubungkan variasi teks dokumen agar sistem mencocokkannya secara otomatis.
                 </p>
               </div>
               <button
@@ -553,26 +608,40 @@ export default function EquivalencyManager() {
               </button>
             </div>
 
+            {/* Beginner-friendly explanation */}
+            <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-lg text-xs text-blue-950 space-y-0.5 shrink-0">
+              <span className="font-bold flex items-center gap-1.5">
+                <InfoIcon className="w-3.5 h-3.5 text-blue-900 shrink-0" />
+                <span>Petunjuk Penggunaan Kamus</span>
+              </span>
+              <p className="text-[11px] text-blue-900/80 leading-relaxed">
+                Kamus ini bertindak sebagai jembatan kesetaraan: jika dokumen lain menulis teks dengan variasi nama atau alamat yang berbeda dari PIB, sistem otomatis menganggapnya <strong>MATCH</strong> dan tidak terjadi mismatch.
+              </p>
+            </div>
+
             {formError && (
-              <div className="px-3 py-2 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs">
+              <div className="px-3 py-2 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs shrink-0">
                 {formError}
               </div>
             )}
 
-            <form onSubmit={handleSaveForm} className="space-y-3">
+            <form onSubmit={handleSaveForm} className="space-y-3 overflow-y-auto pr-1 flex-1">
               {/* Nama Grup & Kategori */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    Nama Grup:
+                    Nama Representasi Aturan:
                   </label>
                   <input
                     type="text"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder="misal: Pelabuhan Tanjung Priok"
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-blue-950 focus:bg-white transition-all"
+                    placeholder="misal: Identitas Pembeli USC, Pelabuhan Korea"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-950 focus:bg-white transition-all"
                   />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Nama konsep/topik untuk mengenali aturan ini di daftar.
+                  </p>
                 </div>
 
                 <div>
@@ -582,7 +651,7 @@ export default function EquivalencyManager() {
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-blue-950 focus:bg-white transition-all"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-blue-950 focus:bg-white transition-all cursor-pointer"
                   >
                     <option value="port">Pelabuhan (Port)</option>
                     <option value="company">Perusahaan (Company)</option>
@@ -595,71 +664,82 @@ export default function EquivalencyManager() {
               {/* Nilai Canonical */}
               <div>
                 <label className="text-xs font-semibold text-slate-700 block mb-1">
-                  Nilai Acuan Utama (Canonical):
+                  Nilai Acuan Utama Standar (Canonical):
                 </label>
-                <input
-                  type="text"
+                <textarea
+                  rows={2}
                   value={formCanonical}
                   onChange={(e) => setFormCanonical(e.target.value)}
-                  placeholder="misal: TANJUNG PRIOK"
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-blue-950 focus:outline-none focus:border-blue-950 focus:bg-white transition-all"
+                  placeholder="misal: PT. UNITED STEEL CENTER INDONESIA"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-blue-950 focus:outline-none focus:border-blue-950 focus:bg-white transition-all leading-relaxed"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">
-                  Nilai acuan standar yang akan menjadi representasi utama grup ini.
+                  Nilai standar resmi yang tertera di dokumen acuan (PIB) sebagai patokan matching.
                 </p>
               </div>
 
               {/* Variasi Nilai Ekuivalen */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-700 block">
-                  Variasi Nilai yang Dianggap Setara:
+                  Variasi Nilai Teks Lapangan yang Disamakan:
                 </label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="text"
+                <div className="space-y-1.5">
+                  <textarea
+                    rows={2}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDownInput}
-                    placeholder="Ketik variasi teks lalu tekan Enter (misal: JAKARTA, INDONESIA)"
-                    className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:border-blue-950 focus:bg-white transition-all"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleAddAlias();
+                      }
+                    }}
+                    placeholder="Ketik atau paste variasi teks di sini (bisa satu alamat panjang, atau pisahkan dengan koma/baris baru)"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:border-blue-950 focus:bg-white transition-all leading-relaxed"
                   />
-                  <button
-                    type="button"
-                    onClick={handleAddAlias}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-                  >
-                    Tambah
-                  </button>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-slate-400">
+                      Tekan Enter atau klik tombol Tambah
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleAddAlias}
+                      className="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors cursor-pointer"
+                    >
+                      + Tambah Variasi
+                    </button>
+                  </div>
                 </div>
 
-                {/* Chips of added values */}
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg min-h-[64px] max-h-36 overflow-y-auto flex flex-wrap gap-1.5">
+                {/* List of added values */}
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg min-h-[72px] max-h-48 overflow-y-auto space-y-1.5">
                   {formValues.length === 0 ? (
-                    <span className="text-[11px] text-slate-400 italic">
-                      Belum ada variasi nilai ditambahkan. Ketik di atas lalu tekan Enter.
+                    <span className="text-[11px] text-slate-400 italic block py-2 text-center">
+                      Belum ada variasi teks ditambahkan. Ketik atau paste di atas lalu klik Tambah.
                     </span>
                   ) : (
-                    formValues.map((val) => (
-                      <span
-                        key={val}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono bg-white text-slate-800 border border-slate-200 shadow-2xs"
+                    formValues.map((val, idx) => (
+                      <div
+                        key={idx}
+                        className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-2xs text-xs font-mono text-slate-800 flex items-start justify-between gap-2"
                       >
-                        <span>{val}</span>
+                        <span className="break-words flex-1 leading-relaxed">{val}</span>
                         <button
                           type="button"
                           onClick={() => handleRemoveAlias(val)}
-                          className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
+                          className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer shrink-0"
+                          title="Hapus variasi ini"
                         >
-                          <XIcon className="w-2.5 h-2.5" />
+                          <XIcon className="w-3.5 h-3.5" />
                         </button>
-                      </span>
+                      </div>
                     ))
                   )}
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}

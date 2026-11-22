@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { env } from "~/env";
 import { CATEGORY_MODEL_MAP } from "~/server/nanonets";
+import { logSystemAudit } from "~/server/auditLogger";
 
 const SETTINGS_FILE_PATH = path.join(process.cwd(), "src", "config", "system_settings.json");
 
@@ -151,6 +152,18 @@ export async function POST(req: Request) {
     };
 
     saveSystemSettings(updated);
+
+    await logSystemAudit({
+      action: "UPDATE",
+      category: "SYSTEM_SETTING",
+      title: "Perbarui Pengaturan OCR & Engine",
+      details: `Memperbarui konfigurasi sistem (Kredensial API, Mode Strict: ${updated.strictMatching ? "Aktif" : "Nonaktif"}, Model OCR: ${updated.models.length} model).`,
+      metadata: {
+        strictMatching: updated.strictMatching,
+        autoMatchingTrigger: updated.autoMatchingTrigger,
+        modelCount: updated.models.length,
+      },
+    }).catch((err) => console.warn("[Audit] Failed to log Settings update:", err));
 
     return NextResponse.json({
       success: true,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import type { WorkflowStep } from "~/types/workflow";
+import { logSystemAudit } from "~/server/auditLogger";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,17 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
+
+    await logSystemAudit({
+      action: "UPDATE",
+      category: "DATA_ACTION",
+      title: `Simpan Konfigurasi Data Actions (${steps.length} langkah)`,
+      details: `Menyimpan ${steps.length} langkah aksi data pipeline ke konfigurasi sistem.`,
+      metadata: {
+        stepCount: steps.length,
+        steps: steps.map((s) => ({ id: s.id, name: s.name, type: s.action?.type, docScope: s.docScope })),
+      },
+    }).catch((err) => console.warn("[Audit] Failed to log Data Actions update:", err));
 
     return NextResponse.json({
       success: true,

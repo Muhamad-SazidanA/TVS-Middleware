@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "~/server/db";
+import { logSystemAudit } from "~/server/auditLogger";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +64,20 @@ export async function PUT(
       include: { values: true },
     });
 
+    await logSystemAudit({
+      action: "UPDATE",
+      category: "EQUIVALENCY",
+      title: `Perbarui Aturan Kamus: ${group.name}`,
+      details: `Kategori: ${group.category}, Canonical: "${group.canonical}", Total variasi: ${group.values.length} nilai.`,
+      metadata: {
+        groupId: group.id,
+        name: group.name,
+        category: group.category,
+        canonical: group.canonical,
+        values: group.values.map((v) => v.value),
+      },
+    }).catch((err) => console.warn("[Audit] Failed to log Equivalency update:", err));
+
     return NextResponse.json({
       success: true,
       group: {
@@ -103,7 +118,22 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: "ID tidak valid" }, { status: 400 });
     }
 
+    const existing = await db.equivalencyGroup.findUnique({ where: { id: groupId } });
     await db.equivalencyGroup.delete({ where: { id: groupId } });
+
+    await logSystemAudit({
+      action: "DELETE",
+      category: "EQUIVALENCY",
+      title: `Hapus Aturan Kamus: ${existing?.name || `ID #${groupId}`}`,
+      details: `Menghapus grup kamus ekuivalensi "${existing?.name || groupId}" beserta seluruh nilai variasinya.`,
+      metadata: {
+        groupId,
+        name: existing?.name,
+        canonical: existing?.canonical,
+        category: existing?.category,
+      },
+    }).catch((err) => console.warn("[Audit] Failed to log Equivalency delete:", err));
+
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     return NextResponse.json(

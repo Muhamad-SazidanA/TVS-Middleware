@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import WorkflowBuilder from "./_components/WorkflowBuilder";
 import EquivalencyManager from "./_components/EquivalencyManager";
+import AuditLogViewer from "./_components/AuditLogViewer";
 
 interface ModelConfig {
   name: string;
@@ -12,7 +13,7 @@ interface ModelConfig {
 }
 
 export default function ManageSystemPage() {
-  const [activeTab, setActiveTab] = useState<"workflow" | "equivalency" | "models">("workflow");
+  const [activeTab, setActiveTab] = useState<"workflow" | "equivalency" | "audit" | "models">("workflow");
   const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [models, setModels] = useState<ModelConfig[]>([]);
@@ -111,9 +112,10 @@ export default function ManageSystemPage() {
     }
   };
 
-  const tabs: { id: "workflow" | "equivalency" | "models"; label: string }[] = [
+  const tabs: { id: "workflow" | "equivalency" | "audit" | "models"; label: string }[] = [
     { id: "workflow", label: "Data Actions" },
     { id: "equivalency", label: "Kamus Ekuivalensi" },
+    { id: "audit", label: "Riwayat & Audit Log" },
     { id: "models", label: "Model OCR & API" },
   ];
 
@@ -171,7 +173,10 @@ export default function ManageSystemPage() {
       {/* Tab 2: Kamus Ekuivalensi Nilai Database */}
       {activeTab === "equivalency" && <EquivalencyManager />}
 
-      {/* Tab 3: OCR Models & API Credentials */}
+      {/* Tab 3: System Audit Logs & History */}
+      {activeTab === "audit" && <AuditLogViewer />}
+
+      {/* Tab 4: OCR Models & API Credentials */}
       {activeTab === "models" && (
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-3 shadow-2xs">
