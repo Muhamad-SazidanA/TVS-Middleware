@@ -1,6 +1,6 @@
-# TVS Middleware - Document Processing & OCR Matching Platform
+# Middleware System - Document Processing & OCR Matching Platform
 
-**TVS Middleware** adalah platform aplikasi web modern yang dibangun menggunakan **Next.js (App Router)** dan **Prisma ORM** untuk memproses, mengategorikan, serta mencocokkan dokumen secara otomatis melalui integrasi **Nanonets OCR Asynchronous API**.
+**Middleware System** adalah platform aplikasi web modern yang dibangun menggunakan **Next.js (App Router)** dan **Prisma ORM** untuk memproses, mengategorikan, serta mencocokkan dokumen secara otomatis melalui integrasi **Nanonets OCR Asynchronous API**.
 
 ---
 
@@ -123,4 +123,4 @@ Akses aplikasi melalui browser di [http://localhost:3000](http://localhost:3000)
 ---
 
 ## 📄 Lisensi & Hak Cipta
-© 2025 TVS Middleware Project. All rights reserved.
+© 2025 Middleware System Project. All rights reserved.

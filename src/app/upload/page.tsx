@@ -63,15 +63,15 @@ export default function UploadPage() {
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // 7 Categories in exact order
+  // 7 Categories in exact order: PIB (File Acuan) & File Pembanding (AK, WL, MS, Bill of Lading, Packing List, Invoice)
   const [categories, setCategories] = useState<UploadCategory[]>([
-    { num: 1, title: "PIB", allowMultiple: false, slots: [{ id: "pib-1", name: null, file: null }] },
-    { num: 2, title: "PIB Lanjutan", allowMultiple: false, slots: [{ id: "pib_lanjutan-1", name: null, file: null }] },
-    { num: 3, title: "Invoice", allowMultiple: true, slots: [{ id: "inv-1", name: null, file: null }] },
-    { num: 4, title: "Packing List", allowMultiple: true, slots: [{ id: "pkg-1", name: null, file: null }] },
-    { num: 5, title: "BL", allowMultiple: false, slots: [{ id: "bl-1", name: null, file: null }] },
-    { num: 6, title: "Master BL", allowMultiple: false, slots: [{ id: "master_bl-1", name: null, file: null }] },
-    { num: 7, title: "Rekap Document", allowMultiple: false, slots: [{ id: "rekap-1", name: null, file: null }] },
+    { num: 1, title: "PIB (File Acuan)", allowMultiple: false, slots: [{ id: "pib-1", name: null, file: null }] },
+    { num: 2, title: "AK", allowMultiple: false, slots: [{ id: "ak-1", name: null, file: null }] },
+    { num: 3, title: "WL", allowMultiple: false, slots: [{ id: "wl-1", name: null, file: null }] },
+    { num: 4, title: "MS", allowMultiple: false, slots: [{ id: "ms-1", name: null, file: null }] },
+    { num: 5, title: "Bill of Lading", allowMultiple: false, slots: [{ id: "bl-1", name: null, file: null }] },
+    { num: 6, title: "Packing List", allowMultiple: true, slots: [{ id: "pkg-1", name: null, file: null }] },
+    { num: 7, title: "Invoice", allowMultiple: true, slots: [{ id: "inv-1", name: null, file: null }] },
   ]);
 
   const handleFileChange = (catNum: number, slotId: string, fileObj: File) => {
@@ -164,7 +164,14 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="h-full overflow-y-auto px-6 sm:px-8 py-8 max-w-7xl mx-auto w-full space-y-4">
+      {/* Page Header */}
+      <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+        <div>
+          <h1 className="text-base font-bold text-blue-950">Upload Dokumen</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Unggah berkas PIB (File Acuan) dan Dokumen Pembanding</p>
+        </div>
+      </div>
 
       {/* Main Content Layout: Left 2-Column Cards Grid (Col-span-9) + Right Compact Summary Card (Col-span-3) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
@@ -334,7 +341,7 @@ export default function UploadPage() {
                 <span>Nanonets OCR</span>
               </div>
               <p className="text-[9.5px] leading-tight text-slate-500">
-                Otomatis mencocokkan data PIB, Invoice, BL, dan Packing List.
+                Otomatis mencocokkan data PIB dengan dokumen pembanding.
               </p>
             </div>
 

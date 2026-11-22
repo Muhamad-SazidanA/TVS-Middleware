@@ -1,120 +1,176 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
-    provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-    provider = "mysql"
-    // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
-    // Further reading:
-    // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
-    // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
-    url      = env("DATABASE_URL")
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 model Post {
-    id        Int      @id @default(autoincrement())
-    name      String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-    createdBy   User   @relation(fields: [createdById], references: [id])
-    createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdById String
 
-    @@index([name])
+  @@index([name])
+  @@map("post")
 }
 
-// Necessary for Next auth
 model Account {
-    id                       String  @id @default(cuid())
-    userId                   String
-    type                     String
-    provider                 String
-    providerAccountId        String
-    refresh_token            String? @db.Text
-    access_token             String? // @db.Text
-    expires_at               Int?
-    token_type               String?
-    scope                    String?
-    id_token                 String? // @db.Text
-    session_state            String?
-    user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-    refresh_token_expires_in Int?
+  id                       String  @id @default(cuid())
+  userId                   String
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String? @db.Text
+  access_token             String? @db.Text
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String? @db.Text
+  session_state            String?
+  refresh_token_expires_in Int?
+  user                     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    @@unique([provider, providerAccountId])
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("account")
 }
 
 model Session {
-    id           String   @id @default(cuid())
-    sessionToken String   @unique
-    userId       String
-    expires      DateTime
-    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
 }
 
 model User {
-    id            String    @id @default(cuid())
-    name          String?
-    email         String?   @unique
-    emailVerified DateTime?
-    image         String?
-    accounts      Account[]
-    sessions      Session[]
-    posts         Post[]
+  id              String    @id @default(cuid())
+  name            String?
+  email           String?   @unique
+  emailVerified   DateTime?
+  image           String?
+  password        String?
+  role            String    @default("STAFF") // "STAFF" | "APPROVER" | "ADMIN"
+  accounts        Account[]
+  sessions        Session[]
+  posts           Post[]
+  batches         Batch[]   @relation("CreatedBatches")
+  approvedBatches Batch[]   @relation("ApprovedBatches")
+
+  @@map("user")
 }
 
 model VerificationToken {
-    identifier String
-    token      String   @unique
-    expires    DateTime
+  identifier String
+  token      String   @unique
+  expires    DateTime
 
-    @@unique([identifier, token])
+  @@unique([identifier, token])
+  @@map("verificationtoken")
 }
 
 model Batch {
-    id        String        @id
-    totalFile Int           @default(0)
-    status    String        @default("PENDING")
-    createdAt DateTime      @default(now())
-    updatedAt DateTime      @updatedAt
-    details   DetailBatch[]
-    logs      BatchLog[]
+  id           String        @id
+  totalFile    Int           @default(0)
+  status       String        @default("PENDING") // "DRAFT" | "PENDING" | "MATCHING" | "MISMATCHING" | "APPROVED" | "DITOLAK"
+  errorMessage String?       @db.Text
+  createdById  String?
+  createdBy    User?         @relation("CreatedBatches", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedById String?
+  approvedBy   User?         @relation("ApprovedBatches", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  details      DetailBatch[]
+  logs         BatchLog[]
+  actionLogs   ActionLog[]
 
-    @@map("batches")
+  @@index([createdById])
+  @@index([approvedById])
+  @@map("batches")
+}
+
+model ActionLog {
+  id        Int      @id @default(autoincrement())
+  batchId   String
+  docType   String?
+  docNumber String?
+  fieldName String
+  oldValue  String?  @db.Text
+  newValue  String?  @db.Text
+  notes     String?  @db.Text
+  actionBy  String?
+  createdAt DateTime @default(now())
+
+  batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@map("action_logs")
 }
 
 model DetailBatch {
-    id        Int      @id @default(autoincrement())
-    batchId   String
-    fileType  String
-    fileId    String
-    isi       String?  @db.Text
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id           Int      @id @default(autoincrement())
+  batchId      String
+  fileType     String
+  fileId       String
+  nomorAju     String?
+  nomorInvoice String?
+  isi          String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-    batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
-    @@map("detail_batches")
+  @@index([batchId])
+  @@map("detail_batches")
 }
 
 model BatchLog {
-    id         Int      @id @default(autoincrement())
-    batchId    String
-    step       String
-    stepNumber Int      @default(1)
-    level      String   @default("INFO")
-    title      String
-    message    String   @db.Text
-    fileType   String?
-    fileName   String?
-    details    String?  @db.Text
-    createdAt  DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  batchId    String
+  step       String
+  stepNumber Int      @default(1)
+  level      String   @default("INFO")
+  title      String
+  message    String   @db.Text
+  fileType   String?
+  fileName   String?
+  details    String?  @db.Text
+  createdAt  DateTime @default(now())
 
-    batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
-    @@map("batch_logs")
+  @@index([batchId])
+  @@map("batch_logs")
 }
 
+model EquivalencyGroup {
+  id        Int      @id @default(autoincrement())
+  name      String
+  category  String   @default("general")
+  canonical String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  values    EquivalencyValue[]
 
+  @@map("equivalency_groups")
+}
+
+model EquivalencyValue {
+  id      Int              @id @default(autoincrement())
+  value   String           @db.Text
+  groupId Int
+  group   EquivalencyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId])
+  @@map("equivalency_values")
+}

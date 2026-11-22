@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "~/server/db";
-import { evaluateDbBatchStatus } from "../route";
+import { auth } from "~/server/auth";
+import { evaluateDbBatchStatus } from "~/server/matchingEngine";
+import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,9 @@ export async function GET(
       where: { id },
       include: {
         details: true,
+        createdBy: { select: { id: true, name: true, email: true } },
+        approvedBy: { select: { id: true, name: true, email: true } },
+        actionLogs: { orderBy: { createdAt: "asc" } },
       },
     });
 
@@ -23,16 +28,23 @@ export async function GET(
       return NextResponse.json({ error: "Batch tidak ditemukan" }, { status: 404 });
     }
 
-    // Evaluate live status from DB details
-    const evaluatedStatus = evaluateDbBatchStatus(batch.details || [], batch.totalFile);
-    const dbStatusStr = evaluatedStatus === "Matching" ? "MATCHING" : evaluatedStatus === "Mismatching" ? "MISMATCHING" : "PROSES";
-    if (batch.status !== dbStatusStr) {
-      batch.status = dbStatusStr;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (db as any).batch.update({
-        where: { id },
-        data: { status: dbStatusStr },
-      }).catch((e: unknown) => console.warn("Failed async DB status update:", e));
+    // Evaluate live status from DB details only if batch is still in processing state or requested via revalidate
+    const url = new URL(req.url);
+    const shouldRevalidate = url.searchParams.get("revalidate") === "true";
+    const isProcessing = !batch.status || batch.status === "PROSES" || batch.status === "Proses" || batch.status === "Pending";
+
+    if (isProcessing || shouldRevalidate) {
+      const serverGroups = await loadServerEquivalencyGroups();
+      const evaluatedStatus = evaluateDbBatchStatus(batch.details || [], batch.totalFile, serverGroups);
+      const dbStatusStr = evaluatedStatus === "Matching" ? "MATCHING" : evaluatedStatus === "Mismatching" ? "MISMATCHING" : "PROSES";
+      if (batch.status !== dbStatusStr) {
+        batch.status = dbStatusStr;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (db as any).batch.update({
+          where: { id },
+          data: { status: dbStatusStr },
+        }).catch((e: unknown) => console.warn("Failed async DB status update:", e));
+      }
     }
 
     return NextResponse.json({ success: true, batch });
@@ -60,9 +72,22 @@ export async function PUT(
 
     if (status) {
       let dbStatus = status;
-      if (status === "Matching") dbStatus = "MATCHING";
-      else if (status === "Mismatching") dbStatus = "MISMATCHING";
-      else if (status === "Proses") dbStatus = "PROSES";
+      if (status === "Matching" || status === "APPROVED" || status === "Approved") {
+        dbStatus = "APPROVED";
+        const session = await auth();
+        updateData.approvedAt = new Date();
+        if (session?.user?.id) {
+          updateData.approvedById = session.user.id;
+        }
+      } else if (status === "Mismatching" || status === "MISMATCHING") {
+        dbStatus = "MISMATCHING";
+      } else if (status === "Proses" || status === "PROSES") {
+        dbStatus = "PROSES";
+      } else if (status === "DRAFT" || status === "Draft") {
+        dbStatus = "DRAFT";
+      } else if (status === "PENDING" || status === "Pending") {
+        dbStatus = "PENDING";
+      }
       updateData.status = dbStatus;
     }
 
@@ -74,6 +99,12 @@ export async function PUT(
     const updatedBatch = await (db as any).batch.update({
       where: { id },
       data: updateData,
+      include: {
+        details: true,
+        createdBy: { select: { id: true, name: true, email: true } },
+        approvedBy: { select: { id: true, name: true, email: true } },
+        actionLogs: { orderBy: { createdAt: "asc" } },
+      },
     });
 
     return NextResponse.json({

@@ -1,0 +1,34 @@
+{
+  "result": [
+    {
+      "request_file_id": "req-wl-001",
+      "prediction": [
+        { "label": "no referensi", "ocr_text": "WL-POSCO-2026-8801", "type": "field" },
+        { "label": "nama supplier", "ocr_text": "POSCO ASIA CO., LTD.", "type": "field" },
+        { "label": "deskripsi barang", "ocr_text": "HOT ROLLED STEEL COILS JIS G3131 SPHC", "type": "field" },
+        { "label": "jumlah coil", "ocr_text": "4", "type": "field" },
+        { "label": "satuan berat", "ocr_text": "KG", "type": "field" },
+        { "label": "net weight", "ocr_text": "48500", "type": "field" },
+        { "label": "gross weight", "ocr_text": "49120", "type": "field" },
+        { "label": "total berat", "ocr_text": "48500", "type": "field" },
+        {
+          "type": "table",
+          "cells": [
+            { "row": 0, "label": "coil no", "text": "C-26-001" },
+            { "row": 0, "label": "net weight", "text": "12100" },
+            { "row": 0, "label": "gross weight", "text": "12255" },
+            { "row": 1, "label": "coil no", "text": "C-26-002" },
+            { "row": 1, "label": "net weight", "text": "12250" },
+            { "row": 1, "label": "gross weight", "text": "12405" },
+            { "row": 2, "label": "coil no", "text": "C-26-003" },
+            { "row": 2, "label": "net weight", "text": "12050" },
+            { "row": 2, "label": "gross weight", "text": "12205" },
+            { "row": 3, "label": "coil no", "text": "C-26-004" },
+            { "row": 3, "label": "net weight", "text": "12100" },
+            { "row": 3, "label": "gross weight", "text": "12255" }
+          ]
+        }
+      ]
+    }
+  ]
+}

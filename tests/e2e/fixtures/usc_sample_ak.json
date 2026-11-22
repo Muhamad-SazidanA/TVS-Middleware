@@ -1,0 +1,31 @@
+{
+  "result": [
+    {
+      "request_file_id": "req-ak-001",
+      "prediction": [
+        { "label": "no referensi", "ocr_text": "K001-26-004821", "type": "field" },
+        { "label": "nama exporter shipper", "ocr_text": "POSCO ASIA CO., LTD.", "type": "field" },
+        { "label": "nama consignee", "ocr_text": "PT. UNITED STEEL CENTER INDONESIA", "type": "field" },
+        { "label": "nama pelabuhan bongkar", "ocr_text": "TANJUNG PRIOK, JAKARTA", "type": "field" },
+        { "label": "nama vessel", "ocr_text": "MV HYUNDAI VOYAGER 042W", "type": "field" },
+        { "label": "tanggal keberangkatan", "ocr_text": "20-03-2026", "type": "field" },
+        { "label": "no dan tanggal invoice", "ocr_text": "USC-INV-2026-8801 DATED 15-03-2026", "type": "field" },
+        {
+          "type": "table",
+          "cells": [
+            { "row": 0, "label": "no item", "text": "1" },
+            { "row": 0, "label": "hs code", "text": "7208.38.00" },
+            { "row": 0, "label": "deskripsi barang", "text": "HOT ROLLED STEEL COIL SPHC 2.3MM" },
+            { "row": 0, "label": "kriteria asal barang", "text": "RVC 40%" },
+            { "row": 0, "label": "berat kuantitas", "text": "24350 KG" },
+            { "row": 1, "label": "no item", "text": "2" },
+            { "row": 1, "label": "hs code", "text": "7208.38.00" },
+            { "row": 1, "label": "deskripsi barang", "text": "HOT ROLLED STEEL COIL SPHC 3.2MM" },
+            { "row": 1, "label": "kriteria asal barang", "text": "RVC 40%" },
+            { "row": 1, "label": "berat kuantitas", "text": "24150 KG" }
+          ]
+        }
+      ]
+    }
+  ]
+}

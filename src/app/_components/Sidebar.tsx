@@ -1,10 +1,18 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
+import { Database, LogOut, User as UserIcon } from "lucide-react";
 
-// Inline SVG Icons (scaled down ~1.5x for a compact, clean look)
+// Inline SVG Icons
+const DashboardIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+  </svg>
+);
+
 const UploadCloudIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -17,36 +25,6 @@ const LayersIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
   </svg>
 );
 
-const ChevronDownIcon = ({ className = "w-3 h-3" }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-  </svg>
-);
-
-const ChevronRightIcon = ({ className = "w-3 h-3" }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-  </svg>
-);
-
-const FileCheckIcon = ({ className = "w-3 h-3" }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const FileXIcon = ({ className = "w-3 h-3" }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
-
-const FileTextIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-  </svg>
-);
-
 const SettingsIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -54,31 +32,34 @@ const SettingsIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => 
   </svg>
 );
 
-const LogOutIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-  </svg>
-);
-
-const ServerIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12h14a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
-  </svg>
-);
-
 export default function Sidebar() {
   const pathname = usePathname();
-  const isUploadActive = pathname === "/upload" || pathname === "/";
-  const isMatchingActive = pathname === "/matching" || pathname === "/Matching";
-  const isManageActive = pathname === "/manage-system" || pathname === "/manage-system/";
+  const { data: session } = useSession();
 
-  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  // Hide sidebar on login route
+  if (pathname === "/login" || pathname?.startsWith("/login")) {
+    return null;
+  }
+
+  const isDashboardActive = pathname === "/";
+  const isUploadActive = pathname === "/upload" || pathname?.startsWith("/upload");
+  const isMatchingActive = pathname === "/matching" || pathname?.startsWith("/matching") || pathname === "/Matching";
+  const isAllDataActive = pathname === "/all-data" || pathname?.startsWith("/all-data");
+  const isManageActive = pathname === "/manage-system" || pathname?.startsWith("/manage-system");
+
+  const userName = session?.user?.name || "DocMatch User";
+  const userEmail = session?.user?.email || "";
+  const userRole = (session?.user as { role?: string })?.role || "STAFF";
 
   return (
-    <aside className="w-48 bg-white text-slate-700 flex flex-col h-screen border-r border-slate-200 shrink-0 select-none shadow-xs sticky top-0">
+    <aside className="w-56 bg-white text-slate-700 flex flex-col h-screen border-r border-slate-200 shrink-0 select-none shadow-xs sticky top-0">
       {/* Brand Header */}
-      <div className="px-4 py-3.5 border-b border-slate-100 flex items-center">
-        <h1 className="font-bold text-sm tracking-wide text-blue-950">TVS Middleware</h1>
+      <div className="px-4 py-3.5 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h1 className="font-bold text-sm tracking-wide text-blue-950">Docmatch</h1>
+          <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider">PT. USC INDONESIA</p>
+        </div>
+        <span className="w-2 h-2 rounded-full bg-emerald-500" title="System Online"></span>
       </div>
 
       {/* Main Navigation */}
@@ -87,83 +68,107 @@ export default function Sidebar() {
           Main Menu
         </div>
 
-        {/* 1. Upload Link */}
+        {/* 1. Dashboard Link */}
+        <Link
+          href="/"
+          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 focus:outline-none ${
+            isDashboardActive
+              ? "text-blue-950 font-bold bg-blue-50/80"
+              : "text-slate-600 hover:text-blue-950 hover:bg-slate-50"
+          }`}
+        >
+          <DashboardIcon className={`w-3.5 h-3.5 ${isDashboardActive ? "text-blue-950" : "text-slate-400"}`} />
+          <span className={isDashboardActive ? "text-blue-950 font-bold" : ""}>Dashboard</span>
+        </Link>
+
+        {/* 2. Upload Link */}
         <Link
           href="/upload"
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 focus:outline-none ${
             isUploadActive
-              ? "text-blue-950 font-bold bg-blue-50/60"
+              ? "text-blue-950 font-bold bg-blue-50/80"
               : "text-slate-600 hover:text-blue-950 hover:bg-slate-50"
           }`}
         >
           <UploadCloudIcon className={`w-3.5 h-3.5 ${isUploadActive ? "text-blue-950" : "text-slate-400"}`} />
-          <span className={isUploadActive ? "text-blue-950 font-bold" : ""}>Upload Dokumen</span>
+          <span className={isUploadActive ? "text-blue-950 font-bold" : ""}>Upload dokumen</span>
         </Link>
 
-        {/* 2. Single Matching Engine Link */}
+        {/* 3. Matching Workspace Link (Personal data for Staff) */}
         <Link
           href="/matching"
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 focus:outline-none ${
             isMatchingActive
-              ? "text-blue-950 font-bold bg-blue-50/60"
+              ? "text-blue-950 font-bold bg-blue-50/80"
               : "text-slate-600 hover:text-blue-950 hover:bg-slate-50"
           }`}
         >
           <LayersIcon className={`w-3.5 h-3.5 ${isMatchingActive ? "text-blue-950" : "text-slate-400"}`} />
-          <span className={isMatchingActive ? "text-blue-950 font-bold" : ""}>Matching Engine</span>
+          <span className={isMatchingActive ? "text-blue-950 font-bold" : ""}>Matching Workspace</span>
         </Link>
 
-        {/* 3. Manage System Link */}
+        {/* 4. All Data Room Link (Approved Only) */}
+        <Link
+          href="/all-data"
+          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 focus:outline-none ${
+            isAllDataActive
+              ? "text-blue-950 font-bold bg-blue-50/80"
+              : "text-slate-600 hover:text-blue-950 hover:bg-slate-50"
+          }`}
+        >
+          <Database className={`w-3.5 h-3.5 ${isAllDataActive ? "text-blue-950" : "text-slate-400"}`} />
+          <span className={isAllDataActive ? "text-blue-950 font-bold" : ""}>All Data (Approved)</span>
+        </Link>
+
+        <div className="pt-4 px-2 pb-1 text-[9px] font-bold text-blue-950/50 uppercase tracking-wider">
+          Pengaturan
+        </div>
+
+        {/* 5. Manage System Link */}
         <Link
           href="/manage-system"
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 focus:outline-none ${
             isManageActive
-              ? "text-blue-950 font-bold bg-blue-50/60"
+              ? "text-blue-950 font-bold bg-blue-50/80"
               : "text-slate-600 hover:text-blue-950 hover:bg-slate-50"
           }`}
         >
-          <ServerIcon className={`w-3.5 h-3.5 ${isManageActive ? "text-blue-950" : "text-slate-400"}`} />
+          <SettingsIcon className={`w-3.5 h-3.5 ${isManageActive ? "text-blue-950" : "text-slate-400"}`} />
           <span className={isManageActive ? "text-blue-950 font-bold" : ""}>Manage System</span>
         </Link>
       </nav>
 
-      {/* Compact Minimal Footer */}
-      <div className="px-3.5 py-3 border-t border-slate-100 relative">
-        <div className="flex items-center justify-between select-none">
+      {/* User Session & Logout Panel */}
+      <div className="p-2 border-t border-slate-200 bg-white">
+        <div className="p-2 rounded-lg border border-slate-200/80 space-y-1.5">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-blue-950 flex items-center justify-center font-bold text-[9px] text-white shadow-xs">
-              TV
+            <div className="w-6 h-6 rounded-md bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
+              <UserIcon className="w-3.5 h-3.5" />
             </div>
-            <div>
-              <p className="text-[11px] font-bold text-blue-950 leading-tight">TVS Import Team</p>
-              <p className="text-[9px] text-slate-500 font-medium leading-tight">Admin Mode</p>
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-bold text-slate-800 truncate" title={userName}>
+                {userName}
+              </div>
+              <div className="text-[9.5px] text-slate-400 truncate font-mono" title={userEmail}>
+                {userEmail || "Terautentikasi"}
+              </div>
             </div>
           </div>
 
-          <div className="relative">
-            <button
-              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="text-slate-400 hover:text-blue-950 hover:bg-slate-100 transition-all focus:outline-none p-1 rounded-md"
-            >
-              <SettingsIcon className="w-3.5 h-3.5" />
-            </button>
+          <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200/60">
+              {userRole}
+            </span>
 
-            {/* Compact Side Floating Popover Menu */}
-            {isUserMenuOpen && (
-              <div className="absolute left-full ml-4 bottom-0 w-28 bg-white border border-slate-200 rounded-lg shadow-xl p-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                <button
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      window.location.href = "/upload";
-                    }
-                  }}
-                  className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded text-[11px] font-bold text-slate-700 hover:bg-slate-50 transition-all text-left focus:outline-none"
-                >
-                  <SettingsIcon className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Reset App</span>
-                </button>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+              title="Keluar dari sesi ini"
+            >
+              <LogOut className="w-3 h-3" />
+              <span>Keluar</span>
+            </button>
           </div>
         </div>
       </div>

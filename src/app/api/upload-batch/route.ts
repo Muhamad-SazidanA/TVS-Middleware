@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 import { env } from "~/env";
 import { db } from "~/server/db";
+import { auth } from "~/server/auth";
 import { getModelIdForCategory, extractNanonetsId, filterCategoryData } from "~/server/nanonets";
 import { createBatchLog } from "~/server/logger";
+import { loadServerWorkflowSteps } from "~/server/workflowLoader";
+import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
+import { applyDataActionsToFields, applyDataActionsToTableRows } from "~/utils/workflowRunner";
 
 export const dynamic = "force-dynamic";
 
@@ -32,17 +38,27 @@ export async function POST(req: Request) {
     const apiKey = env.API_KEY || "244bd61f-32b0-11ef-94f2-cec13431d72d";
     const authHeader = "Basic " + Buffer.from(apiKey + ":").toString("base64");
 
-    // 1. Generate sequential formatted Batch ID (0001, 0002, 0003...)
+    // 1. Generate sequential formatted Batch ID (0001, 0002, 0003...) avoiding ID collision
     let formattedBatchId = "0001";
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const count = await (db as any).batch.count();
-      formattedBatchId = String(count + 1).padStart(4, "0");
+      const existingBatches = await (db as any).batch.findMany({
+        select: { id: true },
+      });
+      let maxId = 0;
+      for (const b of existingBatches) {
+        const num = parseInt(b.id, 10);
+        if (!isNaN(num) && num > maxId) {
+          maxId = num;
+        }
+      }
+      formattedBatchId = String(maxId + 1).padStart(4, "0");
     } catch {
-      formattedBatchId = `0001`;
+      formattedBatchId = String(Date.now()).slice(-4);
     }
 
     // Create Batch record in DB with PENDING status (Masuk Antrian)
+    const session = await auth();
     let batch = null;
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,6 +67,7 @@ export async function POST(req: Request) {
           id: formattedBatchId,
           totalFile: files.length,
           status: "PENDING",
+          createdById: session?.user?.id || null,
         },
       });
     } catch (dbErr) {
@@ -82,6 +99,20 @@ export async function POST(req: Request) {
           console.warn(`Fallback model ID used for category: ${category}`);
         }
 
+        // Save physical file locally for coordinate zoom viewer & reference comparison
+        let fileUrl: string | null = null;
+        try {
+          const uploadDir = path.join(process.cwd(), "public", "uploads", batchId);
+          await fs.promises.mkdir(uploadDir, { recursive: true });
+          const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const filePath = path.join(uploadDir, sanitizedFileName);
+          const fileBuffer = Buffer.from(await file.arrayBuffer());
+          await fs.promises.writeFile(filePath, fileBuffer);
+          fileUrl = `/uploads/${batchId}/${encodeURIComponent(sanitizedFileName)}`;
+        } catch (saveErr) {
+          console.warn(`[Upload File Save] Failed to save file "${file.name}":`, saveErr);
+        }
+
         // Construct Nanonets LabelFile?async=true endpoint URL
         const nanonetsUrl = `https://app.nanonets.com/api/v2/OCR/Model/${modelId}/LabelFile?async=true`;
 
@@ -96,6 +127,7 @@ export async function POST(req: Request) {
               Authorization: authHeader,
             },
             body: nanonetsFormData,
+            signal: AbortSignal.timeout(15000),
           });
 
           const responseText = await res.text();
@@ -161,13 +193,30 @@ export async function POST(req: Request) {
           // Check if predictions exist directly in upload response
           let initialIsi: string | null = null;
           try {
-            const hasPrediction =
+            const preds =
               jsonResponse?.result?.[0]?.prediction ||
               jsonResponse?.result?.prediction ||
               jsonResponse?.prediction;
-            if (hasPrediction) {
+            if (Array.isArray(preds) && preds.length > 0) {
               const filtered = filterCategoryData(jsonResponse, category);
-              initialIsi = JSON.stringify(filtered);
+              try {
+                const activeSteps = await loadServerWorkflowSteps();
+                if (activeSteps.length > 0) {
+                  if (filtered.fields) {
+                    filtered.fields = applyDataActionsToFields(filtered.fields, category, activeSteps);
+                  }
+                  if (filtered.table && Array.isArray(filtered.table)) {
+                    filtered.table = applyDataActionsToTableRows(filtered.table, category, activeSteps);
+                  }
+                }
+              } catch (actErr) {
+                console.warn("[Upload Data Actions] Error applying actions:", actErr);
+              }
+              initialIsi = JSON.stringify({
+                ...filtered,
+                fileUrl,
+                originalFileName: file.name,
+              });
 
               // STEP 3 & 4 LOGS for direct inline prediction
               await createBatchLog({
@@ -192,9 +241,17 @@ export async function POST(req: Request) {
                 fileName: file.name,
                 details: filtered,
               });
+            } else if (fileUrl) {
+              // Pre-initialize detailBatch.isi with fileUrl and originalFileName pending webhook completion
+              initialIsi = JSON.stringify({
+                fields: {},
+                table: [],
+                fileUrl,
+                originalFileName: file.name,
+              });
             }
           } catch {
-            initialIsi = null;
+            initialIsi = fileUrl ? JSON.stringify({ fields: {}, table: [], fileUrl, originalFileName: file.name }) : null;
           }
 
           // Save request_file_id into detail_batches table
@@ -267,7 +324,8 @@ export async function POST(req: Request) {
           );
           if (filled.length === fullBatch.details.length && fullBatch.details.length > 0) {
             const { evaluateBatchMatching } = await import("~/server/nanonets");
-            const matchResult = evaluateBatchMatching(fullBatch.details);
+            const serverGroups = await loadServerEquivalencyGroups();
+            const matchResult = evaluateBatchMatching(fullBatch.details, serverGroups);
             finalBatchStatus = matchResult;
           }
 

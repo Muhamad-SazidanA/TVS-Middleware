@@ -1,0 +1,245 @@
+[
+  {
+    "id": "step-1794298592063",
+    "name": "Change case (BL)",
+    "description": "Ubah huruf teks menjadi UPPERCASE, lowercase, atau Title Case.",
+    "docScope": "bl",
+    "targetField": "Consignee, Notify_Party, Tanggal_BL",
+    "targetFields": [
+      "Consignee",
+      "Notify_Party",
+      "Tanggal_BL"
+    ],
+    "outputMode": "new_field",
+    "outputFieldName": "Consignee_action",
+    "action": {
+      "type": "case_transform",
+      "config": {
+        "transform": "titlecase"
+      }
+    },
+    "enabled": true,
+    "sampleInput": ""
+  },
+  {
+    "id": "step-1794303214919",
+    "name": "Remove characters (PIB)",
+    "description": "Hapus tanda baca, simbol, atau karakter non-alfanumerik spesifik dari field data.",
+    "docScope": "pib",
+    "targetField": "Identitas_Penjual",
+    "targetFields": [
+      "Identitas_Penjual"
+    ],
+    "outputMode": "new_field",
+    "outputFieldName": "Identitas_Penjual_action",
+    "action": {
+      "type": "remove_characters",
+      "config": {
+        "mode": "custom",
+        "removePunctuation": false,
+        "customChars": ".",
+        "removeSpecialChars": false,
+        "removeWhitespace": false,
+        "removeNumbers": false
+      }
+    },
+    "enabled": true,
+    "sampleInput": ""
+  },
+  {
+    "id": "step-1794303664222",
+    "name": "Number formatting (PIB)",
+    "description": "Hilangkan koma ribuan (5,458.00 -> 5458.00), atur desimal, dan bersihkan satuan.",
+    "docScope": "pib",
+    "targetField": "Berat_Bersih, Berat_Kotor",
+    "targetFields": [
+      "Berat_Bersih",
+      "Berat_Kotor"
+    ],
+    "outputMode": "new_field",
+    "outputFieldName": "Berat_Bersih_action",
+    "action": {
+      "type": "number_formatting",
+      "config": {
+        "removeCommas": false,
+        "decimalFormat": "dot",
+        "roundDecimals": -1,
+        "stripCurrency": false,
+        "stripUnits": false,
+        "thousandsSeparator": "dot"
+      }
+    },
+    "enabled": false,
+    "sampleInput": ""
+  },
+  {
+    "id": "step-1794304550292",
+    "name": "Format date (CI)",
+    "description": "Samakan berbagai format tanggal OCR (YYYY-MM-DD, DD/MM/YYYY) ke format standar seragam.",
+    "docScope": "ci",
+    "targetField": "Tanggal_Invoice",
+    "targetFields": [
+      "Tanggal_Invoice"
+    ],
+    "outputMode": "new_field",
+    "outputFieldName": "Tanggal_Invoice_action",
+    "action": {
+      "type": "date_normalize",
+      "config": {
+        "targetFormat": "DD-MM-YYYY"
+      }
+    },
+    "enabled": true,
+    "sampleInput": ""
+  },
+  {
+    "id": "step-1794304583337",
+    "name": "Remove characters (CI)",
+    "description": "Hapus tanda baca, simbol, atau karakter non-alfanumerik spesifik dari field data.",
+    "docScope": "ci",
+    "targetField": "Nilai_Total_Invoice",
+    "targetFields": [
+      "Nilai_Total_Invoice"
+    ],
+    "outputMode": "new_field",
+    "outputFieldName": "Nilai_Total_Invoice_action",
+    "action": {
+      "type": "remove_characters",
+      "config": {
+        "mode": "custom",
+        "removePunctuation": false,
+        "customChars": "USD",
+        "removeWhitespace": true
+      }
+    },
+    "enabled": true,
+    "sampleInput": ""
+  },
+  {
+    "id": "step-1794304690083",
+    "name": "Number formatting (CI)",
+    "description": "Hilangkan koma ribuan (5,458.00 -> 5458.00), atur desimal, dan bersihkan satuan.",
+    "docScope": "ci",
+    "targetField": "Nilai_Total_Invoice, Gross_Weight, Net_Weight",
+    "targetFields": [
+      "Nilai_Total_Invoice",
+      "Gross_Weight",
+      "Net_Weight"
+    ],
+    "outputMode": "new_field",
+    "outputFieldName": "Nilai_Total_Invoice_action",
+    "action": {
+      "type": "number_formatting",
+      "config": {
+        "thousandsSeparator": "dot",
+        "decimalFormat": "dot",
+        "roundDecimals": -1,
+        "stripCurrency": false,
+        "stripUnits": false,
+        "removeCommas": false
+      }
+    },
+    "enabled": true,
+    "sampleInput": ""
+  },
+  {
+    "id": "step-1794306178317",
+    "name": "Number formatting (PIB)",
+    "description": "Hilangkan koma ribuan (5,458.00 -> 5458.00), atur desimal, dan bersihkan satuan.",
+    "docScope": "pib",
+    "targetField": "Nilai_Pabean",
+    "targetFields": [
+      "Nilai_Pabean"
+    ],
+    "outputMode": "new_field",
+    "outputFieldName": "Nilai_Pabean_action",
+    "action": {
+      "type": "number_formatting",
+      "config": {
+        "thousandsSeparator": "dot",
+        "decimalFormat": "dot",
+        "roundDecimals": -1,
+        "stripCurrency": false,
+        "stripUnits": true,
+        "removeCommas": false
+      }
+    },
+    "enabled": true,
+    "sampleInput": ""
+  },
+  {
+    "id": "step-1794372909379",
+    "name": "Remove characters (PL)",
+    "description": "Hapus tanda baca, simbol, atau karakter non-alfanumerik spesifik dari field data.",
+    "docScope": "pl",
+    "targetField": "Identitas_Buyer",
+    "targetFields": [
+      "Identitas_Buyer"
+    ],
+    "outputMode": "new_field",
+    "outputFieldName": "Identitas_Buyer_action",
+    "action": {
+      "type": "remove_characters",
+      "config": {
+        "mode": "custom",
+        "removePunctuation": false,
+        "customChars": ".-",
+        "removeNumbers": true,
+        "removeWhitespace": false
+      }
+    },
+    "enabled": true,
+    "sampleInput": ""
+  },
+  {
+    "id": "step-1794889000001",
+    "name": "Standardize dimension format (WL & ALL)",
+    "description": "Standarisasi format ukuran dimensi (misal: 1.0x821xC -> 1.0 MM X 821 MM X C) dengan pemisah spasi dan satuan MM seragam.",
+    "docScope": "all",
+    "targetField": "Ukuran_Barang, Ukuran, Size, Dimension, Dimensi",
+    "targetFields": [
+      "Ukuran_Barang",
+      "Ukuran",
+      "Size",
+      "Dimension",
+      "Dimensi"
+    ],
+    "outputMode": "new_field",
+    "outputFieldName": "Ukuran_Barang_action",
+    "action": {
+      "type": "replace_text",
+      "config": {
+        "findText": "([0-9.]+)\\s*(?:MM|mm)?\\s*[xX*×]\\s*([0-9.]+)\\s*(?:MM|mm)?\\s*[xX*×]\\s*([a-zA-Z0-9]+)",
+        "replaceWith": "$1 MM X $2 MM X $3",
+        "isRegex": true,
+        "matchCase": false
+      }
+    },
+    "enabled": true,
+    "sampleInput": "1.0x821xC"
+  },
+  {
+    "id": "step-1794889000002",
+    "name": "Uppercase dimension (WL & ALL)",
+    "description": "Ubah seluruh huruf pada ukuran dimensi (misal kode temper/coil C) menjadi huruf kapital (UPPERCASE).",
+    "docScope": "all",
+    "targetField": "Ukuran_Barang, Ukuran, Size, Dimension, Dimensi",
+    "targetFields": [
+      "Ukuran_Barang",
+      "Ukuran",
+      "Size",
+      "Dimension",
+      "Dimensi"
+    ],
+    "outputMode": "new_field",
+    "outputFieldName": "Ukuran_Barang_action",
+    "action": {
+      "type": "case_transform",
+      "config": {
+        "transform": "uppercase"
+      }
+    },
+    "enabled": true,
+    "sampleInput": "1.0 MM X 821 MM X c"
+  }
+]

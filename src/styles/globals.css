@@ -3,9 +3,19 @@
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  --color-brand-primary: #0f172a;
+  --color-brand-secondary: #1e293b;
+  --color-brand-accent: #1d4ed8;
+  --color-accent-subtle: #eff6ff;
+  --color-surface-bg: #f8fafc;
+  --color-surface-card: #ffffff;
+  --color-surface-subtle: #f1f5f9;
+  --color-border-subtle: #e2e8f0;
+  --color-border-hover: #cbd5e1;
 }
 
-/* Custom Sleek Navy Scrollbar across the entire app */
+/* Custom Sleek Scrollbar across the entire app */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -17,16 +27,25 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #091E42;
+  background: #0f172a;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #0e2a5c;
+  background: #1e293b;
 }
 
 /* Firefox scrollbar support */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #091E42 transparent;
+  scrollbar-color: #0f172a transparent;
+}
+
+/* Utility to completely hide scrollbar while preserving scroll behavior */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
 }

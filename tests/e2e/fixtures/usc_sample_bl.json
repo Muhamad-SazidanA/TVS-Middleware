@@ -1,0 +1,28 @@
+{
+  "result": [
+    {
+      "request_file_id": "req-bl-001",
+      "prediction": [
+        { "label": "no bl", "ocr_text": "HDMU98234150", "type": "field" },
+        { "label": "date", "ocr_text": "20-03-2026", "type": "field" },
+        { "label": "consignee", "ocr_text": "PT. UNITED STEEL CENTER INDONESIA", "type": "field" },
+        { "label": "vessel name", "ocr_text": "MV HYUNDAI VOYAGER", "type": "field" },
+        { "label": "voyage number", "ocr_text": "042W", "type": "field" },
+        { "label": "port of loading", "ocr_text": "BUSAN, KOREA", "type": "field" },
+        { "label": "port of discharge", "ocr_text": "TANJUNG PRIOK, JAKARTA", "type": "field" },
+        { "label": "gross weight", "ocr_text": "49120", "type": "field" },
+        { "label": "jumlah package", "ocr_text": "4", "type": "field" },
+        { "label": "freight term", "ocr_text": "FREIGHT PREPAID", "type": "field" },
+        {
+          "type": "table",
+          "cells": [
+            { "row": 0, "label": "marks", "text": "TEMU7192841" },
+            { "row": 0, "label": "qty", "text": "4 COILS" },
+            { "row": 0, "label": "desc", "text": "HOT ROLLED STEEL COIL IN SPHC" },
+            { "row": 0, "label": "gross weight", "text": "49120" }
+          ]
+        }
+      ]
+    }
+  ]
+}

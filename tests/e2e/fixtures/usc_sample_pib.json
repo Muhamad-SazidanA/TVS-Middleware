@@ -1,0 +1,46 @@
+{
+  "result": [
+    {
+      "request_file_id": "req-pib-001",
+      "prediction": [
+        { "label": "nomor pengajuan", "ocr_text": "040300-001892-20260320-008801", "type": "field" },
+        { "label": "no invoice", "ocr_text": "USC-INV-2026-8801", "type": "field" },
+        { "label": "tanggal invoice", "ocr_text": "15-03-2026", "type": "field" },
+        { "label": "no bl", "ocr_text": "HDMU98234150", "type": "field" },
+        { "label": "tanggal bl", "ocr_text": "20-03-2026", "type": "field" },
+        { "label": "nama importir", "ocr_text": "PT. UNITED STEEL CENTER INDONESIA", "type": "field" },
+        { "label": "nama pengirim", "ocr_text": "POSCO ASIA CO., LTD.", "type": "field" },
+        { "label": "nama penjual", "ocr_text": "POSCO", "type": "field" },
+        { "label": "pelabuhan muat", "ocr_text": "BUSAN, KOREA", "type": "field" },
+        { "label": "pelabuhan tujuan", "ocr_text": "TANJUNG PRIOK, JAKARTA", "type": "field" },
+        { "label": "incoterms", "ocr_text": "CIF", "type": "field" },
+        { "label": "valuta", "ocr_text": "USD", "type": "field" },
+        { "label": "nilai pabean", "ocr_text": "58450.00", "type": "field" },
+        { "label": "berat bersih", "ocr_text": "48500", "type": "field" },
+        { "label": "berat kotor", "ocr_text": "49120", "type": "field" },
+        { "label": "jumlah coil", "ocr_text": "4", "type": "field" },
+        { "label": "no peti", "ocr_text": "TEMU7192841", "type": "field" },
+        { "label": "nama sarana pengangkutan", "ocr_text": "MV HYUNDAI VOYAGER 042W", "type": "field" },
+        {
+          "type": "table",
+          "cells": [
+            { "row": 0, "label": "pos tarif", "text": "7208.38.00" },
+            { "row": 0, "label": "kode barang", "text": "SPHC-2.3-1219" },
+            { "row": 0, "label": "uraian", "text": "HOT ROLLED STEEL COILS SPHC 2.3 X 1219 X C" },
+            { "row": 0, "label": "spesifikasi grade", "text": "SPHC" },
+            { "row": 0, "label": "ukuran barang", "text": "2.3 X 1219 X C" },
+            { "row": 0, "label": "jumlah barang", "text": "2" },
+            { "row": 0, "label": "harga satuan", "text": "1200.00" },
+            { "row": 1, "label": "pos tarif", "text": "7208.38.00" },
+            { "row": 1, "label": "kode barang", "text": "SPHC-3.2-1219" },
+            { "row": 1, "label": "uraian", "text": "HOT ROLLED STEEL COILS SPHC 3.2 X 1219 X C" },
+            { "row": 1, "label": "spesifikasi grade", "text": "SPHC" },
+            { "row": 1, "label": "ukuran barang", "text": "3.2 X 1219 X C" },
+            { "row": 1, "label": "jumlah barang", "text": "2" },
+            { "row": 1, "label": "harga satuan", "text": "1210.00" }
+          ]
+        }
+      ]
+    }
+  ]
+}

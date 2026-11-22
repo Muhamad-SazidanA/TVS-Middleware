@@ -1,0 +1,26 @@
+{
+  "result": [
+    {
+      "request_file_id": "req-ms-001",
+      "prediction": [
+        { "label": "no sertifikat", "ocr_text": "MTC-PO-2026-9941", "type": "field" },
+        { "label": "nama produsen", "ocr_text": "POSCO POHANG WORKS", "type": "field" },
+        { "label": "tanggal sertifikat", "ocr_text": "14-03-2026", "type": "field" },
+        { "label": "spek material", "ocr_text": "JIS G3131 SPHC", "type": "field" },
+        { "label": "deskripsi barang", "ocr_text": "HOT ROLLED STEEL COIL IN SPHC", "type": "field" },
+        { "label": "jumlah berat material", "ocr_text": "48500", "type": "field" },
+        {
+          "type": "table",
+          "cells": [
+            { "row": 0, "label": "no heat", "text": "H82941" },
+            { "row": 0, "label": "ukuran", "text": "2.3 X 1219 X C" },
+            { "row": 0, "label": "komposisi kimia", "text": "C: 0.05, Mn: 0.28, P: 0.015, S: 0.008, Si: 0.02" },
+            { "row": 1, "label": "no heat", "text": "H82942" },
+            { "row": 1, "label": "ukuran", "text": "3.2 X 1219 X C" },
+            { "row": 1, "label": "komposisi kimia", "text": "C: 0.06, Mn: 0.29, P: 0.014, S: 0.007, Si: 0.02" }
+          ]
+        }
+      ]
+    }
+  ]
+}

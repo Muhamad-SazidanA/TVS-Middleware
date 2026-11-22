@@ -1,0 +1,49 @@
+{
+  "apiKey": "7c18dafb-cc5b-11f1-a611-ceae7ba7dfe2",
+  "strictMatching": true,
+  "autoMatchingTrigger": true,
+  "models": [
+    {
+      "name": "PIB (Pemberitahuan Impor Barang)",
+      "key": "pib",
+      "modelId": "233e650f-2b0e-4c56-8d98-35f40e032a60",
+      "status": "Active"
+    },
+    {
+      "name": "Commercial Invoice (CI)",
+      "key": "invoice",
+      "modelId": "dab11666-7657-46e7-8efb-3fed630ee96e",
+      "status": "Active"
+    },
+    {
+      "name": "Packing List (PL)",
+      "key": "packing_list",
+      "modelId": "133a8cb8-762f-4002-9878-bbb333706775",
+      "status": "Active"
+    },
+    {
+      "name": "Bill of Lading (BL)",
+      "key": "bl",
+      "modelId": "53b28ee1-0693-4d6a-8e16-844e405874c9",
+      "status": "Active"
+    },
+    {
+      "name": "Form AK (Certificate of Origin)",
+      "key": "ak",
+      "modelId": "12a16d1c-9b37-4a19-809f-84e594f541ea",
+      "status": "Active"
+    },
+    {
+      "name": "Weight List (WL)",
+      "key": "wl",
+      "modelId": "a43ce59b-e997-4fd5-8c7e-cd8eacc033ac",
+      "status": "Active"
+    },
+    {
+      "name": "Mill Test Certificate (MTC)",
+      "key": "ms",
+      "modelId": "09bd8ce7-8037-4ade-a5ed-7f49a9bfd6c8",
+      "status": "Active"
+    }
+  ]
+}

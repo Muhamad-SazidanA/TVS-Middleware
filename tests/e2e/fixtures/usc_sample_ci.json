@@ -1,0 +1,32 @@
+{
+  "result": [
+    {
+      "request_file_id": "req-ci-001",
+      "prediction": [
+        { "label": "no invoice", "ocr_text": "USC-INV-2026-8801", "type": "field" },
+        { "label": "tanggal invoice", "ocr_text": "15-03-2026", "type": "field" },
+        { "label": "identitas penjual", "ocr_text": "POSCO ASIA CO., LTD.", "type": "field" },
+        { "label": "identitas pembeli", "ocr_text": "PT. UNITED STEEL CENTER INDONESIA", "type": "field" },
+        { "label": "pelabuhan asal", "ocr_text": "BUSAN, KOREA", "type": "field" },
+        { "label": "pelabuhan tujuan", "ocr_text": "TANJUNG PRIOK, JAKARTA", "type": "field" },
+        { "label": "incoterms lokasi", "ocr_text": "CIF", "type": "field" },
+        { "label": "mata uang", "ocr_text": "USD", "type": "field" },
+        { "label": "nilai total invoice", "ocr_text": "58450.00", "type": "field" },
+        { "label": "gross weight", "ocr_text": "49120", "type": "field" },
+        { "label": "net weight", "ocr_text": "48500", "type": "field" },
+        { "label": "jumlah coil", "ocr_text": "4", "type": "field" },
+        {
+          "type": "table",
+          "cells": [
+            { "row": 0, "label": "spesifikasi", "text": "JIS G3131 SPHC" },
+            { "row": 0, "label": "ukuran barang", "text": "2.3 X 1219 X C" },
+            { "row": 0, "label": "harga satuan", "text": "1200.00" },
+            { "row": 1, "label": "spesifikasi", "text": "JIS G3131 SPHC" },
+            { "row": 1, "label": "ukuran barang", "text": "3.2 X 1219 X C" },
+            { "row": 1, "label": "harga satuan", "text": "1210.00" }
+          ]
+        }
+      ]
+    }
+  ]
+}

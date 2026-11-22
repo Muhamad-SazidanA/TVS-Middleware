@@ -1,0 +1,32 @@
+{
+  "result": [
+    {
+      "request_file_id": "req-pl-001",
+      "prediction": [
+        { "label": "no invoice", "ocr_text": "USC-INV-2026-8801", "type": "field" },
+        { "label": "tanggal invoice", "ocr_text": "15-03-2026", "type": "field" },
+        { "label": "identitas supplier", "ocr_text": "POSCO ASIA CO., LTD.", "type": "field" },
+        { "label": "identitas buyer", "ocr_text": "PT. UNITED STEEL CENTER INDONESIA", "type": "field" },
+        { "label": "pelabuhan asal", "ocr_text": "BUSAN, KOREA", "type": "field" },
+        { "label": "pelabuhan tujuan", "ocr_text": "TANJUNG PRIOK, JAKARTA", "type": "field" },
+        { "label": "total jumlah berat", "ocr_text": "49120", "type": "field" },
+        { "label": "gross weight", "ocr_text": "49120", "type": "field" },
+        { "label": "net weight", "ocr_text": "48500", "type": "field" },
+        { "label": "jumlah coil", "ocr_text": "4", "type": "field" },
+        {
+          "type": "table",
+          "cells": [
+            { "row": 0, "label": "spesifikasi", "text": "SPHC" },
+            { "row": 0, "label": "ukuran barang", "text": "2.3 X 1219 X C" },
+            { "row": 0, "label": "qty", "text": "2" },
+            { "row": 0, "label": "weight", "text": "24350" },
+            { "row": 1, "label": "spesifikasi", "text": "SPHC" },
+            { "row": 1, "label": "ukuran barang", "text": "3.2 X 1219 X C" },
+            { "row": 1, "label": "qty", "text": "2" },
+            { "row": 1, "label": "weight", "text": "24150" }
+          ]
+        }
+      ]
+    }
+  ]
+}
