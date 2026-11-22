@@ -1,4 +1,4 @@
-import { parseStandardDate, valueMatchesGroup, type DbEquivalencyGroup } from "~/utils/valueEquivalency";
+import { valueMatchesGroup, type DbEquivalencyGroup } from "~/utils/valueEquivalency";
 import type {
   NormalizedBbox,
   DocumentFieldData,
@@ -9,12 +9,6 @@ import type {
   ManualNote,
 } from "./detailTypes";
 import type { FieldMatchStatus } from "~/types/documentComparison";
-import {
-  extractStandardLineItem,
-  matchDocumentItemsStrict,
-  cleanDimension,
-  type StandardLineItem,
-} from "~/utils/canonicalMatcher";
 import defaultDataActions from "~/config/data_actions.json";
 import { applyDataActionsToFields, applyDataActionsToTableRows } from "~/utils/workflowRunner";
 
@@ -103,65 +97,6 @@ export function normalizeBbox(
     width: padded.width,
     height: padded.height,
   };
-}
-
-export function computeTablePages(
-  docCode?: string,
-  tableCoordinates?: Array<Record<string, { xmin?: number; ymin?: number; xmax?: number; ymax?: number; page?: number }>>
-): number[] {
-  if (!tableCoordinates || !Array.isArray(tableCoordinates) || tableCoordinates.length === 0) return [];
-  const code = typeof docCode === "string" ? docCode.toUpperCase() : "";
-
-  // Single-page documents (WL, MS, BL) can ONLY have page 1
-  if (code === "WL" || code === "MS" || code === "BL") {
-    return tableCoordinates.map(() => 1);
-  }
-
-  const isPixelTable = tableCoordinates.some((row) =>
-    Object.values(row || {}).some((c) => (c?.xmax ?? 0) > 1 || (c?.ymax ?? 0) > 1)
-  );
-  const yThreshold = isPixelTable ? 100 : 0.02;
-  const yDropThreshold = isPixelTable ? 400 : 0.11;
-
-  const pages: number[] = [];
-  const isPib = code === "PIB" || code.includes("PIB");
-  let curPage = isPib ? 2 : 1; // PIB line items physically start on Lembar Lanjutan Page 2; others on Page 1
-  let lastY = 0;
-
-  for (let i = 0; i < tableCoordinates.length; i++) {
-    const row = tableCoordinates[i];
-    const validCells = Object.values(row || {}).filter((c) => c && (c.ymin ?? 0) > yThreshold);
-    const firstCell = validCells[0];
-
-    // Detect physical page break: when row Y drops significantly compared to previous row's Y position
-    if (firstCell && lastY > 0 && (firstCell.ymin ?? 0) < lastY - yDropThreshold) {
-      curPage++;
-    }
-    if (firstCell) {
-      lastY = firstCell.ymin ?? 0;
-    }
-    pages.push(curPage);
-  }
-  return pages;
-}
-
-export interface TableCellHighlight {
-  fieldId: string; // e.g. "item-pib-0" or "item-pl-0"
-  cellId: string;  // e.g. "item-pib-0-Pos_Tarif"
-  rowNumber: number;
-  label: string;
-  bbox: NormalizedBbox;
-  page: number;
-  isTableItem: true;
-  rowIndex: number;
-}
-
-export function extractTableHighlights(
-  _docCode: string,
-  _rawIsi?: unknown
-): TableCellHighlight[] {
-  // Table highlights are disabled per requirement (matching focuses strictly on header fields)
-  return [];
 }
 
 interface ParsedIsi {
@@ -918,206 +853,6 @@ export function buildAllComparisonGroups(
   });
 }
 
-export interface TableFieldPair {
-  key: string;
-  label: string;
-  pibValue: string;
-  supportingValue: string;
-  isMatch?: boolean;
-}
-
-function isFieldPairMatching(pibVal: string, supVal: string, key: string): boolean {
-  if (!pibVal || !supVal) return false;
-  if (pibVal === "-" && supVal === "-") return true;
-  if (pibVal === "-" || supVal === "-") return false;
-  if (pibVal.trim() === supVal.trim()) return true;
-
-  if (key === "size") {
-    return cleanDimension(pibVal) === cleanDimension(supVal);
-  }
-
-  // Text normalize
-  const pNorm = pibVal.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const sNorm = supVal.toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (pNorm && sNorm && pNorm === sNorm) return true;
-
-  // Numeric parse
-  const pNum = parseFloat(pibVal.replace(/[^\d.,]/g, "").replace(/,/g, ""));
-  const sNum = parseFloat(supVal.replace(/[^\d.,]/g, "").replace(/,/g, ""));
-  if (!isNaN(pNum) && !isNaN(sNum) && Math.abs(pNum - sNum) < 0.001) {
-    return true;
-  }
-
-  return false;
-}
-
-export function getDocumentTableFields(
-  docCode: string,
-  pibItem: StandardLineItem,
-  targetItem: StandardLineItem
-): TableFieldPair[] {
-  const code = (docCode || "").toUpperCase();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pRaw: Record<string, any> = pibItem.raw || {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tRaw: Record<string, any> = targetItem.raw || {};
-
-  const getP = (...keys: string[]): string => {
-    for (const k of keys) {
-      const actK = `${k}_action`;
-      if (pRaw[actK] !== undefined && pRaw[actK] !== null && String(pRaw[actK]).trim() !== "") {
-        return String(pRaw[actK]).trim();
-      }
-      if (pRaw[k] !== undefined && pRaw[k] !== null && String(pRaw[k]).trim() !== "") {
-        return String(pRaw[k]).trim();
-      }
-    }
-    return "";
-  };
-
-  const getT = (...keys: string[]): string => {
-    for (const k of keys) {
-      const actK = `${k}_action`;
-      if (tRaw[actK] !== undefined && tRaw[actK] !== null && String(tRaw[actK]).trim() !== "") {
-        return String(tRaw[actK]).trim();
-      }
-      if (tRaw[k] !== undefined && tRaw[k] !== null && String(tRaw[k]).trim() !== "") {
-        return String(tRaw[k]).trim();
-      }
-    }
-    return "";
-  };
-
-  let rawPairs: TableFieldPair[] = [];
-
-  if (code === "INVOICE" || code === "CI") {
-    // 1. Spesifikasi: JSC270C = Spesifikasi_Grade: JSC270C
-    const specPib = getP("Spesifikasi_Grade", "Spek_Material", "Spesifikasi") || pibItem.spec || "-";
-    const specTgt = getT("Spesifikasi", "Specification", "Grade", "Spec") || targetItem.spec || "-";
-
-    // 2. Satuan_Coil: 2 = Jumlah_Satuan_Coil: 2.00
-    const coilPib = getP("Jumlah_Satuan_Coil", "Satuan_Coil", "Jumlah_Coil") || pibItem.qty || "-";
-    const coilTgt = getT("Satuan_Coil", "Jumlah_Satuan_Coil", "Jumlah_Coil") || targetItem.qty || "-";
-
-    // 3. Gross_Weight: 18. 504 = Jumlah_Satuan_Barang: 18.3600
-    const gwPib = getP("Jumlah_Satuan_Barang", "Berat_Kotor", "Gross_Weight") || pibItem.grossWeight || "-";
-    const gwTgt = getT("Gross_Weight", "Total_Gross_Weight", "Berat_Kotor") || targetItem.grossWeight || "-";
-
-    // 4. Ukuran_Barang: 1.0MM X 821MM X C = Ukuran_Barang: 1.0 MM X 821 MM X C
-    const sizePib = getP("Ukuran_Barang", "Ukuran", "Size") || pibItem.size || "-";
-    const sizeTgt = getT("Ukuran_Barang", "Ukuran", "Size") || targetItem.size || "-";
-
-    // 5. Net_Weight: 18. 360 = Berat_Bersih_Item: 18,360.0000
-    const nwPib = getP("Berat_Bersih_Item", "Net_Weight", "Berat_Bersih") || pibItem.netWeight || "-";
-    const nwTgt = getT("Net_Weight", "Total_Net_Weight", "Berat_Bersih") || targetItem.netWeight || "-";
-
-    rawPairs = [
-      { key: "spec", label: "Spesifikasi", pibValue: specPib, supportingValue: specTgt },
-      { key: "coil", label: "Satuan coil", pibValue: coilPib, supportingValue: coilTgt },
-      { key: "gross_weight", label: "Gross weight", pibValue: gwPib, supportingValue: gwTgt },
-      { key: "size", label: "Ukuran", pibValue: sizePib, supportingValue: sizeTgt },
-      { key: "net_weight", label: "Net weight", pibValue: nwPib, supportingValue: nwTgt },
-    ];
-  } else if (code === "PL" || code.includes("PACKING")) {
-    // 1. Spesifikasi: JSC270C = Spesifikasi_Grade: JSC270C
-    const specPib = getP("Spesifikasi_Grade", "Spek_Material", "Spesifikasi") || pibItem.spec || "-";
-    const specTgt = getT("Spesifikasi", "Specification", "Grade", "Spec") || targetItem.spec || "-";
-
-    // 2. Satuan_Coil: 2 = Jumlah_Satuan_Coil: 2.00
-    const coilPib = getP("Jumlah_Satuan_Coil", "Satuan_Coil", "Jumlah_Coil") || pibItem.qty || "-";
-    const coilTgt = getT("Satuan_Coil", "Jumlah_Satuan_Coil", "Jumlah_Coil") || targetItem.qty || "-";
-
-    // 3. Gross_Weight: 18. 504 = Berat_Bersih_Item: 18,360.0000
-    const gwPib = getP("Berat_Bersih_Item", "Gross_Weight", "Berat_Kotor") || pibItem.grossWeight || "-";
-    const gwTgt = getT("Gross_Weight", "Total_Gross_Weight", "Berat_Kotor") || targetItem.grossWeight || "-";
-
-    // 4. Ukuran_Barang: 1.0MM X 821MM X C = Ukuran_Barang: 1.0 MM X 821 MM X C
-    const sizePib = getP("Ukuran_Barang", "Ukuran", "Size") || pibItem.size || "-";
-    const sizeTgt = getT("Ukuran_Barang", "Ukuran", "Size") || targetItem.size || "-";
-
-    // 5. Net_Weight: 18. 360 = Jumlah_Satuan_Barang: 18.3600
-    const nwPib = getP("Jumlah_Satuan_Barang", "Net_Weight", "Berat_Bersih") || pibItem.netWeight || "-";
-    const nwTgt = getT("Net_Weight", "Total_Net_Weight", "Berat_Bersih") || targetItem.netWeight || "-";
-
-    rawPairs = [
-      { key: "spec", label: "Spesifikasi", pibValue: specPib, supportingValue: specTgt },
-      { key: "coil", label: "Satuan coil", pibValue: coilPib, supportingValue: coilTgt },
-      { key: "gross_weight", label: "Gross weight", pibValue: gwPib, supportingValue: gwTgt },
-      { key: "size", label: "Ukuran", pibValue: sizePib, supportingValue: sizeTgt },
-      { key: "net_weight", label: "Net weight", pibValue: nwPib, supportingValue: nwTgt },
-    ];
-  } else if (code === "AK") {
-    // 1. Ukuran_Barang: 0.8MMX725MMXC = Ukuran_Barang: 1.0 MM X 821 MM X C
-    const sizePib = getP("Ukuran_Barang", "Ukuran", "Size") || pibItem.size || "-";
-    const sizeTgt = getT("Ukuran_Barang", "Ukuran", "Size") || targetItem.size || "-";
-
-    // 2. Deskripsi_Barang: GALVANNEALED COIL = Uraian_Barang: GALVANNEALED COIL
-    const descPib = getP("Uraian_Barang", "Deskripsi_Barang", "Description") || pibItem.desc || "-";
-    const descTgt = getT("Deskripsi_Barang", "Uraian_Barang", "Description") || targetItem.desc || "-";
-
-    // 3. Berat_Kuantitas: 32.516 MT = Berat_Bersih_Item: 32,260.0000
-    const beratPib = getP("Berat_Bersih_Item", "Net_Weight", "Berat_Bersih") || pibItem.netWeight || "-";
-    const beratTgt = getT("Berat_Kuantitas", "Net_Weight", "Berat") || targetItem.netWeight || "-";
-
-    // 4. Marks_And_Numbers: JAC270C - 45 / 45 = Spesifikasi_Grade: JAC270C - 45 / 45
-    const marksPib = getP("Spesifikasi_Grade", "Spek_Material", "Spesifikasi") || pibItem.spec || "-";
-    const marksTgt = getT("Marks_And_Numbers", "Marks", "Spesifikasi") || targetItem.spec || "-";
-
-    rawPairs = [
-      { key: "size", label: "Ukuran", pibValue: sizePib, supportingValue: sizeTgt },
-      { key: "desc", label: "Deskripsi", pibValue: descPib, supportingValue: descTgt },
-      { key: "berat", label: "Berat kuantitas", pibValue: beratPib, supportingValue: beratTgt },
-      { key: "marks", label: "Marks & numbers", pibValue: marksPib, supportingValue: marksTgt },
-    ];
-  } else if (code === "WL") {
-    // Ukuran_Barang: 1.0x821xC = Ukuran_Barang: 1.0 MM X 821 MM X C
-    const sizePib = getP("Ukuran_Barang", "Ukuran", "Size") || pibItem.size || "-";
-    const sizeTgt = getT("Ukuran_Barang", "Ukuran", "Size") || targetItem.size || "-";
-
-    const coilPib = getP("No_Coil", "Coil_No", "Marks") || pibItem.coilNo || "-";
-    const coilTgt = getT("No_Coil", "Coil_No", "Marks") || targetItem.coilNo || "-";
-
-    const weightPib = getP("Berat_Bersih_Item", "Net_Weight", "Jumlah_Satuan_Barang") || pibItem.netWeight || "-";
-    const weightTgt = getT("Net_Weight", "Total_Net_Weight", "Berat_Bersih") || targetItem.netWeight || "-";
-
-    rawPairs = [
-      { key: "size", label: "Ukuran", pibValue: sizePib, supportingValue: sizeTgt },
-    ];
-    if (coilTgt !== "-" || coilPib !== "-") {
-      rawPairs.push({ key: "coil_no", label: "No. coil", pibValue: coilPib, supportingValue: coilTgt });
-    }
-    if (weightTgt !== "-" || weightPib !== "-") {
-      rawPairs.push({ key: "net_weight", label: "Net weight", pibValue: weightPib, supportingValue: weightTgt });
-    }
-  } else if (code === "MS") {
-    // Ukuran: 1.0x821xC = Ukuran_Barang: 1.0 MM X 821 MM X C
-    const sizePib = getP("Ukuran_Barang", "Ukuran", "Size") || pibItem.size || "-";
-    const sizeTgt = getT("Ukuran", "Ukuran_Barang", "Size") || targetItem.size || "-";
-
-    const specPib = getP("Spesifikasi_Grade", "Spek_Material", "Spesifikasi") || pibItem.spec || "-";
-    const specTgt = getT("Spek_Material", "Spesifikasi", "Specification") || targetItem.spec || "-";
-
-    rawPairs = [
-      { key: "size", label: "Ukuran", pibValue: sizePib, supportingValue: sizeTgt },
-      { key: "spec", label: "Spek material", pibValue: specPib, supportingValue: specTgt },
-    ];
-  } else {
-    // Fallback
-    rawPairs = [
-      { key: "spec", label: "Spesifikasi", pibValue: pibItem.spec || "-", supportingValue: targetItem.spec || "-" },
-      { key: "size", label: "Ukuran", pibValue: pibItem.size || "-", supportingValue: targetItem.size || "-" },
-      { key: "qty", label: "Qty", pibValue: pibItem.qty || "-", supportingValue: targetItem.qty || "-" },
-      { key: "weight", label: "Berat", pibValue: pibItem.netWeight || "-", supportingValue: targetItem.netWeight || "-" },
-      { key: "price", label: "Harga", pibValue: pibItem.price || "-", supportingValue: targetItem.price || "-" },
-    ];
-  }
-
-  return rawPairs.map((p) => ({
-    ...p,
-    isMatch: isFieldPairMatching(p.pibValue, p.supportingValue, p.key),
-  }));
-}
-
 export interface BatchComparisonEvaluationResult {
   status: "Matching" | "Mismatching" | "Proses";
   docStatuses: Record<string, { status: "Match" | "Mismatch" | "Proses" | "-" }>;
@@ -1281,4 +1016,3 @@ export function evaluateBatchComparison(
     allFields,
   };
 }
-``

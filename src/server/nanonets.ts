@@ -279,9 +279,9 @@ export function filterCategoryData(webhookBody: any, categoryTitle?: string): {
   function normalizeCoord(
     raw: { xmin: number; ymin: number; xmax: number; ymax: number; page?: number }
   ): { xmin: number; ymin: number; xmax: number; ymax: number; page: number } {
-    let xmin = raw.xmin;
+    const xmin = raw.xmin;
     let ymin = raw.ymin;
-    let xmax = raw.xmax;
+    const xmax = raw.xmax;
     let ymax = raw.ymax;
     let page = Number(raw.page ?? 0);
 
