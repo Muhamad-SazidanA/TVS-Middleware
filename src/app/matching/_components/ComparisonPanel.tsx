@@ -499,11 +499,11 @@ export default function ComparisonPanel({
 
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
-                      {group.matchedCount} cocok
+                      {group.matchedCount} Match
                     </span>
                     {group.mismatchedCount > 0 && (
                       <span className="text-[10px] font-semibold text-rose-800 bg-rose-50 border border-rose-200/80 px-2 py-0.5 rounded-full">
-                        {group.mismatchedCount} tidak cocok
+                        {group.mismatchedCount} Mismatch
                       </span>
                     )}
                     <button
@@ -536,11 +536,11 @@ export default function ComparisonPanel({
                   </div>
                   <div className="flex items-center gap-1.5 text-xs font-semibold">
                     <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
-                      {group.matchedCount} cocok
+                      {group.matchedCount} Match
                     </span>
                     {group.mismatchedCount > 0 && (
                       <span className="text-[10px] font-semibold text-rose-800 bg-rose-50 border border-rose-200/80 px-2 py-0.5 rounded-full">
-                        {group.mismatchedCount} tidak cocok
+                        {group.mismatchedCount} Mismatch
                       </span>
                     )}
                   </div>
@@ -563,19 +563,19 @@ export default function ComparisonPanel({
                       statusBadge = (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
                           <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
-                          Cocok
+                          Match
                         </span>
                       );
                     } else if (isMatch) {
                       statusBadge = (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
-                          Cocok
+                          Match
                         </span>
                       );
                     } else if (isMismatch) {
                       statusBadge = (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200/80">
-                          Tidak cocok
+                          Mismatch
                         </span>
                       );
                     }
@@ -651,8 +651,8 @@ export default function ComparisonPanel({
                               }`}
                               title={
                                 field.isManualConfirmed
-                                  ? "Dikonfirmasi manual cocok. Klik untuk membatalkan konfirmasi"
-                                  : "Konfirmasi manual sebagai cocok (hanya untuk batch ini)"
+                                  ? "Dikonfirmasi manual Match. Klik untuk membatalkan konfirmasi"
+                                  : "Konfirmasi manual sebagai Match (hanya untuk batch ini)"
                               }
                             >
                               {togglingManualMatchId === field.id ? (

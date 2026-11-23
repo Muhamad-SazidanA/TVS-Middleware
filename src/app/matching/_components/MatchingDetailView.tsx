@@ -328,7 +328,7 @@ export default function MatchingDetailView({
   const handleManualMatchToggled = (fieldLabel: string, confirmed: boolean) => {
     showToast(
       confirmed
-        ? `Field "${fieldLabel}" berhasil dikonfirmasi cocok.`
+        ? `Field "${fieldLabel}" berhasil dikonfirmasi Match.`
         : `Konfirmasi manual "${fieldLabel}" dibatalkan.`
     );
     loadBatch(true);
@@ -648,12 +648,12 @@ export default function MatchingDetailView({
             ) : isBatchMatching ? (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Cocok</span>
+                <span>Match</span>
               </span>
             ) : isBatchMismatching ? (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200/80">
                 <AlertCircle className="w-3.5 h-3.5" />
-                <span>Tidak cocok</span>
+                <span>Mismatch</span>
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">

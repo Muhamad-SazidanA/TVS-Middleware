@@ -286,7 +286,7 @@ export default function MatchingTable({
                   };
                 } else if (batch.status === "Matching") {
                   reviewBadge = {
-                    label: "Cocok",
+                    label: "Match",
                     className: "bg-emerald-50 text-emerald-800 border border-emerald-200/80",
                   };
                 } else if (batch.status === "Ditolak") {

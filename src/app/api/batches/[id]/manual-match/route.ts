@@ -133,7 +133,7 @@ export async function POST(
         : `Batal Konfirmasi Manual: ${displayName} (${docDisplayName})`,
       details: `${actionByName} ${
         isConfirmed ? "mengonfirmasi" : "membatalkan konfirmasi"
-      } field "${displayName}" pada dokumen "${docDisplayName}" sebagai COCOK (MATCH) untuk Batch #${batchId}.`,
+      } field "${displayName}" pada dokumen "${docDisplayName}" sebagai MATCH untuk Batch #${batchId}.`,
       metadata: {
         batchId,
         detailId: detail.id,
@@ -158,7 +158,7 @@ export async function POST(
         : `Batal Konfirmasi Manual: ${displayName} (${docDisplayName})`,
       message: `${actionByName} ${
         isConfirmed ? "mengonfirmasi" : "membatalkan konfirmasi"
-      } manual field "${displayName}" (${docDisplayName}) sebagai cocok.`,
+      } manual field "${displayName}" (${docDisplayName}) sebagai Match.`,
       fileType: detail.fileType,
       fileName: detail.fileId,
       details: {
