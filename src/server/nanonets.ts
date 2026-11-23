@@ -178,9 +178,19 @@ const INVOICE_FIELDS = new Set([
   "nilai pabean", "nilai total invoice", "total", "nilai total", "total amount", "invoice total", "amount",
   "jumlah coil", "total coils", "jumlah", "qty", "total packages", "coils",
   "berat bersih", "net weight", "total net weight", "total jumlah berat",
-  "berat kotor", "gross weight", "total gross weight"
+  "berat kotor", "gross weight", "total gross weight",
+  "uraian barang", "deskripsi barang", "description", "description of goods", "item description",
+  "ukuran barang", "size", "dimension", "dimensions", "ukuran",
+  "spesifikasi grade", "spek material", "spesifikasi", "grade",
+  "jumlah satuan barang", "berat coil", "berat barang",
+  "jumlah satuan coil", "qty coil",
+  "harga satuan", "unit price", "price"
 ]);
-const INVOICE_TABLE = new Set<string>();
+const INVOICE_TABLE = new Set([
+  "spesifikasi", "ukuran barang", "harga satuan", "size", "spec", "price", "unit price",
+  "uraian barang", "deskripsi barang", "description", "jumlah satuan barang", "berat coil",
+  "jumlah satuan coil", "qty coil", "qty", "weight", "net weight", "coils"
+]);
 
 function norm(s: string) {
   return s.toLowerCase().replace(/_/g, " ").replace(/\./g, "").trim();

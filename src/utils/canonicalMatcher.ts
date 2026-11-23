@@ -949,6 +949,18 @@ export function evaluateCanonicalBatchMatching(
       checkH("Berat_Bersih", ["Berat_Bersih", "Net_Weight", "Total_Net_Weight"], ["Berat_Bersih", "Net_Weight", "Total_Net_Weight", "Net Weight", "N.W.", "Total_Jumlah_Berat"], true);
       // 9. Berat Kotor (Page 3 No. 18)
       checkH("Berat_Kotor", ["Berat_Kotor", "Gross_Weight", "Total_Gross_Weight"], ["Berat_Kotor", "Gross_Weight", "Total_Gross_Weight", "Gross Weight", "G.W."], true);
+      // 10. Uraian barang (Page 1 No. 14)
+      checkH("Uraian_Barang", ["Uraian_Barang", "Deskripsi_Barang", "Description", "Description_of_Goods"], ["Uraian_Barang", "Deskripsi_Barang", "Description", "Commodity", "Item_Description", "Description_of_Goods"], false);
+      // 11. Ukuran barang (Page 2 No. 16)
+      checkH("Ukuran_Barang", ["Ukuran_Barang", "Ukuran", "Size", "Dimension", "Dimensions", "Ukuran_Dimensi"], ["Ukuran_Barang", "Size", "Dimension", "Dimensions", "Ukuran", "Thickness", "Ukuran_Dimensi"], false);
+      // 12. Spesifikasi / grade (Page 2 No. 15)
+      checkH("Spesifikasi_Grade", ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade", "Specification"], ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade", "Specification", "Steel_Grade"], false);
+      // 13. Jumlah Satuan Barang (Page 2 No. 25)
+      checkH("Jumlah_Satuan_Barang", ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Jumlah_Satuan_Barang_action", "Berat_Bersih"], ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Net_Weight", "Total_Weight", "Weight", "Berat_Bersih", "Total_Net_Weight", "Berat_Coil"], false);
+      // 14. Jumlah Satuan Coil (Page 2 No. 24)
+      checkH("Jumlah_Satuan_Coil", ["Jumlah_Satuan_Coil", "Jumlah_Coil_Item", "Jumlah_Coil", "Total_Coils", "Coils", "Qty_Coil"], ["Jumlah_Satuan_Coil", "Jumlah_Coil_Item", "Jumlah_Coil", "Total_Coils", "Coils", "QTY", "Qty_Coil", "QTY_Coil"], false);
+      // 15. Harga satuan (Page 2 No. 20)
+      checkH("Harga_Satuan", ["Harga_Satuan", "Nilai_Pabean_Item", "Nilai_Barang", "Unit_Price", "Harga_Nilai_Pabean", "Nilai_Pabean"], ["Harga_Satuan", "Unit_Price", "Price", "Rate", "Amount", "Total_Price", "Nilai_Barang"], false);
     }
     // ─── Packing List (PL) ───────────────────────────────────────────────────
     else if ((ft.includes("packing") || ft.includes("paking") || ft === "pl") && !ft.includes("wl") && ft !== "wl") {
