@@ -28,12 +28,12 @@ export async function GET(
       return NextResponse.json({ error: "Batch tidak ditemukan" }, { status: 404 });
     }
 
-    // Evaluate live status from DB details only if batch is still in processing state or requested via revalidate
+    // Evaluate live status from DB details unless explicitly approved or rejected
     const url = new URL(req.url);
     const shouldRevalidate = url.searchParams.get("revalidate") === "true";
-    const isProcessing = !batch.status || batch.status === "PROSES" || batch.status === "Proses" || batch.status === "Pending";
+    const isLocked = batch.status === "APPROVED" || batch.status === "DITOLAK";
 
-    if (isProcessing || shouldRevalidate) {
+    if (!isLocked || shouldRevalidate) {
       const serverGroups = await loadServerEquivalencyGroups();
       const evaluatedStatus = evaluateDbBatchStatus(batch.details || [], batch.totalFile, serverGroups);
       const dbStatusStr = evaluatedStatus === "Matching" ? "MATCHING" : evaluatedStatus === "Mismatching" ? "MISMATCHING" : "PROSES";

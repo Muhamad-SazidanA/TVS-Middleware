@@ -663,16 +663,28 @@ export function compareFieldStrict(
   compVal: string,
   usedAction = false,
   customRules?: DbEquivalencyGroup[],
-  isCritical = false
+  _isCritical = false
 ): FieldComparisonResult {
   const sPib = (pibVal || "-").trim();
   const sComp = (compVal || "-").trim();
 
-  // Missing values never evaluate to true against real values
+  // Missing values: if both are missing, INFO. If one is present and the other missing, MISMATCH!
+  if (sPib === "-" && sComp === "-") {
+    return {
+      documentType: docType,
+      fieldName,
+      pibValue: sPib,
+      targetValue: sComp,
+      status: "INFO",
+      isMatch: false,
+      usedActionValue: usedAction,
+      notes: `Field ${fieldName} tidak tercantum pada kedua dokumen`,
+    };
+  }
+
   if (sPib === "-" || sComp === "-") {
-    const status = isCritical ? "MISMATCH" : "INFO";
     const note = sPib === "-"
-      ? `Field ${fieldName} tidak tercantum pada dokumen PIB`
+      ? `Field ${fieldName} tidak tercantum pada dokumen PIB acuan`
       : `Field ${fieldName} tidak ditemukan pada ${docType}`;
 
     return {
@@ -680,7 +692,7 @@ export function compareFieldStrict(
       fieldName,
       pibValue: sPib,
       targetValue: sComp,
-      status,
+      status: "MISMATCH",
       isMatch: false,
       usedActionValue: usedAction,
       notes: note,

@@ -140,46 +140,6 @@ export function parseDocumentIsi(isi?: unknown, docCode?: string): ParsedIsi {
   }
 }
 
-// Standard fallback coordinates for PIB BC 2.0 (portrait 2480x3508 px)
-export const PIB_STANDARD_COORDINATES: Record<string, { xmin: number; ymin: number; xmax: number; ymax: number; page: number }> = {
-  // Lembar 1 Box 30: Berat Kotor (Gross Weight)
-  berat_kotor: { xmin: 1779, ymin: 1707, xmax: 2008, ymax: 1734, page: 0 },
-  total_gross_weight: { xmin: 1779, ymin: 1707, xmax: 2008, ymax: 1734, page: 0 },
-  gross_weight: { xmin: 1779, ymin: 1707, xmax: 2008, ymax: 1734, page: 0 },
-  berat_kuantitas: { xmin: 1779, ymin: 1707, xmax: 2008, ymax: 1734, page: 0 },
-
-  // Lembar 1 Box 31: Berat Bersih (Net Weight)
-  berat_bersih: { xmin: 2158, ymin: 1707, xmax: 2389, ymax: 1734, page: 0 },
-  total_net_weight: { xmin: 2158, ymin: 1707, xmax: 2389, ymax: 1734, page: 0 },
-  net_weight: { xmin: 2158, ymin: 1707, xmax: 2389, ymax: 1734, page: 0 },
-  total_berat: { xmin: 2158, ymin: 1707, xmax: 2389, ymax: 1734, page: 0 },
-  jumlah_berat_material: { xmin: 2158, ymin: 1707, xmax: 2389, ymax: 1734, page: 0 },
-  berat_bersih_item: { xmin: 2158, ymin: 1707, xmax: 2389, ymax: 1734, page: 0 },
-
-  // Lembar 2 Pos 18: Uraian Barang / Deskripsi Barang
-  uraian_barang: { xmin: 252, ymin: 532, xmax: 494, ymax: 563, page: 1 },
-  deskripsi_barang: { xmin: 252, ymin: 532, xmax: 494, ymax: 563, page: 1 },
-};
-
-function applyPibCoordFallback(
-  res: DocumentFieldData,
-  keys: string[],
-  docCode?: string
-): DocumentFieldData {
-  if (!res.bbox && docCode?.toUpperCase() === "PIB") {
-    for (const k of keys) {
-      const cleanK = k.toLowerCase().replace(/[^a-z0-9_]/g, "");
-      const std = PIB_STANDARD_COORDINATES[cleanK] || PIB_STANDARD_COORDINATES[k.toLowerCase()];
-      if (std) {
-        res.bbox = normalizeBbox(std, std.page + 1, "PIB");
-        res.page = std.page + 1;
-        break;
-      }
-    }
-  }
-  return res;
-}
-
 // Coordinate lookup helper that searches matched key and candidate keys in docIsi.coordinates
 function resolveFieldCoord(
   docIsi: ParsedIsi,
@@ -375,8 +335,7 @@ export function extractFieldValue(
   pageDefault: number = 1,
   docCode?: string
 ): DocumentFieldData {
-  const res = extractFieldValueRaw(docIsi, keys, pageDefault, docCode);
-  return applyPibCoordFallback(res, keys, docCode);
+  return extractFieldValueRaw(docIsi, keys, pageDefault, docCode);
 }
 
 export function checkFieldMatch(
@@ -385,8 +344,18 @@ export function checkFieldMatch(
   fieldName: string,
   equivalencyGroups: DbEquivalencyGroup[] = []
 ): { status: FieldMatchStatus; reason?: string } {
-  if (!v1 || !v2 || v1 === "-" || v2 === "-" || v2 === "Tidak ada di dokumen ini") {
+  const isV1Empty = !v1 || v1 === "-";
+  const isV2Empty = !v2 || v2 === "-" || v2 === "Tidak ada di dokumen ini";
+
+  if (isV1Empty && isV2Empty) {
     return { status: "NEUTRAL", reason: undefined };
+  }
+
+  if (isV1Empty || isV2Empty) {
+    return {
+      status: "MISMATCH",
+      reason: isV2Empty ? "Field tidak ditemukan di dokumen" : "Field tidak tercantum di PIB acuan",
+    };
   }
 
   const result = isEquivalentMatch(v1, v2, fieldName, equivalencyGroups);

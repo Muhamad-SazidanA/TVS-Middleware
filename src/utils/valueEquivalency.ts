@@ -336,7 +336,7 @@ export function isEquivalentMatch(
     }
   }
 
-  // 6. Port comparison (e.g. "JAKARTA INDONESIA" vs "TANJUNG PRIOK", "KWANGYANG KOREA" vs "KWANGYANG")
+  // 6. Port comparison (exact / normalized tokens only)
   const isPortField =
     normField.includes("pelabuhan") ||
     normField.includes("port") ||
@@ -347,23 +347,16 @@ export function isEquivalentMatch(
     normField.includes("muat");
 
   if (isPortField) {
-    const isTanjungPriokOrJakarta = (s: string) => {
-      const low = s.toLowerCase();
-      return low.includes("priok") || low.includes("jakarta");
-    };
-    if (isTanjungPriokOrJakarta(cleanA) && isTanjungPriokOrJakarta(cleanB)) {
-      return { isMatch: true, reason: "Kesesuaian pelabuhan (TANJUNG PRIOK / JAKARTA)" };
-    }
     const cleanPort = (s: string) =>
       s
         .toLowerCase()
         .replace(/[^a-z0-9]/g, " ")
-        .replace(/\b(korea|indonesia|port|pelabuhan)\b/g, "")
+        .replace(/\s+/g, " ")
         .trim();
     const pA = cleanPort(cleanA);
     const pB = cleanPort(cleanB);
     if (pA && pB && (pA === pB || pA.includes(pB) || pB.includes(pA))) {
-      return { isMatch: true, reason: "Kesesuaian pelabuhan asal/tujuan" };
+      return { isMatch: true, reason: "Kesesuaian nama pelabuhan" };
     }
   }
 
@@ -445,65 +438,7 @@ export function isEquivalentMatch(
     }
   }
 
-  // 10. Country & Port geographic relationship (e.g. "KOREA" vs "KWANGYANG", "INDONESIA" vs "TANJUNG PRIOK")
-  const isCountryOrPortField =
-    normField.includes("negara") ||
-    normField.includes("country") ||
-    normField.includes("origin") ||
-    normField.includes("pelabuhan") ||
-    normField.includes("port") ||
-    normField.includes("tujuan") ||
-    normField.includes("asal");
-  if (isCountryOrPortField) {
-    const sA = cleanA.toLowerCase();
-    const sB = cleanB.toLowerCase();
-    const isKoreaA = sA.includes("korea") || sA.includes("kr") || sA.includes("kwangyang");
-    const isKoreaB = sB.includes("korea") || sB.includes("kr") || sB.includes("kwangyang");
-    if (isKoreaA && isKoreaB) {
-      return { isMatch: true, reason: "Kesesuaian asal: KOREA / KWANGYANG" };
-    }
-    const isIndoA = sA.includes("indonesia") || sA.includes("id") || sA.includes("jakarta") || sA.includes("priok");
-    const isIndoB = sB.includes("indonesia") || sB.includes("id") || sB.includes("jakarta") || sB.includes("priok");
-    if (isIndoA && isIndoB) {
-      return { isMatch: true, reason: "Kesesuaian tujuan: INDONESIA / TANJUNG PRIOK" };
-    }
-  }
 
-  // 11. Currency / Nilai Pabean conversion (e.g. USD 919,989.49 vs IDR 15,258,025,691.65 with exchange rate ~16,585)
-  const isValueField =
-    normField.includes("nilai") ||
-    normField.includes("pabean") ||
-    normField.includes("invoice_total") ||
-    normField.includes("total_invoice") ||
-    normField.includes("amount");
-  if (isValueField) {
-    const parseNum = (str: string) => {
-      let s = str.replace(/[^0-9.,]/g, "").trim();
-      if (s.includes(",") && s.includes(".")) {
-        const lastDot = s.lastIndexOf(".");
-        const lastComma = s.lastIndexOf(",");
-        if (lastComma > lastDot) s = s.replace(/\./g, "").replace(",", ".");
-        else s = s.replace(/,/g, "");
-      } else if (s.includes(",")) {
-        if (/\d+,\d{1,4}$/.test(s)) s = s.replace(",", ".");
-        else s = s.replace(/,/g, "");
-      } else if ((s.match(/\./g) || []).length > 1) {
-        const lastDotIdx = s.lastIndexOf(".");
-        const intPart = s.slice(0, lastDotIdx).replace(/\./g, "");
-        const decPart = s.slice(lastDotIdx + 1);
-        s = `${intPart}.${decPart}`;
-      }
-      return parseFloat(s);
-    };
-    const nA = parseNum(cleanA);
-    const nB = parseNum(cleanB);
-    if (!isNaN(nA) && !isNaN(nB) && nA > 0 && nB > 0) {
-      const ratio = Math.max(nA, nB) / Math.min(nA, nB);
-      if (ratio >= 14000 && ratio <= 18000) {
-        return { isMatch: true, reason: `Nilai Pabean sesuai konversi Kurs NDPBM (~Rp ${Math.round(ratio).toLocaleString()}/USD)` };
-      }
-    }
-  }
 
   // 12. Reference / ECO number normalization (e.g. "K001-25-0170799" vs "No. K001250170799 Tgl . 27-03-2025" or "K001250170799")
   const isRefField =
