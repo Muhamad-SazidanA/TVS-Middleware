@@ -154,7 +154,8 @@ const BL_FIELDS = new Set([
   "pelabuhan asal", "port of loading", "from",
   "pelabuhan tujuan", "port of discharge", "to", "destination",
   "no bl", "nomor bl", "bl number", "sea waybill number", "waybill number", "b/l no", "no b/l",
-  "tanggal bl", "tanggal b/l", "date of issue", "bl date", "shipped on board date", "date", "tanggal", "house bl date"
+  "tanggal bl", "tanggal b/l", "date of issue", "bl date", "shipped on board date", "date", "tanggal", "house bl date",
+  "negara asal", "country of origin", "origin country", "origin"
 ]);
 const BL_TABLE = new Set<string>();
 

@@ -249,6 +249,7 @@ export const DOCUMENT_FIELD_REGISTRY: Record<UscDocumentType, UscDocumentDefinit
       "Pelabuhan_Tujuan",
       "No_BL",
       "Tanggal_BL",
+      "Negara_Asal",
     ],
     itemFields: [],
     fields: [
@@ -260,6 +261,7 @@ export const DOCUMENT_FIELD_REGISTRY: Record<UscDocumentType, UscDocumentDefinit
       { name: "Pelabuhan_Tujuan", label: "Pelabuhan tujuan (To)", type: "header", description: "Pastikan pelabuhan tujuan sesuai dengan Bill of Loading (Page 7 No. 9)" },
       { name: "No_BL", label: "Nomor B/L", type: "header", description: "Pastikan no Bill of Loading sudah sesuai dengan dokumen Bill of Loading (page 7 No. 2)" },
       { name: "Tanggal_BL", label: "Tanggal B/L", type: "header", description: "Pastikan Tanggal sudah sesuai dengan dokumen Bill of Loading (page 7 No.12)" },
+      { name: "Negara_Asal", label: "Negara asal (Country of Origin)", type: "header", description: "Pastikan sesuai negara asal barang dan Bill of Loading (Page 7 No. 8)" },
     ],
   },
 
@@ -542,6 +544,8 @@ export const FIELD_SYNONYMS: Record<string, string[]> = {
   Jumlah_Berat_Material: ["Jumlah_Berat_Material", "Berat_Material", "Total_Weight", "Weight", "Net_Weight", "Berat_Bersih"],
   Nama_Supplier: ["Nama_Supplier", "Nama_Produsen", "Producer", "Supplier", "Manufacturer", "Identitas_Penjual"],
   Tanggal_Keberangkatan: ["Tanggal_Keberangkatan", "Departure_Date", "Date_of_Departure", "Tanggal_BL", "Date"],
+  Negara_Asal: ["Negara_Asal", "Country_of_Origin", "Origin_Country", "Negara_Asal_Country_Of_Origin", "Negara_asal", "Origin"],
+  Country_of_Origin: ["Country_of_Origin", "Negara_Asal", "Origin_Country", "Negara_Asal_Country_Of_Origin", "Origin"],
 };
 
 /**

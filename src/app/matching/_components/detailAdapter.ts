@@ -453,6 +453,20 @@ export function checkFieldMatch(
     }
   }
 
+  // Country equivalence check: e.g. "KOREA , REPUBLIC OF ( KR )" vs "Korea"
+  if (fnNorm.includes("negara") || fnNorm.includes("country") || fnNorm.includes("origin")) {
+    const isKorea1 = s1.includes("korea") || s1.includes(" kr ") || s1.endsWith(" kr") || s1.includes("(kr)");
+    const isKorea2 = s2.includes("korea") || s2.includes(" kr ") || s2.endsWith(" kr") || s2.includes("(kr)");
+    if (isKorea1 && isKorea2) {
+      return { status: "MATCH", reason: "(Ekuivalen: Korea)" };
+    }
+    const isIndo1 = s1.includes("indonesia") || s1.includes(" id ") || s1.endsWith(" id") || s1.includes("(id)");
+    const isIndo2 = s2.includes("indonesia") || s2.includes(" id ") || s2.endsWith(" id") || s2.includes("(id)");
+    if (isIndo1 && isIndo2) {
+      return { status: "MATCH", reason: "(Ekuivalen: Indonesia)" };
+    }
+  }
+
   // 3. Kesetaraan numerik murni (misal "2.00" === "2" tanpa toleransi tara atau rasio buatan)
   const parseCleanNumber = (val: string): number | null => {
     const cleaned = val.replace(/,/g, "").trim();
@@ -736,6 +750,23 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
       }
     }
 
+    // Auto-map Negara_Asal on BL if not yet present
+    if (meta.code === "BL" && !parsedIsi.fields.Negara_Asal) {
+      if (parsedIsi.fields.Country_of_Origin) {
+        parsedIsi.fields.Negara_Asal = String(parsedIsi.fields.Country_of_Origin);
+      } else if (parsedIsi.fields.Port_of_Loading && String(parsedIsi.fields.Port_of_Loading).toUpperCase().includes("KOREA")) {
+        parsedIsi.fields.Negara_Asal = "Korea";
+        if (parsedIsi.coordinates["Port_of_Loading"]) {
+          parsedIsi.coordinates["Negara_Asal"] = parsedIsi.coordinates["Port_of_Loading"];
+        }
+      } else if (parsedIsi.fields.Shipper && String(parsedIsi.fields.Shipper).toUpperCase().includes("KOREA")) {
+        parsedIsi.fields.Negara_Asal = "Korea";
+        if (parsedIsi.coordinates["Shipper"]) {
+          parsedIsi.coordinates["Negara_Asal"] = parsedIsi.coordinates["Shipper"];
+        }
+      }
+    }
+
     supportingDocs.push({
       id: d.id,
       code: meta.code,
@@ -842,6 +873,7 @@ export function buildComparisonFields(
       { id: "bl-5", number: "5", label: "Pelabuhan tujuan (To)", pibKeys: ["Pelabuhan_Tujuan", "Destination", "Pelabuhan_Bongkar"], supportingKeys: ["Pelabuhan_Tujuan", "Port_of_Discharge", "Destination", "Pelabuhan_Bongkar", "To"], fieldName: "Pelabuhan_Tujuan", pibPageDefault: 1, supPageDefault: 1 },
       { id: "bl-6", number: "6", label: "Nomor B/L", pibKeys: ["No_BL", "Nomor_BL", "BL_Number", "Nomor_B/L", "No_B/L", "House_BL_No", "B/L_No", "No_Dokumen", "No_Dokumen_BL", "No_House_BL", "House_BL"], supportingKeys: ["No_BL", "BL_Number", "Nomor_BL", "No_B/L", "Sea_Waybill_Number", "Waybill_Number", "House_BL", "No_House_BL", "B/L_No", "Nomor_B/L"], fieldName: "No_BL", pibPageDefault: 1, supPageDefault: 1 },
       { id: "bl-7", number: "7", label: "Tanggal B/L", pibKeys: ["Tanggal_BL", "Tanggal BL", "House_BL_Date", "Date_of_Issue", "Tanggal_B/L", "Master_BL_Date"], supportingKeys: ["Tanggal_BL", "Date_of_Issue", "BL_Date", "Shipped_on_Board_Date", "Date", "Tanggal_B/L", "Tanggal", "House_BL_Date"], fieldName: "Tanggal_BL", pibPageDefault: 1, supPageDefault: 1 },
+      { id: "bl-8", number: "8", label: "Negara asal (Country of Origin)", pibKeys: ["Negara_Asal", "Country_of_Origin", "Origin_Country", "Negara_Asal_Country_Of_Origin"], supportingKeys: ["Negara_Asal", "Country_of_Origin", "Origin_Country", "Negara_asal", "Origin"], fieldName: "Negara_Asal", pibPageDefault: 1, supPageDefault: 1 },
     ];
   } else if (code === "AK") {
     defs = [

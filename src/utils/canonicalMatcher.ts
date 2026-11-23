@@ -1005,6 +1005,8 @@ export function evaluateCanonicalBatchMatching(
       checkH("No_BL", ["No_BL", "Nomor_BL", "BL_Number", "Nomor_B/L", "No_B/L", "House_BL_No", "B/L_No", "No_Dokumen", "No_Dokumen_BL", "No_House_BL", "House_BL"], ["No_BL", "BL_Number", "Nomor_BL", "No_B/L", "Sea_Waybill_Number", "Waybill_Number", "House_BL", "No_House_BL", "B/L_No", "Nomor_B/L"], false);
       // 7. Tanggal B/L (PIB Page 1 No.10 Tanggal B/L, BL Page 7 No. 12)
       checkH("Tanggal_BL", ["Tanggal_BL", "Tanggal BL", "House_BL_Date", "Date_of_Issue", "Tanggal_B/L", "Master_BL_Date"], ["Tanggal_BL", "Date_of_Issue", "BL_Date", "Shipped_on_Board_Date", "Date", "Tanggal_B/L", "Tanggal", "House_BL_Date"], false);
+      // 8. Negara asal (Country of Origin) (Page 7 No. 8)
+      checkH("Negara_Asal", ["Negara_Asal", "Country_of_Origin", "Origin_Country", "Negara_Asal_Country_Of_Origin"], ["Negara_Asal", "Country_of_Origin", "Origin_Country", "Negara_asal", "Origin"], false);
     }
     // ─── Form AK (COO) ───────────────────────────────────────────────────────
     else if (ft === "ak" || ft.includes("ak") || ft.includes("coo") || ft.includes("origin")) {
