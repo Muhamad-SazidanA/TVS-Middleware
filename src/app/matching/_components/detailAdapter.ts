@@ -184,6 +184,42 @@ function applyPibCoordFallback(
   return res;
 }
 
+// Coordinate lookup helper that searches matched key, candidate keys/synonyms, and normalized forms
+function resolveFieldCoord(
+  docIsi: ParsedIsi,
+  matchedKey: string,
+  candidateKeys: string[]
+): { xmin?: number; ymin?: number; xmax?: number; ymax?: number; page?: number } | undefined {
+  if (!docIsi.coordinates) return undefined;
+
+  // 1. Direct matchedKey
+  if (docIsi.coordinates[matchedKey]) return docIsi.coordinates[matchedKey];
+
+  // 2. Base key without _action
+  const baseKey = matchedKey.replace(/_action$/i, "");
+  if (docIsi.coordinates[baseKey]) return docIsi.coordinates[baseKey];
+  if (docIsi.coordinates[`${baseKey}_action`]) return docIsi.coordinates[`${baseKey}_action`];
+
+  // 3. Candidate keys from the list of synonyms
+  for (const cand of candidateKeys) {
+    if (docIsi.coordinates[cand]) return docIsi.coordinates[cand];
+    const baseCand = cand.replace(/_action$/i, "");
+    if (docIsi.coordinates[baseCand]) return docIsi.coordinates[baseCand];
+    if (docIsi.coordinates[`${baseCand}_action`]) return docIsi.coordinates[`${baseCand}_action`];
+  }
+
+  // 4. Normalized match against all available coordinates
+  const normCandidates = [matchedKey, baseKey, ...candidateKeys].map((c) =>
+    c.toLowerCase().replace(/[^a-z0-9]/g, "")
+  );
+  for (const [ck, cv] of Object.entries(docIsi.coordinates)) {
+    const normCk = ck.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (normCandidates.includes(normCk)) return cv;
+  }
+
+  return undefined;
+}
+
 function extractFieldValueRaw(
   docIsi: ParsedIsi,
   keys: string[],
@@ -194,7 +230,7 @@ function extractFieldValueRaw(
   if (docIsi.manualEdits) {
     for (const k of keys) {
       if (docIsi.manualEdits[k]?.newValue !== undefined) {
-        const coord = docIsi.coordinates?.[k];
+        const coord = resolveFieldCoord(docIsi, k, keys);
         const oldVal = docIsi.manualEdits[k].oldValue ? String(docIsi.manualEdits[k].oldValue) : undefined;
         return {
           value: String(docIsi.manualEdits[k].newValue),
@@ -207,7 +243,7 @@ function extractFieldValueRaw(
       const nk = k.toLowerCase().replace(/[^a-z0-9]/g, "");
       for (const [mk, mv] of Object.entries(docIsi.manualEdits)) {
         if (mk.toLowerCase().replace(/[^a-z0-9]/g, "") === nk && mv?.newValue !== undefined) {
-          const coord = docIsi.coordinates?.[mk];
+          const coord = resolveFieldCoord(docIsi, mk, keys);
           const oldVal = mv.oldValue ? String(mv.oldValue) : undefined;
           return {
             value: String(mv.newValue),
@@ -226,7 +262,7 @@ function extractFieldValueRaw(
     for (const k of keys) {
       const actionKey = `${k}_action`;
       if (docIsi.fields[actionKey] !== undefined && docIsi.fields[actionKey] !== "") {
-        const coord = docIsi.coordinates?.[k] || docIsi.coordinates?.[actionKey];
+        const coord = resolveFieldCoord(docIsi, actionKey, keys);
         const transVal = String(docIsi.fields[actionKey]).trim();
         const rawOrig = docIsi.fields[k] !== undefined && docIsi.fields[k] !== null ? String(docIsi.fields[k]).trim() : undefined;
         const isDataAction = rawOrig !== undefined && rawOrig !== "" && rawOrig !== transVal;
@@ -248,7 +284,7 @@ function extractFieldValueRaw(
   if (docIsi.fields) {
     for (const k of keys) {
       if (docIsi.fields[k] !== undefined && docIsi.fields[k] !== "") {
-        const coord = docIsi.coordinates?.[k];
+        const coord = resolveFieldCoord(docIsi, k, keys);
         return {
           value: String(docIsi.fields[k]),
           isManual: false,
@@ -267,7 +303,7 @@ function extractFieldValueRaw(
       const cleanK = k.toLowerCase().replace(/[^a-z0-9]/g, "");
       if (normMap[cleanK]) {
         const origKey = normMap[cleanK]!.key;
-        const coord = docIsi.coordinates?.[origKey];
+        const coord = resolveFieldCoord(docIsi, origKey, keys);
         return {
           value: normMap[cleanK]!.val,
           isManual: false,
