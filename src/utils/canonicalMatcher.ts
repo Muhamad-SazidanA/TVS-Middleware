@@ -875,8 +875,6 @@ export function evaluateCanonicalBatchMatching(
       checkH("Valuta", ["Valuta", "Mata_Uang", "Currency", "Jenis_Valuta"], ["Valuta", "Mata_Uang", "Currency", "Curr"], false);
       // 5. Incoterms dan lokasi (Page 3 No. 23)
       checkH("Incoterms_Lokasi", ["Incoterms_Lokasi", "Incoterms", "Ket_FOB", "Cara_Penyerahan", "Terms_of_Delivery"], ["Incoterms_Lokasi", "Incoterms", "Terms_of_Delivery", "Delivery_Terms", "Cara_Penyerahan"], false);
-      // 6. Nilai pabean (Page 3 No. 21)
-      checkH("Nilai_Pabean", ["Nilai_Pabean", "Nilai_Total_Invoice", "Nilai Pabean", "Nilai Total"], ["Nilai_Total_Invoice", "Total", "Nilai Total", "Total_Amount", "Invoice_Total", "Nilai_Pabean", "Amount"], true);
       // 7. Jumlah coil (Page 3 No. 17)
       checkH("Jumlah_Coil", ["Jumlah_Coil", "Jumlah", "Jumlah_Kemasan", "Total_Packages"], ["Jumlah_Coil", "Total_Coils", "Jumlah", "QTY", "Total_Packages", "Coils"], true);
       // 8. Berat Bersih (Page 3 No. 19)
