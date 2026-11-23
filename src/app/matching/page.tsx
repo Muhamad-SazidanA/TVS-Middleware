@@ -47,11 +47,7 @@ interface RawBatchItem {
 
 const defaultColumnVisibility: ColumnVisibility = {
   Invoice: true,
-  Packing_List: true,
   Bill_of_Lading: true,
-  AK: true,
-  WL: true,
-  MS: true,
 };
 
 function calculateDocStatuses(

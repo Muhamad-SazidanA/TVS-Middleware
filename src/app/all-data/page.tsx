@@ -319,8 +319,8 @@ export default function AllDataPage() {
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="flex flex-wrap items-center gap-1 text-[9.5px]">
-                          {["Invoice", "Packing_List", "Bill_of_Lading", "AK", "WL", "MS"].map((code) => {
-                            const shortCode = code === "Packing_List" ? "PL" : code === "Bill_of_Lading" ? "BL" : code;
+                          {["Invoice", "Bill_of_Lading"].map((code) => {
+                            const shortCode = code === "Bill_of_Lading" ? "BL" : code;
                             const st = item.docStatuses?.[code]?.status || "-";
                             const isPresent = st !== "-";
                             return (

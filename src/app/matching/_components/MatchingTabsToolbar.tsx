@@ -29,11 +29,11 @@ export interface TabCounts {
 
 export interface ColumnVisibility {
   Invoice: boolean;
-  Packing_List: boolean;
   Bill_of_Lading: boolean;
-  AK: boolean;
-  WL: boolean;
-  MS: boolean;
+  Packing_List?: boolean;
+  AK?: boolean;
+  WL?: boolean;
+  MS?: boolean;
 }
 
 export interface MatchingTabsToolbarProps {
@@ -82,11 +82,7 @@ export default function MatchingTabsToolbar({
 
   const columnKeys: Array<{ key: keyof ColumnVisibility; label: string }> = [
     { key: "Invoice", label: "Invoice" },
-    { key: "Packing_List", label: "Packing List" },
     { key: "Bill_of_Lading", label: "Bill of Lading" },
-    { key: "AK", label: "AK" },
-    { key: "WL", label: "WL" },
-    { key: "MS", label: "MS" },
   ];
 
   return (

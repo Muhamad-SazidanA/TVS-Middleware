@@ -728,9 +728,29 @@ export function evaluateCanonicalBatchMatching(
     return createEmptyReport(batchId, "PROSES");
   }
 
-  // 1. Check completeness
-  const expectedTotal = totalFile && totalFile > 0 ? totalFile : details.length;
-  const filledDetails = details.filter((d) => {
+  // 1. Identify PIB reference document
+  const pibDet = details.find((d) => {
+    const ft = (d.fileType || "").trim().toLowerCase();
+    return ft === "pib" || ft.includes("file acuan") || ft.startsWith("pib");
+  });
+
+  // Engine now strictly evaluates ONLY 2 supporting documents: Commercial Invoice and Bill of Lading
+  const isInvoiceDoc = (ft: string) => ft.includes("invoice") || ft === "ci";
+  const isBlDoc = (ft: string) => ft === "bl" || ft.includes("lading") || ft.includes("ladding") || (ft.includes("bl") && !ft.includes("wl"));
+
+  const supportingDetails = details.filter((d) => {
+    const ft = (d.fileType || "").trim().toLowerCase();
+    if (ft === "pib" || ft.includes("file acuan") || ft.startsWith("pib")) return false;
+    return isInvoiceDoc(ft) || isBlDoc(ft);
+  });
+
+  if (!pibDet || supportingDetails.length === 0) {
+    return createEmptyReport(batchId, "PROSES");
+  }
+
+  // Completeness check for active documents (PIB + Invoice + BL)
+  const activeDetails = [pibDet, ...supportingDetails];
+  const filledActiveCount = activeDetails.filter((d) => {
     if (!d.isi || typeof d.isi !== "string" || !d.isi.trim()) return false;
     try {
       const p = JSON.parse(d.isi);
@@ -740,31 +760,15 @@ export function evaluateCanonicalBatchMatching(
     } catch {
       return false;
     }
-  });
+  }).length;
 
-  // If not all expected files are parsed, batch is still in PROSES
-  if (details.length < expectedTotal || filledDetails.length < details.length) {
-    return createEmptyReport(batchId, "PROSES");
-  }
-
-  // 2. Identify PIB reference document
-  const pibDet = details.find((d) => {
-    const ft = (d.fileType || "").trim().toLowerCase();
-    return ft === "pib" || ft.includes("file acuan") || ft.startsWith("pib");
-  });
-
-  const supportingDetails = details.filter((d) => {
-    const ft = (d.fileType || "").trim().toLowerCase();
-    return ft !== "pib" && !ft.includes("file acuan") && !ft.startsWith("pib");
-  });
-
-  if (!pibDet || supportingDetails.length === 0) {
+  if (filledActiveCount < activeDetails.length) {
     return createEmptyReport(batchId, "PROSES");
   }
 
   const pibData = parseDocIsi(pibDet.isi);
 
-  // Enrich PIB fields with row 0 item values so single-item matching fields (WL, MS) can compare accurately
+  // Enrich PIB fields with row 0 item values so single-item matching fields can compare accurately
   if (Array.isArray(pibData.table) && pibData.table.length > 0) {
     const row0 = pibData.table[0];
     if (!pibData.fields.Jumlah_Satuan_Coil && (row0.Jumlah_Satuan_Coil || row0.Jumlah_Satuan_Coil_action)) {
@@ -781,33 +785,14 @@ export function evaluateCanonicalBatchMatching(
     }
   }
 
-  const pibItems: StandardLineItem[] = [];
-
   const headerComparison: Record<string, FieldComparisonResult[]> = {};
   const itemComparison: Record<string, MatchedItemResult[]> = {};
   const allFields: FieldComparisonResult[] = [];
   const mismatches: FieldComparisonResult[] = [];
-  const allItemDiscrepancies: MatchedItemResult[] = [];
 
   let matchedDocsCount = 0;
 
-  // Pre-parse supporting documents for cross-document SOP checks
-  let invDocData: { fields: Record<string, any>; table: any[] } | null = null;
-  let plDocData: { fields: Record<string, any>; table: any[] } | null = null;
-  let blDocData: { fields: Record<string, any>; table: any[] } | null = null;
-  let wlDocData: { fields: Record<string, any>; table: any[] } | null = null;
-  let msDocData: { fields: Record<string, any>; table: any[] } | null = null;
-
-  for (const det of supportingDetails) {
-    const sFt = (det.fileType || "").toLowerCase();
-    if (sFt.includes("invoice") || sFt === "ci") invDocData = parseDocIsi(det.isi);
-    else if ((sFt.includes("packing") || sFt.includes("paking") || sFt === "pl") && !sFt.includes("wl")) plDocData = parseDocIsi(det.isi);
-    else if (sFt === "bl" || sFt.includes("lading") || sFt.includes("ladding") || (sFt.includes("bl") && !sFt.includes("wl"))) blDocData = parseDocIsi(det.isi);
-    else if (sFt === "wl" || sFt.includes("weight") || sFt.includes("wl")) wlDocData = parseDocIsi(det.isi);
-    else if (sFt === "ms" || sFt === "mtc" || sFt.includes("mill") || sFt.includes("test") || sFt.includes("sheet")) msDocData = parseDocIsi(det.isi);
-  }
-
-  // 3. Compare each supporting document against PIB
+  // 2. Compare each supporting document (Invoice and BL only) against PIB
   for (const det of supportingDetails) {
     const ftRaw = (det.fileType || "").trim();
     const ft = ftRaw.toLowerCase();
@@ -872,65 +857,8 @@ export function evaluateCanonicalBatchMatching(
       }
     };
 
-    // Helper to evaluate and record cross-document SOP field check (when Acuan is another supporting document)
-    const checkSOP = (
-      fieldName: string,
-      acuanDocName: string,
-      acuanFields: Record<string, any> | undefined | null,
-      acuanKeys: string[],
-      targetKeys: string[],
-      isCritical = false
-    ) => {
-      if (!acuanFields) return;
-      const acuanRes = getFieldVal(acuanFields, ...acuanKeys);
-      const targetRes = getFieldVal(data.fields, ...targetKeys);
-
-      if ((!acuanRes.value || acuanRes.value === "-") && (!targetRes.value || targetRes.value === "-")) {
-        return;
-      }
-
-      const sAcuan = acuanRes.value || "-";
-      const sTarget = targetRes.value || "-";
-
-      if (sAcuan === "-" || sTarget === "-") {
-        const res: FieldComparisonResult = {
-          documentType: ftRaw,
-          fieldName,
-          pibValue: sAcuan,
-          targetValue: sTarget,
-          status: isCritical ? "MISMATCH" : "INFO",
-          isMatch: false,
-          usedActionValue: acuanRes.usedAction || targetRes.usedAction,
-          notes: `Acuan SOP (${acuanDocName}): ${sAcuan === "-" ? `Field tidak tercantum pada ${acuanDocName}` : `Field tidak ditemukan pada ${ftRaw}`}`,
-          acuanDocument: acuanDocName,
-        };
-        docFields.push(res);
-        allFields.push(res);
-        if (res.status === "MISMATCH") mismatches.push(res);
-        return;
-      }
-
-      const eq = isEquivalentMatch(sAcuan, sTarget, fieldName, customRules);
-      const res: FieldComparisonResult = {
-        documentType: ftRaw,
-        fieldName,
-        pibValue: sAcuan,
-        targetValue: sTarget,
-        status: eq.isMatch ? "MATCH" : "MISMATCH",
-        isMatch: eq.isMatch,
-        usedActionValue: acuanRes.usedAction || targetRes.usedAction,
-        notes: eq.isMatch
-          ? (eq.reason ? `Cocok Acuan ${acuanDocName} (${eq.reason})` : `Cocok Acuan ${acuanDocName}`)
-          : `Perbedaan Nilai: Acuan ${acuanDocName} ("${sAcuan}") ≠ ${ftRaw} ("${sTarget}")`,
-        acuanDocument: acuanDocName,
-      };
-      docFields.push(res);
-      allFields.push(res);
-      if (res.status === "MISMATCH") mismatches.push(res);
-    };
-
     // ─── Commercial Invoice (CI) ──────────────────────────────────────────────
-    if (ft.includes("invoice") || ft === "ci") {
+    if (isInvoiceDoc(ft)) {
       // 1. Identitas penjual / supplier (Page 1 No. 1)
       checkH("Identitas_Penjual", ["Identitas_Penjual", "Nama_Penjual", "Nama_Pengirim", "Pengirim", "Supplier"], ["Identitas_Penjual", "Exporter", "Seller", "Shipper", "Supplier", "Nama_Penjual", "Identitas_Supplier"], false);
       // 2. Nomor invoice (Page 1 No. 2)
@@ -962,35 +890,8 @@ export function evaluateCanonicalBatchMatching(
       // 15. Harga satuan (Page 2 No. 20)
       checkH("Harga_Satuan", ["Harga_Satuan", "Nilai_Pabean_Item", "Nilai_Barang", "Unit_Price", "Harga_Nilai_Pabean", "Nilai_Pabean"], ["Harga_Satuan", "Unit_Price", "Price", "Rate", "Amount", "Total_Price", "Nilai_Barang"], false);
     }
-    // ─── Packing List (PL) ───────────────────────────────────────────────────
-    else if ((ft.includes("packing") || ft.includes("paking") || ft === "pl") && !ft.includes("wl") && ft !== "wl") {
-      // 1. Deskripsi barang (PIB Page 2-5 No.18 Uraian barang *)
-      checkH("Deskripsi_Barang", ["Uraian_Barang", "Deskripsi_Barang", "Description"], ["Deskripsi_Barang", "Description", "Description_of_Goods"], false);
-      // 2. Gross weight (PIB Page 1 No.16 Berat Kotor *)
-      checkH("Gross_Weight", ["Berat_Kotor", "Total_Gross_Weight", "Gross_Weight"], ["Gross_Weight", "Total_Gross_Weight", "G.W.", "Gross Weight"], false);
-      // 3. Identitas buyer (PIB Page 1 No.3 Pemilik Barang *)
-      checkH("Identitas_Buyer", ["Pemilik_Barang", "Nama_Importir", "Consignee", "Importir", "Identitas_Pembeli", "Buyer"], ["Identitas_Buyer", "Buyer", "Consignee", "Identitas_Pembeli"], false);
-      // 4. Identitas supplier (PIB Page 1 No.2 Identitas penjual / supplier *)
-      checkH("Identitas_Supplier", ["Identitas_Penjual", "Nama_Pengirim", "Pengirim", "Nama_Penjual", "Supplier"], ["Identitas_Supplier", "Supplier", "Exporter", "Shipper", "Seller", "Identitas_Penjual"], false);
-      // 5. Jumlah coil (PIB Page 1 No.14 Jumlah coil *)
-      checkH("Jumlah_Coil", ["Jumlah_Coil", "Jumlah", "Jumlah_Kemasan"], ["Jumlah_Coil", "Total_Coils", "Coils", "Qty_Coil", "Jumlah"], false);
-      // 6. Moda / nama kapal (PIB Page 1 No.4 Moda / nama kapal *)
-      checkH("Moda", ["Moda", "Nama_Sarana_Pengangkut", "Nama_Sarana_Pengangkutan", "Nama_Kapal"], ["Moda", "Shipped_Per", "Vessel", "Vessel_Name"], false);
-      // 7. Negara asal (PIB Page 2-5 No.21 Negara asal *)
-      checkH("Negara_Asal", ["Negara_Asal", "Country_of_Origin", "Origin_Country", "Negara_Asal_Country_Of_Origin"], ["Negara_asal", "Negara_Asal", "Country_of_Origin", "Origin"], false);
-      // 8. Net weight (PIB Page 1 No.15 Berat Bersih *)
-      checkH("Net_Weight", ["Berat_Bersih", "Total_Net_Weight", "Net_Weight"], ["Net_Weight", "Total_Net_Weight", "N.W.", "Net Weight"], false);
-      // 9. Nomor invoice (PIB Page 1 No.7 Nomor invoice *)
-      checkH("No_Invoice", ["No_Invoice", "Invoice_Number", "Nomor_Invoice"], ["No_Invoice", "Invoice_Number", "Invoice Number"], false);
-      // 10. Pelabuhan asal (PIB Page 1 No.5 Pelabuhan asal *)
-      checkH("Pelabuhan_Asal", ["Pelabuhan_Muat", "Pelabuhan_Asal", "Port_of_Loading"], ["Pelabuhan_Asal", "Port_of_Loading", "Pelabuhan_Muat"], false);
-      // 11. Pelabuhan tujuan (PIB Page 1 No.6 Pelabuhan tujuan *)
-      checkH("Pelabuhan_Tujuan", ["Pelabuhan_Tujuan", "Destination", "Pelabuhan_Bongkar"], ["Pelabuhan_Tujuan", "Destination", "Port_of_Discharge"], false);
-      // 12. Tanggal invoice (PIB Page 1 No.8 Tanggal invoice *)
-      checkH("Tanggal_Invoice", ["Tanggal_Invoice", "Invoice_Date", "Tanggal Invoice"], ["Tanggal_Invoice", "Invoice_Date", "Invoice Date"], false);
-    }
     // ─── Bill of Lading (BL) ─────────────────────────────────────────────────
-    else if (ft === "bl" || ft.includes("lading") || ft.includes("ladding") || (ft.includes("bl") && !ft.includes("wl"))) {
+    else if (isBlDoc(ft)) {
       // 1. Identitas PENGIRIM (PIB Page 1 No.1 Identitas PENGIRIM, BL Page 7 No. 3)
       checkH("Identitas_Pengirim", ["Identitas_Pengirim", "Nama_Pengirim", "Pengirim", "Identitas_Penjual", "Nama_Penjual", "Shipper"], ["Identitas_Pengirim", "Shipper", "Shipping_Marks", "Exporter", "Nama_Pengirim", "Nama_Penjual", "Pengirim"], false);
       // 2. Pemilik Barang (PIB Page 1 No.3 Pemilik Barang, BL Page 7 No. 4)
@@ -1007,49 +908,6 @@ export function evaluateCanonicalBatchMatching(
       checkH("Tanggal_BL", ["Tanggal_BL", "Tanggal BL", "House_BL_Date", "Date_of_Issue", "Tanggal_B/L", "Master_BL_Date"], ["Tanggal_BL", "Date_of_Issue", "BL_Date", "Shipped_on_Board_Date", "Date", "Tanggal_B/L", "Tanggal", "House_BL_Date"], false);
       // 8. Negara asal (Country of Origin) (Page 7 No. 8)
       checkH("Negara_Asal", ["Negara_Asal", "Country_of_Origin", "Origin_Country", "Negara_Asal_Country_Of_Origin"], ["Negara_Asal", "Country_of_Origin", "Origin_Country", "Negara_asal", "Origin"], false);
-    }
-    // ─── Form AK (COO) ───────────────────────────────────────────────────────
-    else if (ft === "ak" || ft.includes("ak") || ft.includes("coo") || ft.includes("origin")) {
-      // 1. Nomor Referensi (PIB Page 6 No.32 ECO (nomor))
-      checkH("No_Referensi", ["Electronic_Certificate_Of_Origin_ECO", "Pengecualian_Perijinan2", "No_Referensi", "ECO"], ["No_Referensi", "Reference_No", "Certificate_No"], false);
-      // 2. Nama Exporter / Shipper (PIB Page 1 No.1 Identitas PENGIRIM *)
-      checkH("Nama_Exporter_Shipper", ["Identitas_Pengirim", "Nama_Pengirim", "Pengirim", "Identitas_Penjual", "Nama_Penjual"], ["Nama_Exporter_Shipper", "Exporter", "Producer", "Shipper", "nama exporter shipper"], false);
-      // 3. Nama Consignee (PIB Page 1 No.3 Pemilik Barang *)
-      checkH("Nama_Consignee", ["Pemilik_Barang", "Nama_Importir", "Importir", "Identitas_Pembeli"], ["Nama_Consignee", "Consignee", "Buyer", "nama consignee"], false);
-      // 4. Nama Vessel (PIB Page 1 No.4 Moda / nama kapal *)
-      checkH("Nama_Vessel", ["Moda", "Nama_Sarana_Pengangkut", "Nama_Sarana_Pengangkutan", "Nama_Kapal", "Vessel_Name", "Vessel"], ["Nama_Vessel", "Vessel_Name", "Vessel", "Moda"], false);
-      // 5. Nama pelabuhan bongkar (PIB Page 1 No.6 Pelabuhan tujuan (To) *)
-      checkH("Nama_Pelabuhan_Bongkar", ["Pelabuhan_Tujuan", "Destination", "Pelabuhan_Bongkar"], ["Nama_Pelabuhan_Bongkar", "Port_of_Discharge", "Destination", "Pelabuhan_Tujuan", "nama pelabuhan bongkar"], false);
-      // 6. Jumlah dan Jenis Kemasan / Jumlah Coil (PIB Page 1 No.14 Jumlah coil *)
-      checkH("Jumlah_Kemasan", ["Jumlah_Coil", "Jumlah", "Jumlah_Kemasan", "Jumlah_Satuan_Coil", "Total_Packages", "Total_Coils"], ["Jumlah_Coil", "Total_Packages", "Jumlah_Dan_Jenis_Kemasan", "Number_and_Type_of_Packages", "Jumlah_Kemasan", "Packages"], false);
-      // 7. Deskripsi Barang (PIB Page 2-5 No.18 Uraian barang *)
-      checkH("Deskripsi_Barang", ["Uraian_Barang", "Deskripsi_Barang", "Description", "Description_of_Goods", "Item_Description"], ["Deskripsi_Barang", "Description_of_Goods", "Description", "Commodity", "Uraian_Barang"], false);
-      // 8. Tanggal Keberangkatan (PIB Page 1 No.10 Tanggal B/L *)
-      checkH("Tanggal_Keberangkatan", ["Tanggal_BL", "Tanggal BL", "House_BL_Date", "Date_of_Issue"], ["Tanggal_Keberangkatan", "Departure_Date", "Date_of_Departure", "Tanggal_BL"], false);
-      // 9. Total Gross Weight / Berat Kuantitas (PIB Page 1 No.16 Berat Kotor *)
-      checkH("Total_Gross_Weight", ["Berat_Kotor", "Gross_Weight", "Total_Gross_Weight", "Jumlah_Satuan_Barang"], ["Total_Gross_Weight", "Gross_Weight", "Berat_Kuantitas", "Total_Weight", "Gross_Weight_or_Other_Quantity"], false);
-    }
-    // ─── Weight List (WL) ────────────────────────────────────────────────────
-    else if (ft === "wl" || ft.includes("weight") || ft.includes("wl")) {
-      // 1. Deskripsi Barang (PIB Page 2-5 No.18 Uraian barang *)
-      checkH("Deskripsi_Barang", ["Uraian_Barang", "Deskripsi_Barang", "Description", "Description_of_Goods", "Item_Description"], ["Deskripsi_Barang", "Description", "Description_of_Goods", "Item_Description", "Commodity", "nama barang"], false);
-      // 2. Jumlah Coil (PIB Page 2-5 No.26 Jumlah Satuan Coil)
-      checkH("Jumlah_Coil", ["Jumlah_Satuan_Coil", "Jumlah_Coil_Item"], ["Jumlah_Coil", "Total_Coils", "Coils", "Qty_Coil", "Jumlah", "Total_Packages"], false);
-      // 3. Net Weight (PIB Page 2-5 No.25 Jumlah Satuan Barang)
-      checkH("Net_Weight", ["Berat_Bersih_Item", "Jumlah_Satuan_Barang"], ["Net_Weight", "Total_Net_Weight", "Berat_Bersih", "N.W.", "NW", "Net Weight"], true);
-      // 4. Spesifikasi / Grade (PIB Page 2-5 No.20 Spesifikasi / grade *)
-      checkH("Spesifikasi_Grade", ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade", "Standard"], ["Spesifikasi", "Spesifikasi_Grade", "Grade", "Specification", "Spek_Material", "spek"], false);
-    }
-    // ─── Mill Test Certificate (MS / MTC) ────────────────────────────────────
-    else if (ft === "ms" || ft === "mtc" || ft.includes("mill") || ft.includes("test") || ft.includes("sheet")) {
-      // 1. Deskripsi Barang (PIB Page 2-5 No.18 Uraian barang *)
-      checkH("Deskripsi_Barang", ["Uraian_Barang", "Deskripsi_Barang", "Description", "Description_of_Goods", "Item_Description"], ["Deskripsi_Barang", "Description", "Description_of_Goods", "Item_Description", "Commodity"], false);
-      // 2. Jumlah / Berat Material (PIB Page 2-5 No.25 Jumlah Satuan Barang)
-      checkH("Jumlah_Berat_Material", ["Jumlah_Satuan_Barang", "Berat_Bersih_Item"], ["Jumlah_Berat_Material", "Berat_Material", "Total_Weight", "Weight", "Net_Weight"], false);
-      // 3. Nama Supplier / Produsen (PIB Page 1 No.1 Identitas Pengirim / No.2 Penjual *)
-      checkH("Nama_Supplier", ["Identitas_Pengirim", "Nama_Pengirim", "Pengirim", "Identitas_Penjual", "Supplier"], ["Nama_Supplier", "Nama_Produsen", "Producer", "Supplier", "Manufacturer"], false);
-      // 4. Spek Material (PIB Page 2-5 No.20 Spesifikasi / grade *)
-      checkH("Spek_Material", ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade"], ["Spek_Material", "Spesifikasi_Grade", "Specification", "Steel_Grade", "Grade", "Spesifikasi"], false);
     }
 
     headerComparison[ftRaw] = docFields;

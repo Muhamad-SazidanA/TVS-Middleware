@@ -129,14 +129,10 @@ export default function MatchingTable({
     });
   };
 
-  // Supporting document columns received from Nanonets
+  // Supporting document columns evaluated by engine (Invoice and Bill of Lading)
   const docCols: Array<{ key: keyof ColumnVisibility; label: string }> = [
     { key: "Invoice", label: "Invoice" },
-    { key: "Packing_List", label: "Packing List" },
     { key: "Bill_of_Lading", label: "Bill of Lading" },
-    { key: "AK", label: "AK" },
-    { key: "WL", label: "WL" },
-    { key: "MS", label: "MS" },
   ];
 
   const activeDocCols = docCols.filter((col) => columnVisibility[col.key]);

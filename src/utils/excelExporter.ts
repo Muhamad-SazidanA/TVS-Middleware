@@ -1,5 +1,4 @@
 import ExcelJS from "exceljs";
-import { evaluateCanonicalBatchMatching } from "./canonicalMatcher";
 
 export interface ExportDetailBatch {
   id?: number | string;

@@ -691,7 +691,7 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
     rawIsi: parsedPibIsi,
   };
 
-  // Identify Supporting Documents
+  // Identify Supporting Documents (Restricted to Invoice and BL only)
   const supportingDocs: BatchDocumentModel[] = [];
 
   for (const d of details) {
@@ -700,6 +700,9 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
       continue;
     }
     const meta = normalizeDocMeta(d.fileType);
+    if (meta.code !== "Invoice" && meta.code !== "BL") {
+      continue;
+    }
     const parsedIsi = parseDocumentIsi(d.isi, meta.code);
 
     // Bidirectional field <-> table synchronization for supporting documents:
@@ -782,14 +785,10 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
     });
   }
 
-  // Desired ordering: Invoice, PL, BL, AK, WL, MS, then others
+  // Desired ordering: Invoice, BL
   const orderMap: Record<string, number> = {
     Invoice: 1,
-    PL: 2,
-    BL: 3,
-    AK: 4,
-    WL: 5,
-    MS: 6,
+    BL: 2,
   };
   supportingDocs.sort((a, b) => {
     const ordA = orderMap[a.code] ?? 99;
@@ -1031,11 +1030,7 @@ export function evaluateBatchComparison(
 ): BatchComparisonEvaluationResult {
   const docStatuses: Record<string, { status: "Match" | "Mismatch" | "Proses" | "-" }> = {
     Invoice: { status: "-" },
-    Packing_List: { status: "-" },
     Bill_of_Lading: { status: "-" },
-    AK: { status: "-" },
-    WL: { status: "-" },
-    MS: { status: "-" },
   };
 
   const docsSummary: Record<
@@ -1075,11 +1070,7 @@ export function evaluateBatchComparison(
   const docCodeToKey = (code: string): string | null => {
     const c = (code || "").toUpperCase();
     if (c === "INVOICE" || c === "CI") return "Invoice";
-    if (c === "PL" || c.includes("PACKING")) return "Packing_List";
     if (c === "BL" || c.includes("LADING")) return "Bill_of_Lading";
-    if (c === "AK") return "AK";
-    if (c === "WL") return "WL";
-    if (c === "MS") return "MS";
     return null;
   };
 
