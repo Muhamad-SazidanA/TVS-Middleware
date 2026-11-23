@@ -646,7 +646,7 @@ export default function ComparisonPanel({
                               disabled={togglingManualMatchId === field.id}
                               className={`w-7 h-7 rounded-full border transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-2xs ${
                                 field.isManualConfirmed
-                                  ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 ring-2 ring-emerald-500/20"
+                                  ? "bg-emerald-50 text-emerald-600 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400 ring-2 ring-emerald-400/20"
                                   : "bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/60"
                               }`}
                               title={
