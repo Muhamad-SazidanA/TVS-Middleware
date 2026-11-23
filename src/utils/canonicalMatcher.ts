@@ -931,38 +931,24 @@ export function evaluateCanonicalBatchMatching(
 
     // ─── Commercial Invoice (CI) ──────────────────────────────────────────────
     if (ft.includes("invoice") || ft === "ci") {
-      // 1. Deskripsi barang
-      checkH("Deskripsi_Barang", ["Uraian_Barang", "Deskripsi_Barang", "Description"], ["Deskripsi_Barang", "Description", "Description_of_Goods", "Item_Description", "Commodity"], false);
-      // 2. Gross weight
-      checkH("Gross_Weight", ["Berat_Kotor", "Gross_Weight", "Total_Gross_Weight"], ["Gross_Weight", "Total_Gross_Weight", "Berat_Kotor", "Gross Weight", "G.W."], false);
-      // 3. Identitas pembeli
-      checkH("Identitas_Pembeli", ["Pemilik_Barang", "Nama_Importir", "Importir", "Identitas_Pembeli"], ["Identitas_Pembeli", "Buyer", "Consignee", "Sold To", "Customer"], false);
-      // 4. Identitas penjual
-      checkH("Identitas_Penjual", ["Identitas_Penjual", "Nama_Penjual", "Nama_Pengirim", "Pengirim", "Supplier"], ["Identitas_Penjual", "Exporter", "Seller", "Shipper", "Supplier", "Nama_Penjual"], false);
-      // 5. Incoterms lokasi
-      checkH("Incoterms_Lokasi", ["Incoterms", "Ket_FOB", "Cara_Penyerahan", "Terms_of_Delivery", "Incoterms_Lokasi"], ["Incoterms_Lokasi", "Incoterms", "Terms_of_Delivery", "Delivery_Terms"], false);
-      // 6. Jumlah coil
-      checkH("Jumlah_Coil", ["Jumlah_Coil", "Jumlah", "Jumlah_Kemasan", "Total_Packages"], ["Jumlah_Coil", "Total_Coils", "Jumlah", "QTY", "Total_Packages"], false);
-      // 7. Mata uang
-      checkH("Mata_Uang", ["Valuta", "Mata_Uang", "Currency", "Jenis_Valuta"], ["Mata_Uang", "Valuta", "Currency", "Curr"], false);
-      // 8. Moda
-      checkH("Moda", ["Moda", "Nama_Sarana_Pengangkutan", "Nama_Sarana_Pengangkut", "Nama_Kapal"], ["Moda", "Shipped_Per", "Vessel", "Vessel_Name", "Nama_Kapal"], false);
-      // 9. Negara asal
-      checkH("Negara_Asal", ["Pelabuhan_Asal", "Negara_Asal", "Country_of_Origin", "Origin_Country"], ["Negara_Asal", "Country_of_Origin", "Origin"], false);
-      // 10. Negara tujuan
-      checkH("Negara_Tujuan", ["Pelabuhan_Tujuan", "Destination", "Pelabuhan_Bongkar", "Negara_Tujuan"], ["Negara_Tujuan", "Destination_Country", "Destination"], false);
-      // 11. Net weight
-      checkH("Net_Weight", ["Berat_Bersih", "Net_Weight", "Total_Net_Weight"], ["Net_Weight", "Total_Net_Weight", "Berat_Bersih", "Net Weight", "N.W."], true);
-      // 12. Nilai total invoice
-      checkH("Nilai_Total_Invoice", ["Nilai_Pabean", "Nilai_Total_Invoice", "Nilai Pabean", "Nilai Total"], ["Nilai_Total_Invoice", "Total", "Nilai Total", "Total_Amount", "Invoice_Total"], true);
-      // 13. No invoice
-      checkH("No_Invoice", ["No_Invoice", "Invoice_Number", "Nomor_Invoice"], ["No_Invoice", "Invoice_Number", "Invoice Number", "Nomor_Invoice"], true);
-      // 14. Pelabuhan asal
-      checkH("Pelabuhan_Asal", ["Pelabuhan_Muat", "Pelabuhan_Asal", "Port_of_Loading"], ["Pelabuhan_Asal", "Port_of_Loading", "Pelabuhan_Muat"], false);
-      // 15. Pelabuhan tujuan
-      checkH("Pelabuhan_Tujuan", ["Pelabuhan_Tujuan", "Destination", "Pelabuhan_Bongkar"], ["Pelabuhan_Tujuan", "Destination", "Port_of_Discharge", "Pelabuhan_Bongkar"], false);
-      // 16. Tanggal invoice
-      checkH("Tanggal_Invoice", ["Tanggal_Invoice", "Invoice_Date", "Tanggal Invoice"], ["Tanggal_Invoice", "Invoice_Date", "Invoice Date"], false);
+      // 1. Identitas penjual / supplier (Page 1 No. 1)
+      checkH("Identitas_Penjual", ["Identitas_Penjual", "Nama_Penjual", "Nama_Pengirim", "Pengirim", "Supplier"], ["Identitas_Penjual", "Exporter", "Seller", "Shipper", "Supplier", "Nama_Penjual", "Identitas_Supplier"], false);
+      // 2. Nomor invoice (Page 1 No. 2)
+      checkH("No_Invoice", ["No_Invoice", "Invoice_Number", "Nomor_Invoice", "No Invoice"], ["No_Invoice", "Invoice_Number", "Invoice Number", "Nomor_Invoice"], false);
+      // 3. Tanggal invoice (Page 1 No. 3)
+      checkH("Tanggal_Invoice", ["Tanggal_Invoice", "Invoice_Date", "Tanggal Invoice"], ["Tanggal_Invoice", "Invoice_Date", "Invoice Date", "Tanggal"], false);
+      // 4. Valuta (Page 3 No. 22)
+      checkH("Valuta", ["Valuta", "Mata_Uang", "Currency", "Jenis_Valuta"], ["Valuta", "Mata_Uang", "Currency", "Curr"], false);
+      // 5. Incoterms dan lokasi (Page 3 No. 23)
+      checkH("Incoterms_Lokasi", ["Incoterms_Lokasi", "Incoterms", "Ket_FOB", "Cara_Penyerahan", "Terms_of_Delivery"], ["Incoterms_Lokasi", "Incoterms", "Terms_of_Delivery", "Delivery_Terms", "Cara_Penyerahan"], false);
+      // 6. Nilai pabean (Page 3 No. 21)
+      checkH("Nilai_Pabean", ["Nilai_Pabean", "Nilai_Total_Invoice", "Nilai Pabean", "Nilai Total"], ["Nilai_Total_Invoice", "Total", "Nilai Total", "Total_Amount", "Invoice_Total", "Nilai_Pabean", "Amount"], true);
+      // 7. Jumlah coil (Page 3 No. 17)
+      checkH("Jumlah_Coil", ["Jumlah_Coil", "Jumlah", "Jumlah_Kemasan", "Total_Packages"], ["Jumlah_Coil", "Total_Coils", "Jumlah", "QTY", "Total_Packages", "Coils"], true);
+      // 8. Berat Bersih (Page 3 No. 19)
+      checkH("Berat_Bersih", ["Berat_Bersih", "Net_Weight", "Total_Net_Weight"], ["Berat_Bersih", "Net_Weight", "Total_Net_Weight", "Net Weight", "N.W.", "Total_Jumlah_Berat"], true);
+      // 9. Berat Kotor (Page 3 No. 18)
+      checkH("Berat_Kotor", ["Berat_Kotor", "Gross_Weight", "Total_Gross_Weight"], ["Berat_Kotor", "Gross_Weight", "Total_Gross_Weight", "Gross Weight", "G.W."], true);
     }
     // ─── Packing List (PL) ───────────────────────────────────────────────────
     else if ((ft.includes("packing") || ft.includes("paking") || ft === "pl") && !ft.includes("wl") && ft !== "wl") {

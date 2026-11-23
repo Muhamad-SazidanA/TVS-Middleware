@@ -170,20 +170,17 @@ const PACKING_FIELDS = new Set([
 const PACKING_TABLE = new Set(["spesifikasi", "ukuran barang", "size", "spec", "qty", "weight"]);
 
 const INVOICE_FIELDS = new Set([
-  "negara asal", "marks number", "no sc order no", "moda", "no invoice",
-  "identitas penjual", "pelabuhan tujuan", "identitas pembeli", "deskripsi barang",
-  "tanda tangan", "tanggal invoice", "negara tujuan", "syarat pembayaran",
-  "section code", "pelabuhan asal", "nilai total invoice", "gross weight",
-  "incoterms lokasi", "jumlah coil", "mata uang", "net weight",
-  // Aliases
-  "consignee", "pemilik barang", "nama importir",
-  "exporter", "nama penjual", "seller",
-  "invoice date", "invoice number", "nomor invoice",
-  "port of loading", "pelabuhan muat", "destination",
-  "term of delivery", "terms of delivery", "incoterms", "incoterm", "cara penyerahan", "ket fob",
-  "total", "nilai total", "nilai pabean", "amount", "total amount", "valuta"
+  "identitas penjual", "supplier", "exporter", "seller", "shipper", "nama penjual", "identitas supplier",
+  "no invoice", "invoice number", "nomor invoice", "invoice no",
+  "tanggal invoice", "invoice date", "date", "tanggal",
+  "valuta", "mata uang", "currency", "curr",
+  "incoterms lokasi", "incoterms", "terms of delivery", "delivery terms", "cara penyerahan", "ket fob",
+  "nilai pabean", "nilai total invoice", "total", "nilai total", "total amount", "invoice total", "amount",
+  "jumlah coil", "total coils", "jumlah", "qty", "total packages", "coils",
+  "berat bersih", "net weight", "total net weight", "total jumlah berat",
+  "berat kotor", "gross weight", "total gross weight"
 ]);
-const INVOICE_TABLE = new Set(["spesifikasi", "ukuran barang", "harga satuan", "size", "spec", "price", "unit price"]);
+const INVOICE_TABLE = new Set<string>();
 
 function norm(s: string) {
   return s.toLowerCase().replace(/_/g, " ").replace(/\./g, "").trim();
