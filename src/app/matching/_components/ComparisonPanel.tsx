@@ -620,6 +620,23 @@ export default function ComparisonPanel({
                         "border-slate-200/90 border-l-3 border-l-rose-500 bg-white hover:border-slate-300 shadow-2xs";
                     }
 
+                    const isLoadedPib =
+                      (currentLoadedDoc?.code || "").toUpperCase() === "PIB";
+                    const isLoadedSupporting =
+                      (currentLoadedDoc?.code || "").toUpperCase() ===
+                      group.docCode.toUpperCase();
+
+                    const isPibActive = isActive && isLoadedPib;
+                    const isSupportingActive = isActive && isLoadedSupporting;
+
+                    const pibCardStyle = isPibActive
+                      ? "border-blue-500 bg-blue-50/25 ring-1 ring-blue-400 shadow-2xs"
+                      : "border-slate-200/90 bg-white/90 hover:border-blue-400 hover:ring-1 hover:ring-blue-300 hover:shadow-2xs";
+
+                    const supportingCardStyle = isSupportingActive
+                      ? "border-blue-500 bg-blue-50/25 ring-1 ring-blue-400 shadow-2xs"
+                      : "border-slate-200/90 bg-white/90 hover:border-blue-400 hover:ring-1 hover:ring-blue-300 hover:shadow-2xs";
+
                     return (
                       <div
                         key={field.id}
@@ -701,7 +718,7 @@ export default function ComparisonPanel({
                               onNavigateToDoc?.("PIB", field.pibPage || 1);
                               onLoadPibInViewer(field.id);
                             }}
-                            className="border border-slate-200/90 bg-white/90 rounded-lg p-2.5 flex flex-col justify-between hover:border-blue-300 hover:shadow-2xs transition-all cursor-pointer group"
+                            className={`rounded-lg p-2.5 flex flex-col justify-between transition-all cursor-pointer group ${pibCardStyle}`}
                             title="Klik untuk melihat dokumen PIB pada viewer"
                           >
                             <div>
@@ -767,7 +784,7 @@ export default function ComparisonPanel({
                               }
                               onLoadSupportingInViewer(field.id, group.docCode);
                             }}
-                            className="border border-slate-200/90 bg-white/90 rounded-lg p-2.5 flex flex-col justify-between hover:border-blue-300 hover:shadow-2xs transition-all cursor-pointer group"
+                            className={`rounded-lg p-2.5 flex flex-col justify-between transition-all cursor-pointer group ${supportingCardStyle}`}
                             title={`Klik untuk melihat dokumen ${group.docCode} pada viewer`}
                           >
                             <div>
