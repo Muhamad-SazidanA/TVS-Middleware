@@ -325,6 +325,15 @@ export default function MatchingDetailView({
     loadBatch(true);
   };
 
+  const handleManualMatchToggled = (fieldLabel: string, confirmed: boolean) => {
+    showToast(
+      confirmed
+        ? `Field "${fieldLabel}" berhasil dikonfirmasi cocok.`
+        : `Konfirmasi manual "${fieldLabel}" dibatalkan.`
+    );
+    loadBatch(true);
+  };
+
   // Manual Note Handlers
   const handleAddManualNote = async (
     targetType: "field" | "line_item",
@@ -719,6 +728,7 @@ export default function MatchingDetailView({
               onLoadSupportingInViewer={handleLoadSupportingInViewer}
               onNavigateToDoc={handleNavigateToDoc}
               onFieldUpdated={handleFieldUpdated}
+              onManualMatchToggled={handleManualMatchToggled}
               onAddManualNote={handleAddManualNote}
               onEditManualNote={handleEditManualNote}
               onDeleteManualNote={handleDeleteManualNote}

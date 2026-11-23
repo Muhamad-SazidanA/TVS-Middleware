@@ -637,18 +637,23 @@ export function matchDocumentItemsStrict(
  * Parses JSON isi safely into fields and table.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function parseDocIsi(isi?: string | null): { fields: Record<string, any>; table: Array<Record<string, any>> } {
+export function parseDocIsi(isi?: string | null): {
+  fields: Record<string, any>;
+  table: Array<Record<string, any>>;
+  manualMatches?: Record<string, any>;
+} {
   if (!isi || typeof isi !== "string" || !isi.trim()) {
-    return { fields: {}, table: [] };
+    return { fields: {}, table: [], manualMatches: {} };
   }
   try {
     const parsed = JSON.parse(isi);
     return {
       fields: (parsed?.fields && typeof parsed.fields === "object" ? parsed.fields : {}) as Record<string, any>,
       table: (Array.isArray(parsed?.table) ? parsed.table : []) as Array<Record<string, any>>,
+      manualMatches: (parsed?.manualMatches && typeof parsed.manualMatches === "object" ? parsed.manualMatches : {}) as Record<string, any>,
     };
   } catch {
-    return { fields: {}, table: [] };
+    return { fields: {}, table: [], manualMatches: {} };
   }
 }
 
@@ -807,6 +812,14 @@ export function evaluateCanonicalBatchMatching(
 
     // Helper to evaluate and record a header field check
     const checkH = (fieldName: string, pibKeys: string[], targetKeys: string[], isCritical = false) => {
+      const cleanField = fieldName.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const isManualConfirmed = Boolean(
+        data.manualMatches?.[fieldName]?.confirmed ||
+        data.manualMatches?.[cleanField]?.confirmed ||
+        pibData.manualMatches?.[fieldName]?.confirmed ||
+        pibData.manualMatches?.[cleanField]?.confirmed
+      );
+
       let targetRes = getFieldVal(data.fields, ...targetKeys);
       if ((!targetRes.value || targetRes.value === "-") && Array.isArray(data.table) && data.table.length > 0) {
         targetRes = getFieldVal(data.table[0], ...targetKeys);
@@ -818,7 +831,14 @@ export function evaluateCanonicalBatchMatching(
         if ((!pibRes.value || pibRes.value === "-") && Array.isArray(pibData.table) && pibData.table.length > 0) {
           pibRes = getFieldVal(pibData.table[0], ...pibKeys);
         }
-        const res = compareFieldStrict(ftRaw, fieldName, pibRes.value, "-", false, customRules, isCritical);
+        let res = compareFieldStrict(ftRaw, fieldName, pibRes.value, "-", false, customRules, isCritical);
+        if (isManualConfirmed) {
+          res = {
+            ...res,
+            status: "MATCH",
+            notes: "Dikonfirmasi manual (Batch ini)",
+          };
+        }
         docFields.push(res);
         allFields.push(res);
         if (res.status === "MISMATCH") mismatches.push(res);
@@ -854,6 +874,14 @@ export function evaluateCanonicalBatchMatching(
 
       if (!bestRes) {
         bestRes = compareFieldStrict(ftRaw, fieldName, "-", targetRes.value, false, customRules, isCritical);
+      }
+
+      if (isManualConfirmed) {
+        bestRes = {
+          ...bestRes,
+          status: "MATCH",
+          notes: "Dikonfirmasi manual (Batch ini)",
+        };
       }
 
       docFields.push(bestRes);

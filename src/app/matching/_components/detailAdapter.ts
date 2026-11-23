@@ -102,11 +102,12 @@ interface ParsedIsi {
   tableCoordinates: Array<Record<string, { xmin?: number; ymin?: number; xmax?: number; ymax?: number; page?: number }>>;
   manualEdits: Record<string, { oldValue?: string; newValue?: string; editedAt?: string }>;
   manualNotes?: ManualNote[];
+  manualMatches?: Record<string, { confirmed: boolean; confirmedAt?: string; confirmedBy?: string }>;
 }
 
 export function parseDocumentIsi(isi?: unknown, docCode?: string): ParsedIsi {
   if (!isi) {
-    return { fields: {}, table: [], coordinates: {}, tableCoordinates: [], manualEdits: {}, manualNotes: [] };
+    return { fields: {}, table: [], coordinates: {}, tableCoordinates: [], manualEdits: {}, manualNotes: [], manualMatches: {} };
   }
   try {
     const p = typeof isi === "string" ? JSON.parse(isi) : isi;
@@ -134,9 +135,10 @@ export function parseDocumentIsi(isi?: unknown, docCode?: string): ParsedIsi {
       tableCoordinates: Array.isArray(p.tableCoordinates) ? p.tableCoordinates : [],
       manualEdits: p.manualEdits || {},
       manualNotes: Array.isArray(p.manualNotes) ? p.manualNotes : [],
+      manualMatches: p.manualMatches || {},
     };
   } catch {
-    return { fields: {}, table: [], coordinates: {}, tableCoordinates: [], manualEdits: {}, manualNotes: [] };
+    return { fields: {}, table: [], coordinates: {}, tableCoordinates: [], manualEdits: {}, manualNotes: [], manualMatches: {} };
   }
 }
 
@@ -705,6 +707,28 @@ export function buildComparisonFields(
 
     const match = checkFieldMatch(pibRes.value, supportingVal, d.fieldName, equivalencyGroups);
 
+    // Check manual match confirmation for this specific field / batch
+    const cleanFieldKey = d.fieldName.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const supMatch =
+      supIsi?.manualMatches?.[d.id] ||
+      supIsi?.manualMatches?.[d.fieldName] ||
+      supIsi?.manualMatches?.[cleanFieldKey];
+    const pibMatch =
+      pibIsi?.manualMatches?.[d.id] ||
+      pibIsi?.manualMatches?.[d.fieldName] ||
+      pibIsi?.manualMatches?.[cleanFieldKey];
+
+    const isManualConfirmed = Boolean(supMatch?.confirmed ?? pibMatch?.confirmed);
+    const manualConfirmedBy = supMatch?.confirmedBy || pibMatch?.confirmedBy;
+    const manualConfirmedAt = supMatch?.confirmedAt || pibMatch?.confirmedAt;
+
+    let fieldStatus = match.status;
+    let fieldReason = match.reason;
+    if (isManualConfirmed) {
+      fieldStatus = "MATCH";
+      fieldReason = "Dikonfirmasi manual (Batch ini)";
+    }
+
     const pibNotes = (pibIsi?.manualNotes || []).filter(
       (n) => n.targetType === "field" && (n.targetKey === d.fieldName || n.targetKey === d.id || d.pibKeys.includes(n.targetKey))
     );
@@ -719,7 +743,10 @@ export function buildComparisonFields(
       label: d.label,
       fieldName: d.fieldName,
       docCode: supportingDoc.code,
-      status: match.status,
+      status: fieldStatus,
+      isManualConfirmed,
+      manualConfirmedBy,
+      manualConfirmedAt,
       pibValue: pibRes.value,
       pibPage: pibRes.page,
       pibBbox: pibRes.bbox,
@@ -738,7 +765,7 @@ export function buildComparisonFields(
       supportingDataActionNote: supRes.dataActionNote,
       supportingManualNotes: supNotes,
       supportingDetailId: supportingDoc.id,
-      matchReason: match.reason,
+      matchReason: fieldReason,
       manualNotes: allFieldNotes,
     };
   });

@@ -50,6 +50,9 @@ export interface ComparisonFieldModel {
   fieldName: string;
   docCode?: string; // "Invoice", "PL", "BL", "AK", "WL", "MS"
   status: FieldMatchStatus;
+  isManualConfirmed?: boolean;
+  manualConfirmedBy?: string;
+  manualConfirmedAt?: string;
   pibValue: string;
   pibPage?: number;
   pibBbox?: NormalizedBbox;

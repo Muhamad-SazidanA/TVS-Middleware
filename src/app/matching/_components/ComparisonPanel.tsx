@@ -6,20 +6,18 @@ import {
   Pencil,
   CheckCircle2,
   AlertTriangle,
-  FileSpreadsheet,
   X,
   Save,
   Loader2,
   Eye,
   Plus,
   Trash2,
-  MessageSquare,
+  Check,
 } from "lucide-react";
 import type {
   BatchDocumentModel,
   ComparisonFieldModel,
   DocumentComparisonGroup,
-  ManualNote,
 } from "./detailTypes";
 
 function formatNoteDate(dateStr?: string): string {
@@ -50,6 +48,7 @@ export interface ComparisonPanelProps {
   onLoadSupportingInViewer: (fieldId: string, docCode: string) => void;
   onNavigateToDoc?: (docCode: string, page?: number) => void;
   onFieldUpdated: (detailId: number, fieldName: string, newValue: string) => void;
+  onManualMatchToggled?: (fieldLabel: string, confirmed: boolean) => void;
   onAddManualNote?: (
     targetType: "field" | "line_item",
     targetKey: string,
@@ -64,7 +63,7 @@ export interface ComparisonPanelProps {
 
 export default function ComparisonPanel({
   batchId,
-  pibDoc,
+  pibDoc: _pibDoc,
   groups,
   currentLoadedDoc,
   activeDocCode,
@@ -75,6 +74,7 @@ export default function ComparisonPanel({
   onLoadSupportingInViewer,
   onNavigateToDoc,
   onFieldUpdated,
+  onManualMatchToggled,
   onAddManualNote,
   onEditManualNote,
   onDeleteManualNote,
@@ -85,6 +85,52 @@ export default function ComparisonPanel({
     ? activeDocCode
     : (groups[0]?.docCode ?? "Invoice");
   const [selectedDocFilter, setSelectedDocFilter] = useState<string>(defaultDoc);
+
+  // Manual Match confirmation state
+  const [togglingManualMatchId, setTogglingManualMatchId] = useState<string | null>(null);
+
+  const handleToggleManualMatch = async (
+    field: ComparisonFieldModel,
+    docCode: string
+  ) => {
+    if (togglingManualMatchId) return;
+    setTogglingManualMatchId(field.id);
+    try {
+      const newConfirmed = !field.isManualConfirmed;
+      const res = await fetch(`/api/batches/${batchId}/manual-match`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          detailId: field.supportingDetailId || field.pibDetailId,
+          fieldId: field.id,
+          fieldName: field.fieldName,
+          fieldLabel: field.label,
+          docCode: field.docCode || docCode,
+          confirmed: newConfirmed,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || "Gagal memperbarui status konfirmasi.");
+      }
+
+      if (onManualMatchToggled) {
+        onManualMatchToggled(field.label, newConfirmed);
+      } else {
+        onFieldUpdated(
+          field.supportingDetailId || field.pibDetailId || 0,
+          field.label,
+          ""
+        );
+      }
+    } catch (err) {
+      console.error("Toggle manual match error:", err);
+      alert(err instanceof Error ? err.message : "Gagal memperbarui status konfirmasi.");
+    } finally {
+      setTogglingManualMatchId(null);
+    }
+  };
 
   useEffect(() => {
     if (activeDocCode && activeDocCode.toUpperCase() !== "PIB") {
@@ -272,13 +318,7 @@ export default function ComparisonPanel({
   }, [activeFieldId]);
 
   // Quick jump to group section
-  const handleScrollToGroup = (docCode: string) => {
-    setSelectedDocFilter("ALL");
-    const targetEl = groupRefs.current[docCode];
-    if (targetEl) {
-      targetEl.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
+
 
   // Handle open edit
   const handleOpenEdit = (
@@ -552,6 +592,13 @@ export default function ComparisonPanel({
                           Aktif
                         </span>
                       );
+                    } else if (field.isManualConfirmed) {
+                      statusBadge = (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+                          <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                          Cocok
+                        </span>
+                      );
                     } else if (isMatch) {
                       statusBadge = (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
@@ -599,17 +646,54 @@ export default function ComparisonPanel({
                         }}
                         className={`rounded-xl border p-3 transition-all cursor-pointer ${cardBgBorder}`}
                       >
-                        {/* Card Title & Status Badge */}
+                        {/* Card Title & Status Badge + Confirm Button */}
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-bold text-xs text-slate-900 tracking-tight">
                             {field.number}. {field.label}
                           </span>
-                          {statusBadge}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {statusBadge}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleManualMatch(field, group.docCode);
+                              }}
+                              disabled={togglingManualMatchId === field.id}
+                              className={`p-1 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
+                                field.isManualConfirmed
+                                  ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 shadow-2xs"
+                                  : "bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/60"
+                              }`}
+                              title={
+                                field.isManualConfirmed
+                                  ? "Dikonfirmasi manual cocok. Klik untuk membatalkan konfirmasi"
+                                  : "Konfirmasi manual sebagai cocok (hanya untuk batch ini)"
+                              }
+                            >
+                              {togglingManualMatchId === field.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                              ) : (
+                                <Check
+                                  className={`w-3.5 h-3.5 ${
+                                    field.isManualConfirmed
+                                      ? "stroke-[2.5]"
+                                      : "stroke-2"
+                                  }`}
+                                />
+                              )}
+                            </button>
+                          </div>
                         </div>
 
                         {field.matchReason && (
-                          <p className="text-[10px] text-emerald-700 font-medium mt-0.5 italic">
-                            {field.matchReason}
+                          <p className="text-[10px] text-emerald-700 font-medium mt-0.5 italic flex items-center gap-1">
+                            <span>{field.matchReason}</span>
+                            {field.manualConfirmedBy && (
+                              <span className="not-italic text-emerald-600 text-[9.5px]">
+                                (oleh {field.manualConfirmedBy})
+                              </span>
+                            )}
                           </p>
                         )}
 
