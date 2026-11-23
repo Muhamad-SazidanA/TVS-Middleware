@@ -427,21 +427,7 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
 
 
 
-  // 3. Berat_Bersih_Item & Jumlah_Satuan_Barang: Per pos barang (Pos 1: Hal. 2 Kol. 35) dipisah dari Total Header
-  if (parsedPibIsi.table?.[0]) {
-    const row0 = parsedPibIsi.table[0];
-    const netVal = row0.Jumlah_Satuan_Barang_action || row0.Jumlah_Satuan_Barang || row0.Berat_Bersih;
-    if (netVal) {
-      parsedPibIsi.fields.Berat_Bersih_Item = String(netVal);
-      parsedPibIsi.fields.Berat_Bersih_Item_action = String(netVal);
-      parsedPibIsi.fields.Jumlah_Satuan_Barang = String(netVal);
-      parsedPibIsi.fields.Jumlah_Satuan_Barang_action = String(netVal);
-      if (parsedPibIsi.tableCoordinates?.[0]?.Jumlah_Satuan_Barang) {
-        parsedPibIsi.coordinates["Berat_Bersih_Item"] = parsedPibIsi.tableCoordinates[0].Jumlah_Satuan_Barang;
-        parsedPibIsi.coordinates["Jumlah_Satuan_Barang"] = parsedPibIsi.tableCoordinates[0].Jumlah_Satuan_Barang;
-      }
-    }
-  }
+
 
   // 4. No_Dan_Tanggal_Invoice: Gabungan Nomor & Tanggal Invoice (Hal. 1 Kotak D.15)
   if (!parsedPibIsi.fields.No_Dan_Tanggal_Invoice) {
@@ -594,7 +580,6 @@ export function buildComparisonFields(
       { id: "inv-10", number: "10", label: "Uraian barang", pibKeys: ["Uraian_Barang", "Deskripsi_Barang", "Description", "Description_of_Goods"], supportingKeys: ["Deskripsi_Barang", "Uraian_Barang", "Description", "Commodity", "Item_Description", "Description_of_Goods"], fieldName: "Uraian_Barang", pibPageDefault: 2, supPageDefault: 1 },
       { id: "inv-11", number: "11", label: "Ukuran barang", pibKeys: ["Ukuran_Barang", "Ukuran", "Size", "Dimension", "Dimensions", "Ukuran_Dimensi"], supportingKeys: ["Ukuran_Barang", "Size", "Dimension", "Dimensions", "Ukuran", "Thickness", "Ukuran_Dimensi"], fieldName: "Ukuran_Barang", pibPageDefault: 2, supPageDefault: 2 },
       { id: "inv-12", number: "12", label: "Spesifikasi / grade", pibKeys: ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade", "Specification"], supportingKeys: ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade", "Specification", "Steel_Grade"], fieldName: "Spesifikasi_Grade", pibPageDefault: 2, supPageDefault: 2 },
-      { id: "inv-13", number: "13", label: "Jumlah Satuan Barang", pibKeys: ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Jumlah_Satuan_Barang_action", "Berat_Bersih"], supportingKeys: ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Net_Weight_Item", "Weight_Item"], fieldName: "Jumlah_Satuan_Barang", pibPageDefault: 2, supPageDefault: 2 },
     ];
   } else if (code === "PL" || code.includes("PACKING")) {
     defs = [

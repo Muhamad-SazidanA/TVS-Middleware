@@ -783,9 +783,6 @@ export function evaluateCanonicalBatchMatching(
   // Enrich PIB fields with row 0 item values so single-item matching fields can compare accurately
   if (Array.isArray(pibData.table) && pibData.table.length > 0) {
     const row0 = pibData.table[0];
-    if (!pibData.fields.Berat_Bersih_Item && (row0.Jumlah_Satuan_Barang || row0.Jumlah_Satuan_Barang_action)) {
-      pibData.fields.Berat_Bersih_Item = row0.Jumlah_Satuan_Barang_action || row0.Jumlah_Satuan_Barang;
-    }
     if (!pibData.fields.Spesifikasi_Grade && (row0.Spesifikasi_Grade || row0.Spesifikasi_Grade_action)) {
       pibData.fields.Spesifikasi_Grade = row0.Spesifikasi_Grade_action || row0.Spesifikasi_Grade;
     }
@@ -892,8 +889,6 @@ export function evaluateCanonicalBatchMatching(
       checkH("Ukuran_Barang", ["Ukuran_Barang", "Ukuran", "Size", "Dimension", "Dimensions", "Ukuran_Dimensi"], ["Ukuran_Barang", "Size", "Dimension", "Dimensions", "Ukuran", "Thickness", "Ukuran_Dimensi"], false);
       // 12. Spesifikasi / grade (Page 2 No. 15)
       checkH("Spesifikasi_Grade", ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade", "Specification"], ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade", "Specification", "Steel_Grade"], false);
-      // 13. Jumlah Satuan Barang (Page 2 No. 25)
-      checkH("Jumlah_Satuan_Barang", ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Jumlah_Satuan_Barang_action", "Berat_Bersih"], ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Net_Weight", "Total_Weight", "Weight", "Berat_Bersih", "Total_Net_Weight", "Berat_Coil"], false);
     }
     // ─── Bill of Lading (BL) ─────────────────────────────────────────────────
     else if (isBlDoc(ft)) {
