@@ -604,11 +604,11 @@ export default function ComparisonPanel({
 
                     const pibCardStyle = isPibActive
                       ? "border-blue-500 bg-blue-50/25 ring-1 ring-blue-400 shadow-2xs"
-                      : "border-slate-200/90 bg-white/90 hover:border-blue-400 hover:ring-1 hover:ring-blue-300 hover:shadow-2xs";
+                      : "border-slate-300 bg-white hover:border-blue-400 hover:ring-1 hover:ring-blue-300 hover:shadow-2xs";
 
                     const supportingCardStyle = isSupportingActive
                       ? "border-blue-500 bg-blue-50/25 ring-1 ring-blue-400 shadow-2xs"
-                      : "border-slate-200/90 bg-white/90 hover:border-blue-400 hover:ring-1 hover:ring-blue-300 hover:shadow-2xs";
+                      : "border-slate-300 bg-white hover:border-blue-400 hover:ring-1 hover:ring-blue-300 hover:shadow-2xs";
 
                     return (
                       <div
@@ -691,7 +691,7 @@ export default function ComparisonPanel({
                               onNavigateToDoc?.("PIB", field.pibPage || 1);
                               onLoadPibInViewer(field.id);
                             }}
-                            className={`rounded-lg p-2.5 flex flex-col justify-between transition-all cursor-pointer group ${pibCardStyle}`}
+                            className={`border rounded-lg p-2.5 flex flex-col justify-between transition-all cursor-pointer group ${pibCardStyle}`}
                             title="Klik untuk melihat dokumen PIB pada viewer"
                           >
                             <div>
@@ -757,7 +757,7 @@ export default function ComparisonPanel({
                               }
                               onLoadSupportingInViewer(field.id, group.docCode);
                             }}
-                            className={`rounded-lg p-2.5 flex flex-col justify-between transition-all cursor-pointer group ${supportingCardStyle}`}
+                            className={`border rounded-lg p-2.5 flex flex-col justify-between transition-all cursor-pointer group ${supportingCardStyle}`}
                             title={`Klik untuk melihat dokumen ${group.docCode} pada viewer`}
                           >
                             <div>
