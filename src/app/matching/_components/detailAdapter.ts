@@ -425,21 +425,7 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
     }
   }
 
-  // 2. Jumlah_Coil_Item & Jumlah_Satuan_Coil: Per pos barang (Pos 1: Hal. 2 Kol. 35) dipisah dari Total Header (118)
-  if (parsedPibIsi.table?.[0]) {
-    const row0 = parsedPibIsi.table[0];
-    const coilVal = row0.Jumlah_Satuan_Coil_action || row0.Jumlah_Satuan_Coil || row0.Jumlah_Coil;
-    if (coilVal) {
-      parsedPibIsi.fields.Jumlah_Satuan_Coil = String(coilVal);
-      parsedPibIsi.fields.Jumlah_Satuan_Coil_action = String(coilVal);
-      parsedPibIsi.fields.Jumlah_Coil_Item = String(coilVal);
-      parsedPibIsi.fields.Jumlah_Coil_Item_action = String(coilVal);
-      if (parsedPibIsi.tableCoordinates?.[0]?.Jumlah_Satuan_Coil) {
-        parsedPibIsi.coordinates["Jumlah_Satuan_Coil"] = parsedPibIsi.tableCoordinates[0].Jumlah_Satuan_Coil;
-        parsedPibIsi.coordinates["Jumlah_Coil_Item"] = parsedPibIsi.tableCoordinates[0].Jumlah_Satuan_Coil;
-      }
-    }
-  }
+
 
   // 3. Berat_Bersih_Item & Jumlah_Satuan_Barang: Per pos barang (Pos 1: Hal. 2 Kol. 35) dipisah dari Total Header
   if (parsedPibIsi.table?.[0]) {
@@ -504,17 +490,7 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
     }
   }
 
-  // 8. Harga_Satuan on PIB: Per pos barang (Pos 1: Hal. 2 Kol. 35)
-  if (!parsedPibIsi.fields.Harga_Satuan && parsedPibIsi.table?.[0]) {
-    const row0 = parsedPibIsi.table[0];
-    const priceVal = row0.Harga_Satuan || row0.Harga_Satuan_action || row0.Unit_Price || row0.Price;
-    if (priceVal) {
-      parsedPibIsi.fields.Harga_Satuan = String(priceVal);
-      if (parsedPibIsi.tableCoordinates?.[0]?.Harga_Satuan) {
-        parsedPibIsi.coordinates["Harga_Satuan"] = parsedPibIsi.tableCoordinates[0].Harga_Satuan;
-      }
-    }
-  }
+
 
   const pibDoc: BatchDocumentModel = {
     id: rawPib?.id ?? 0,
@@ -619,8 +595,6 @@ export function buildComparisonFields(
       { id: "inv-11", number: "11", label: "Ukuran barang", pibKeys: ["Ukuran_Barang", "Ukuran", "Size", "Dimension", "Dimensions", "Ukuran_Dimensi"], supportingKeys: ["Ukuran_Barang", "Size", "Dimension", "Dimensions", "Ukuran", "Thickness", "Ukuran_Dimensi"], fieldName: "Ukuran_Barang", pibPageDefault: 2, supPageDefault: 2 },
       { id: "inv-12", number: "12", label: "Spesifikasi / grade", pibKeys: ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade", "Specification"], supportingKeys: ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade", "Specification", "Steel_Grade"], fieldName: "Spesifikasi_Grade", pibPageDefault: 2, supPageDefault: 2 },
       { id: "inv-13", number: "13", label: "Jumlah Satuan Barang", pibKeys: ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Jumlah_Satuan_Barang_action", "Berat_Bersih"], supportingKeys: ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Net_Weight_Item", "Weight_Item"], fieldName: "Jumlah_Satuan_Barang", pibPageDefault: 2, supPageDefault: 2 },
-      { id: "inv-14", number: "14", label: "Jumlah Satuan Coil", pibKeys: ["Jumlah_Satuan_Coil", "Jumlah_Coil_Item"], supportingKeys: ["Jumlah_Satuan_Coil", "Jumlah_Coil_Item", "Qty_Coil_Item", "Coils_Item"], fieldName: "Jumlah_Satuan_Coil", pibPageDefault: 2, supPageDefault: 2 },
-      { id: "inv-15", number: "15", label: "Harga satuan", pibKeys: ["Harga_Satuan", "Nilai_Pabean_Item", "Nilai_Barang"], supportingKeys: ["Harga_Satuan", "Unit_Price", "Price", "UnitPrice"], fieldName: "Harga_Satuan", pibPageDefault: 2, supPageDefault: 2 },
     ];
   } else if (code === "PL" || code.includes("PACKING")) {
     defs = [

@@ -783,9 +783,6 @@ export function evaluateCanonicalBatchMatching(
   // Enrich PIB fields with row 0 item values so single-item matching fields can compare accurately
   if (Array.isArray(pibData.table) && pibData.table.length > 0) {
     const row0 = pibData.table[0];
-    if (!pibData.fields.Jumlah_Satuan_Coil && (row0.Jumlah_Satuan_Coil || row0.Jumlah_Satuan_Coil_action)) {
-      pibData.fields.Jumlah_Satuan_Coil = row0.Jumlah_Satuan_Coil_action || row0.Jumlah_Satuan_Coil;
-    }
     if (!pibData.fields.Berat_Bersih_Item && (row0.Jumlah_Satuan_Barang || row0.Jumlah_Satuan_Barang_action)) {
       pibData.fields.Berat_Bersih_Item = row0.Jumlah_Satuan_Barang_action || row0.Jumlah_Satuan_Barang;
     }
@@ -897,10 +894,6 @@ export function evaluateCanonicalBatchMatching(
       checkH("Spesifikasi_Grade", ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade", "Specification"], ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade", "Specification", "Steel_Grade"], false);
       // 13. Jumlah Satuan Barang (Page 2 No. 25)
       checkH("Jumlah_Satuan_Barang", ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Jumlah_Satuan_Barang_action", "Berat_Bersih"], ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Net_Weight", "Total_Weight", "Weight", "Berat_Bersih", "Total_Net_Weight", "Berat_Coil"], false);
-      // 14. Jumlah Satuan Coil (Page 2 No. 24)
-      checkH("Jumlah_Satuan_Coil", ["Jumlah_Satuan_Coil", "Jumlah_Coil_Item", "Jumlah_Coil", "Total_Coils", "Coils", "Qty_Coil"], ["Jumlah_Satuan_Coil", "Jumlah_Coil_Item", "Jumlah_Coil", "Total_Coils", "Coils", "QTY", "Qty_Coil", "QTY_Coil"], false);
-      // 15. Harga satuan (Page 2 No. 20)
-      checkH("Harga_Satuan", ["Harga_Satuan", "Nilai_Pabean_Item", "Nilai_Barang", "Unit_Price", "Harga_Nilai_Pabean", "Nilai_Pabean"], ["Harga_Satuan", "Unit_Price", "Price", "Rate", "Amount", "Total_Price", "Nilai_Barang"], false);
     }
     // ─── Bill of Lading (BL) ─────────────────────────────────────────────────
     else if (isBlDoc(ft)) {
