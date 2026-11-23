@@ -646,44 +646,12 @@ export default function ComparisonPanel({
                         }}
                         className={`rounded-xl border p-3 transition-all cursor-pointer ${cardBgBorder}`}
                       >
-                        {/* Card Title & Status Badge + Confirm Button */}
+                        {/* Card Title & Status Badge */}
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-bold text-xs text-slate-900 tracking-tight">
                             {field.number}. {field.label}
                           </span>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {statusBadge}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleManualMatch(field, group.docCode);
-                              }}
-                              disabled={togglingManualMatchId === field.id}
-                              className={`p-1 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
-                                field.isManualConfirmed
-                                  ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 shadow-2xs"
-                                  : "bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/60"
-                              }`}
-                              title={
-                                field.isManualConfirmed
-                                  ? "Dikonfirmasi manual cocok. Klik untuk membatalkan konfirmasi"
-                                  : "Konfirmasi manual sebagai cocok (hanya untuk batch ini)"
-                              }
-                            >
-                              {togglingManualMatchId === field.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
-                              ) : (
-                                <Check
-                                  className={`w-3.5 h-3.5 ${
-                                    field.isManualConfirmed
-                                      ? "stroke-[2.5]"
-                                      : "stroke-2"
-                                  }`}
-                                />
-                              )}
-                            </button>
-                          </div>
+                          {statusBadge}
                         </div>
 
                         {field.matchReason && (
@@ -697,145 +665,228 @@ export default function ComparisonPanel({
                           </p>
                         )}
 
-                        {/* Side-by-side Inner Cards */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-2.5">
-                          {/* Left Inner Card: PIB (acuan) */}
-                          <div
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectField(field.id, "PIB");
-                              onNavigateToDoc?.("PIB", field.pibPage || 1);
-                              onLoadPibInViewer(field.id);
-                            }}
-                            className="border border-slate-200/90 bg-white/90 rounded-lg p-2.5 flex flex-col justify-between hover:border-blue-300 hover:shadow-2xs transition-all cursor-pointer group"
-                            title="Klik untuk melihat dokumen PIB pada viewer"
-                          >
-                            <div>
-                              <div className="flex items-center justify-between gap-1 mb-1">
-                                <span className="text-[10px] font-semibold text-slate-500 tracking-wide">
-                                  PIB (acuan)
-                                </span>
-                                {field.pibPage ? (
-                                  <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 px-1.5 py-0.2 rounded">
-                                    Hal. {field.pibPage}
+                        {/* Side-by-side Inner Cards with Center Confirmation Indicator / Button */}
+                        <div className="relative mt-2.5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 items-stretch">
+                            {/* Left Inner Card: PIB (acuan) */}
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectField(field.id, "PIB");
+                                onNavigateToDoc?.("PIB", field.pibPage || 1);
+                                onLoadPibInViewer(field.id);
+                              }}
+                              className="border border-slate-200/90 bg-white/90 rounded-lg p-2.5 flex flex-col justify-between hover:border-blue-300 hover:shadow-2xs transition-all cursor-pointer group"
+                              title="Klik untuk melihat dokumen PIB pada viewer"
+                            >
+                              <div>
+                                <div className="flex items-center justify-between gap-1 mb-1">
+                                  <span className="text-[10px] font-semibold text-slate-500 tracking-wide">
+                                    PIB (acuan)
                                   </span>
-                                ) : null}
-                              </div>
-
-                              <div className="text-xs font-semibold text-slate-800 break-words leading-snug">
-                                {field.pibValue || "-"}
-                                {field.pibIsManual && (
-                                  <span className="ml-1 text-[9px] text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">
-                                    diedit
-                                  </span>
-                                )}
-                              </div>
-
-                              {field.pibIsDataAction && field.pibOriginalValue && (
-                                <div className="mt-1.5 px-2 py-1 bg-slate-50 border border-slate-200/90 rounded-md text-[10.5px] text-slate-700 leading-snug">
-                                  <span className="font-semibold text-slate-800">Data Action:</span>{" "}
-                                  <span className="text-slate-500 line-through font-mono">{field.pibOriginalValue}</span>{" "}
-                                  <span className="text-slate-400">{"->"}</span>{" "}
-                                  <span className="text-slate-900 font-medium font-mono">{field.pibValue}</span>
+                                  {field.pibPage ? (
+                                    <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 px-1.5 py-0.2 rounded">
+                                      Hal. {field.pibPage}
+                                    </span>
+                                  ) : null}
                                 </div>
-                              )}
 
-                              {!field.pibBbox && (
-                                <p className="text-[10px] text-slate-400 italic mt-0.5">
-                                  Lokasi tidak tersedia
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-end mt-1.5 pt-1 border-t border-slate-100">
-                              <button
-                                type="button"
-                                onClick={(e) =>
-                                  handleOpenEdit(e, field, group, "left")
-                                }
-                                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                                title="Edit nilai PIB"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Right Inner Card: Supporting Document */}
-                          <div
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectField(field.id, group.docCode);
-                              if (field.supportingPage && field.supportingValue !== "Tidak ada di dokumen ini") {
-                                onNavigateToDoc?.(group.docCode, field.supportingPage);
-                              } else {
-                                onNavigateToDoc?.(group.docCode, 1);
-                              }
-                              onLoadSupportingInViewer(field.id, group.docCode);
-                            }}
-                            className="border border-slate-200/90 bg-white/90 rounded-lg p-2.5 flex flex-col justify-between hover:border-blue-300 hover:shadow-2xs transition-all cursor-pointer group"
-                            title={`Klik untuk melihat dokumen ${group.docCode} pada viewer`}
-                          >
-                            <div>
-                              <div className="flex items-center justify-between gap-1 mb-1">
-                                <span className="text-[10px] font-semibold text-slate-500 tracking-wide">
-                                  {group.docCode}
-                                </span>
-                                {field.supportingPage &&
-                                field.supportingValue !==
-                                  "Tidak ada di dokumen ini" ? (
-                                  <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 px-1.5 py-0.2 rounded">
-                                    Hal. {field.supportingPage}
-                                  </span>
-                                ) : null}
-                              </div>
-
-                              <div
-                                className={`text-xs font-semibold break-words leading-snug ${
-                                  field.supportingValue ===
-                                  "Tidak ada di dokumen ini"
-                                    ? "text-slate-400 italic font-normal"
-                                    : "text-slate-800"
-                                }`}
-                              >
-                                {field.supportingValue}
-                                {field.supportingIsManual && (
-                                  <span className="ml-1 text-[9px] text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">
-                                    diedit
-                                  </span>
-                                )}
-                              </div>
-
-                              {field.supportingIsDataAction && field.supportingOriginalValue && (
-                                <div className="mt-1.5 px-2 py-1 bg-slate-50 border border-slate-200/90 rounded-md text-[10.5px] text-slate-700 leading-snug">
-                                  <span className="font-semibold text-slate-800">Data Action:</span>{" "}
-                                  <span className="text-slate-500 line-through font-mono">{field.supportingOriginalValue}</span>{" "}
-                                  <span className="text-slate-400">{"->"}</span>{" "}
-                                  <span className="text-slate-900 font-medium font-mono">{field.supportingValue}</span>
+                                <div className="text-xs font-semibold text-slate-800 break-words leading-snug">
+                                  {field.pibValue || "-"}
+                                  {field.pibIsManual && (
+                                    <span className="ml-1 text-[9px] text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">
+                                      diedit
+                                    </span>
+                                  )}
                                 </div>
-                              )}
 
-                              {!field.supportingBbox &&
-                                field.supportingValue !==
-                                  "Tidak ada di dokumen ini" && (
+                                {field.pibIsDataAction && field.pibOriginalValue && (
+                                  <div className="mt-1.5 px-2 py-1 bg-slate-50 border border-slate-200/90 rounded-md text-[10.5px] text-slate-700 leading-snug">
+                                    <span className="font-semibold text-slate-800">Data Action:</span>{" "}
+                                    <span className="text-slate-500 line-through font-mono">{field.pibOriginalValue}</span>{" "}
+                                    <span className="text-slate-400">{"->"}</span>{" "}
+                                    <span className="text-slate-900 font-medium font-mono">{field.pibValue}</span>
+                                  </div>
+                                )}
+
+                                {!field.pibBbox && (
                                   <p className="text-[10px] text-slate-400 italic mt-0.5">
                                     Lokasi tidak tersedia
                                   </p>
                                 )}
+                              </div>
+
+                              <div className="flex items-center justify-end mt-1.5 pt-1 border-t border-slate-100">
+                                <button
+                                  type="button"
+                                  onClick={(e) =>
+                                    handleOpenEdit(e, field, group, "left")
+                                  }
+                                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                  title="Edit nilai PIB"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </div>
 
-                            <div className="flex items-center justify-end mt-1.5 pt-1 border-t border-slate-100">
+                            {/* Mobile In-between Button */}
+                            <div className="sm:hidden flex items-center justify-center -my-1 z-10">
                               <button
                                 type="button"
-                                onClick={(e) =>
-                                  handleOpenEdit(e, field, group, "right")
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleManualMatch(field, group.docCode);
+                                }}
+                                disabled={togglingManualMatchId === field.id}
+                                className={`px-3 py-1 rounded-full border text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs ${
+                                  field.isManualConfirmed
+                                    ? "bg-emerald-600 text-white border-emerald-600"
+                                    : isMatch
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : "bg-white text-slate-500 border-slate-200 hover:text-emerald-600 hover:border-emerald-300"
+                                }`}
+                                title={
+                                  field.isManualConfirmed
+                                    ? "Dikonfirmasi manual cocok. Klik untuk membatalkan konfirmasi"
+                                    : "Konfirmasi kedua dokumen cocok untuk batch ini"
                                 }
-                                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                                title={`Edit nilai ${group.docCode}`}
                               >
-                                <Pencil className="w-3.5 h-3.5" />
+                                {togglingManualMatchId === field.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                                ) : (
+                                  <Check
+                                    className={`w-3.5 h-3.5 ${
+                                      field.isManualConfirmed || isMatch
+                                        ? "stroke-[2.5]"
+                                        : "stroke-2"
+                                    }`}
+                                  />
+                                )}
+                                <span>
+                                  {field.isManualConfirmed
+                                    ? "Cocok (Manual)"
+                                    : isMatch
+                                    ? "Cocok"
+                                    : "Konfirmasi Cocok"}
+                                </span>
                               </button>
                             </div>
+
+                            {/* Right Inner Card: Supporting Document */}
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectField(field.id, group.docCode);
+                                if (field.supportingPage && field.supportingValue !== "Tidak ada di dokumen ini") {
+                                  onNavigateToDoc?.(group.docCode, field.supportingPage);
+                                } else {
+                                  onNavigateToDoc?.(group.docCode, 1);
+                                }
+                                onLoadSupportingInViewer(field.id, group.docCode);
+                              }}
+                              className="border border-slate-200/90 bg-white/90 rounded-lg p-2.5 flex flex-col justify-between hover:border-blue-300 hover:shadow-2xs transition-all cursor-pointer group"
+                              title={`Klik untuk melihat dokumen ${group.docCode} pada viewer`}
+                            >
+                              <div>
+                                <div className="flex items-center justify-between gap-1 mb-1">
+                                  <span className="text-[10px] font-semibold text-slate-500 tracking-wide">
+                                    {group.docCode}
+                                  </span>
+                                  {field.supportingPage &&
+                                  field.supportingValue !==
+                                    "Tidak ada di dokumen ini" ? (
+                                    <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 px-1.5 py-0.2 rounded">
+                                      Hal. {field.supportingPage}
+                                    </span>
+                                  ) : null}
+                                </div>
+
+                                <div
+                                  className={`text-xs font-semibold break-words leading-snug ${
+                                    field.supportingValue ===
+                                    "Tidak ada di dokumen ini"
+                                      ? "text-slate-400 italic font-normal"
+                                      : "text-slate-800"
+                                  }`}
+                                >
+                                  {field.supportingValue}
+                                  {field.supportingIsManual && (
+                                    <span className="ml-1 text-[9px] text-amber-600 bg-amber-50 px-1 rounded border border-amber-200">
+                                      diedit
+                                    </span>
+                                  )}
+                                </div>
+
+                                {field.supportingIsDataAction && field.supportingOriginalValue && (
+                                  <div className="mt-1.5 px-2 py-1 bg-slate-50 border border-slate-200/90 rounded-md text-[10.5px] text-slate-700 leading-snug">
+                                    <span className="font-semibold text-slate-800">Data Action:</span>{" "}
+                                    <span className="text-slate-500 line-through font-mono">{field.supportingOriginalValue}</span>{" "}
+                                    <span className="text-slate-400">{"->"}</span>{" "}
+                                    <span className="text-slate-900 font-medium font-mono">{field.supportingValue}</span>
+                                  </div>
+                                )}
+
+                                {!field.supportingBbox &&
+                                  field.supportingValue !==
+                                    "Tidak ada di dokumen ini" && (
+                                    <p className="text-[10px] text-slate-400 italic mt-0.5">
+                                      Lokasi tidak tersedia
+                                    </p>
+                                  )}
+                              </div>
+
+                              <div className="flex items-center justify-end mt-1.5 pt-1 border-t border-slate-100">
+                                <button
+                                  type="button"
+                                  onClick={(e) =>
+                                    handleOpenEdit(e, field, group, "right")
+                                  }
+                                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                  title={`Edit nilai ${group.docCode}`}
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Desktop Floating Center Button (Right between PIB and Supporting Doc) */}
+                          <div className="hidden sm:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-auto">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleToggleManualMatch(field, group.docCode);
+                              }}
+                              disabled={togglingManualMatchId === field.id}
+                              className={`w-8 h-8 rounded-full border-2 transition-all cursor-pointer flex items-center justify-center shadow-md ${
+                                field.isManualConfirmed
+                                  ? "bg-emerald-600 text-white border-white ring-2 ring-emerald-500/40 hover:bg-emerald-700 hover:scale-110 active:scale-95"
+                                  : isMatch
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200/90 ring-2 ring-white hover:bg-emerald-100 hover:scale-105"
+                                  : "bg-white text-slate-400 border-slate-200/90 hover:border-emerald-500 hover:text-emerald-600 hover:scale-110 hover:shadow-lg active:scale-95 ring-2 ring-white"
+                              }`}
+                              title={
+                                field.isManualConfirmed
+                                  ? "Dikonfirmasi manual cocok. Klik untuk membatalkan konfirmasi"
+                                  : isMatch
+                                  ? "Kedua dokumen ini cocok secara sistem. Klik untuk konfirmasi/batal"
+                                  : "Klik untuk mengonfirmasi kedua dokumen ini COCOK (hanya untuk batch ini)"
+                              }
+                            >
+                              {togglingManualMatchId === field.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                              ) : (
+                                <Check
+                                  className={`w-4 h-4 ${
+                                    field.isManualConfirmed || isMatch
+                                      ? "stroke-[2.5]"
+                                      : "stroke-2"
+                                  }`}
+                                />
+                              )}
+                            </button>
                           </div>
                         </div>
 
