@@ -1,4 +1,4 @@
-import { valueMatchesGroup, type DbEquivalencyGroup } from "~/utils/valueEquivalency";
+import { isEquivalentMatch, type DbEquivalencyGroup } from "~/utils/valueEquivalency";
 import type {
   NormalizedBbox,
   DocumentFieldData,
@@ -11,8 +11,6 @@ import type {
 import type { FieldMatchStatus } from "~/types/documentComparison";
 import defaultDataActions from "~/config/data_actions.json";
 import { applyDataActionsToFields, applyDataActionsToTableRows } from "~/utils/workflowRunner";
-import { FIELD_SYNONYMS } from "~/utils/documentRegistry";
-import { cleanDimension } from "~/utils/canonicalMatcher";
 
 // Bounded proportional padding expansion algorithm for OCR boxes
 export function expandBboxPadding(
@@ -182,75 +180,41 @@ function applyPibCoordFallback(
   return res;
 }
 
-// Coordinate lookup helper that searches matched key, candidate keys/synonyms, and normalized forms
+// Coordinate lookup helper that searches matched key and candidate keys in docIsi.coordinates
 function resolveFieldCoord(
   docIsi: ParsedIsi,
   matchedKey: string,
   candidateKeys: string[]
 ): { xmin?: number; ymin?: number; xmax?: number; ymax?: number; page?: number } | undefined {
-  if (!docIsi) return undefined;
+  if (!docIsi || !docIsi.coordinates) return undefined;
 
-  // Build an expanded set of candidate keys using FIELD_SYNONYMS
-  const allCandidates = new Set<string>([matchedKey, ...candidateKeys]);
-  for (const cand of [matchedKey, ...candidateKeys]) {
-    const base = cand.replace(/_action$/i, "");
-    allCandidates.add(base);
-    allCandidates.add(`${base}_action`);
+  // 1. Direct lookup for matchedKey or its non-action base
+  const baseMatched = matchedKey.replace(/_action$/i, "");
+  if (docIsi.coordinates[matchedKey]) return docIsi.coordinates[matchedKey];
+  if (docIsi.coordinates[baseMatched]) return docIsi.coordinates[baseMatched];
+  if (docIsi.coordinates[`${baseMatched}_action`]) return docIsi.coordinates[`${baseMatched}_action`];
 
-    if (FIELD_SYNONYMS[cand]) {
-      for (const syn of FIELD_SYNONYMS[cand]) allCandidates.add(syn);
-    }
-    if (FIELD_SYNONYMS[base]) {
-      for (const syn of FIELD_SYNONYMS[base]) allCandidates.add(syn);
-    }
-
-    const normBase = base.toLowerCase().replace(/[^a-z0-9]/g, "");
-    for (const [sk, sList] of Object.entries(FIELD_SYNONYMS)) {
-      const normSk = sk.toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (normSk === normBase || sList.some((s) => s.toLowerCase().replace(/[^a-z0-9]/g, "") === normBase)) {
-        allCandidates.add(sk);
-        for (const s of sList) allCandidates.add(s);
-      }
-    }
+  // 2. Normalized lookup for matchedKey
+  const normMatched = baseMatched.toLowerCase().replace(/[^a-z0-9]/g, "");
+  for (const [ck, cv] of Object.entries(docIsi.coordinates)) {
+    const normCk = ck.toLowerCase().replace(/_action$/i, "").replace(/[^a-z0-9]/g, "");
+    if (normCk === normMatched) return cv;
   }
 
-  // 1. Coordinates search in docIsi.coordinates
-  if (docIsi.coordinates) {
-    for (const c of allCandidates) {
-      if (docIsi.coordinates[c]) return docIsi.coordinates[c];
-      const b = c.replace(/_action$/i, "");
-      if (docIsi.coordinates[b]) return docIsi.coordinates[b];
-      if (docIsi.coordinates[`${b}_action`]) return docIsi.coordinates[`${b}_action`];
-    }
-
-    const normCandidates = new Set(
-      Array.from(allCandidates).map((c) => c.toLowerCase().replace(/[^a-z0-9]/g, ""))
-    );
-    for (const [ck, cv] of Object.entries(docIsi.coordinates)) {
-      const normCk = ck.toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (normCandidates.has(normCk)) return cv;
-    }
+  // 3. Fallback to candidateKeys in docIsi.coordinates
+  for (const cand of candidateKeys) {
+    if (docIsi.coordinates[cand]) return docIsi.coordinates[cand];
+    const b = cand.replace(/_action$/i, "");
+    if (docIsi.coordinates[b]) return docIsi.coordinates[b];
+    if (docIsi.coordinates[`${b}_action`]) return docIsi.coordinates[`${b}_action`];
   }
 
-  // 2. Fallback to table row 0 coordinates (docIsi.tableCoordinates)
-  if (docIsi.tableCoordinates && docIsi.tableCoordinates.length > 0) {
-    const rowCoord = docIsi.tableCoordinates[0];
-    if (rowCoord) {
-      for (const c of allCandidates) {
-        if (rowCoord[c]) return rowCoord[c];
-        const b = c.replace(/_action$/i, "");
-        if (rowCoord[b]) return rowCoord[b];
-        if (rowCoord[`${b}_action`]) return rowCoord[`${b}_action`];
-      }
-
-      const normCandidates = new Set(
-        Array.from(allCandidates).map((c) => c.toLowerCase().replace(/[^a-z0-9]/g, ""))
-      );
-      for (const [ck, cv] of Object.entries(rowCoord)) {
-        const normCk = ck.toLowerCase().replace(/[^a-z0-9]/g, "");
-        if (normCandidates.has(normCk)) return cv;
-      }
-    }
+  const normCandidates = new Set(
+    candidateKeys.map((c) => c.replace(/_action$/i, "").toLowerCase().replace(/[^a-z0-9]/g, ""))
+  );
+  for (const [ck, cv] of Object.entries(docIsi.coordinates)) {
+    const normCk = ck.toLowerCase().replace(/_action$/i, "").replace(/[^a-z0-9]/g, "");
+    if (normCandidates.has(normCk)) return cv;
   }
 
   return undefined;
@@ -353,11 +317,12 @@ function extractFieldValueRaw(
   // 4. Table row 0
   if (docIsi.table && docIsi.table.length > 0) {
     const row = docIsi.table[0];
+    const rowCoords = docIsi.tableCoordinates?.[0];
     if (row) {
       for (const k of keys) {
         const actionKey = `${k}_action`;
         if (row[actionKey] !== undefined && row[actionKey] !== "") {
-          const coord = resolveFieldCoord(docIsi, actionKey, keys);
+          const coord = rowCoords?.[actionKey] || rowCoords?.[k] || resolveFieldCoord(docIsi, actionKey, keys);
           const transVal = String(row[actionKey]).trim();
           const rawOrig = row[k] !== undefined && row[k] !== null ? String(row[k]).trim() : undefined;
           const isDataAction = rawOrig !== undefined && rawOrig !== "" && rawOrig !== transVal;
@@ -375,7 +340,7 @@ function extractFieldValueRaw(
       }
       for (const k of keys) {
         if (row[k] !== undefined && row[k] !== "") {
-          const coord = resolveFieldCoord(docIsi, k, keys);
+          const coord = rowCoords?.[k] || resolveFieldCoord(docIsi, k, keys);
           return {
             value: String(row[k]),
             isManual: false,
@@ -388,7 +353,7 @@ function extractFieldValueRaw(
         const cleanRk = rk.toLowerCase().replace(/[^a-z0-9]/g, "");
         for (const k of keys) {
           if (cleanRk === k.toLowerCase().replace(/[^a-z0-9]/g, "")) {
-            const coord = resolveFieldCoord(docIsi, rk, keys);
+            const coord = rowCoords?.[rk] || resolveFieldCoord(docIsi, rk, keys);
             return {
               value: String(rv),
               isManual: false,
@@ -424,109 +389,14 @@ export function checkFieldMatch(
     return { status: "NEUTRAL", reason: undefined };
   }
 
-  // 1. Exact string match (setelah trim)
-  if (v1.trim() === v2.trim()) {
-    return { status: "MATCH", reason: undefined };
+  const result = isEquivalentMatch(v1, v2, fieldName, equivalencyGroups);
+  if (result.isMatch) {
+    return {
+      status: "MATCH",
+      reason: result.reason ? `(${result.reason})` : undefined,
+    };
   }
 
-  // 2. Case-insensitive & spasi standar
-  const s1 = v1.trim().toLowerCase().replace(/\s+/g, " ");
-  const s2 = v2.trim().toLowerCase().replace(/\s+/g, " ");
-  if (s1 === s2) {
-    return { status: "MATCH", reason: undefined };
-  }
-
-  // Dimension / size equivalence check
-  const fnNorm = fieldName.toLowerCase().replace(/[^a-z0-9]/g, "");
-  if (fnNorm.includes("ukuran") || fnNorm.includes("size") || fnNorm.includes("dimension")) {
-    const d1 = cleanDimension(v1);
-    const d2 = cleanDimension(v2);
-    if (d1 && d2 && d1 === d2) {
-      return { status: "MATCH", reason: undefined };
-    }
-  }
-
-  // Uraian / Deskripsi barang: check substring containment
-  if (fnNorm.includes("uraian") || fnNorm.includes("deskripsi") || fnNorm.includes("description")) {
-    if (s1.includes(s2) || s2.includes(s1)) {
-      return { status: "MATCH", reason: undefined };
-    }
-  }
-
-  // Country equivalence check: e.g. "KOREA , REPUBLIC OF ( KR )" vs "Korea"
-  if (fnNorm.includes("negara") || fnNorm.includes("country") || fnNorm.includes("origin")) {
-    const isKorea1 = s1.includes("korea") || s1.includes(" kr ") || s1.endsWith(" kr") || s1.includes("(kr)");
-    const isKorea2 = s2.includes("korea") || s2.includes(" kr ") || s2.endsWith(" kr") || s2.includes("(kr)");
-    if (isKorea1 && isKorea2) {
-      return { status: "MATCH", reason: "(Ekuivalen: Korea)" };
-    }
-    const isIndo1 = s1.includes("indonesia") || s1.includes(" id ") || s1.endsWith(" id") || s1.includes("(id)");
-    const isIndo2 = s2.includes("indonesia") || s2.includes(" id ") || s2.endsWith(" id") || s2.includes("(id)");
-    if (isIndo1 && isIndo2) {
-      return { status: "MATCH", reason: "(Ekuivalen: Indonesia)" };
-    }
-  }
-
-  // 3. Kesetaraan numerik murni (misal "2.00" === "2" tanpa toleransi tara atau rasio buatan)
-  const parseCleanNumber = (val: string): number | null => {
-    const cleaned = val.replace(/,/g, "").trim();
-    if (/^-?\d+(\.\d+)?$/.test(cleaned)) {
-      const n = parseFloat(cleaned);
-      return isNaN(n) ? null : n;
-    }
-    return null;
-  };
-
-  const n1 = parseCleanNumber(v1);
-  const n2 = parseCleanNumber(v2);
-  if (n1 !== null && n2 !== null) {
-    if (Math.abs(n1 - n2) < 0.0001) {
-      return { status: "MATCH", reason: undefined };
-    }
-    // Unit price vs total item price: e.g. Invoice $885.61 * 18.36 MT = PIB $16,259.80
-    if (fnNorm.includes("harga") || fnNorm.includes("price") || fnNorm.includes("nilai")) {
-      const ratio = n1 > n2 ? n1 / n2 : n2 / n1;
-      if (Math.abs(ratio - 18.36) < 0.05 || Math.abs(ratio - 18.3600) < 0.05) {
-        return { status: "MATCH", reason: `(Unit price ekuivalen)` };
-      }
-    }
-  }
-
-  // 4. Aturan Equivalency dinamis dari database / Manage System
-  if (equivalencyGroups && equivalencyGroups.length > 0) {
-    const fieldNorm = fieldName.toLowerCase().replace(/[^a-z0-9]/g, "");
-    for (const group of equivalencyGroups) {
-      if (!group || !group.canonical) continue;
-      const groupNameNorm = (group.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const groupCatNorm = (group.category || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const isGeneral =
-        !groupCatNorm ||
-        groupCatNorm === "general" ||
-        groupCatNorm === "umum" ||
-        groupNameNorm === "general" ||
-        groupNameNorm === "umum";
-
-      // If group is scoped to a specific field name/category, check if it matches fieldName
-      if (
-        !isGeneral &&
-        groupNameNorm &&
-        groupNameNorm !== fieldNorm &&
-        !groupNameNorm.includes(fieldNorm) &&
-        !fieldNorm.includes(groupNameNorm)
-      ) {
-        continue;
-      }
-
-      if (valueMatchesGroup(v1, group) && valueMatchesGroup(v2, group)) {
-        return {
-          status: "MATCH",
-          reason: `(Ekuivalen: ${group.canonical})`,
-        };
-      }
-    }
-  }
-
-  // Murni MISMATCH tanpa aturan hardcode (perbaikan data dikelola via Data Action atau Equivalency)
   return { status: "MISMATCH", reason: undefined };
 }
 
@@ -705,71 +575,6 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
     }
     const parsedIsi = parseDocumentIsi(d.isi, meta.code);
 
-    // Bidirectional field <-> table synchronization for supporting documents:
-    if (!parsedIsi.fields.Ukuran_Barang && parsedIsi.table?.[0]) {
-      const row0 = parsedIsi.table[0];
-      const sizeVal = row0.Ukuran_Barang || row0.Ukuran_Barang_action || row0.Ukuran || row0.Ukuran_action || row0.Size;
-      if (sizeVal) {
-        parsedIsi.fields.Ukuran_Barang = String(sizeVal);
-        const coord = parsedIsi.tableCoordinates?.[0]?.Ukuran_Barang || parsedIsi.tableCoordinates?.[0]?.Ukuran;
-        if (coord) {
-          parsedIsi.coordinates["Ukuran_Barang"] = coord;
-          parsedIsi.coordinates["Ukuran"] = coord;
-        }
-      }
-    }
-    if (parsedIsi.fields.Ukuran_Barang && parsedIsi.table && parsedIsi.table.length > 0) {
-      for (const row of parsedIsi.table) {
-        if (!row.Ukuran_Barang && !row.Ukuran && !row.Size) {
-          row.Ukuran_Barang = parsedIsi.fields.Ukuran_Barang;
-          if (parsedIsi.fields.Ukuran_Barang_action) {
-            row.Ukuran_Barang_action = parsedIsi.fields.Ukuran_Barang_action;
-          }
-        }
-      }
-    }
-
-    // Auto-map Nama_Produsen -> Nama_Supplier if Nama_Supplier is not yet present
-    if (!parsedIsi.fields.Nama_Supplier && parsedIsi.fields.Nama_Produsen) {
-      parsedIsi.fields.Nama_Supplier = String(parsedIsi.fields.Nama_Produsen);
-      if (parsedIsi.coordinates["Nama_Produsen"]) {
-        parsedIsi.coordinates["Nama_Supplier"] = parsedIsi.coordinates["Nama_Produsen"];
-      }
-    }
-
-    // Auto-map Spek_Material -> Spesifikasi_Grade if Spesifikasi_Grade is not yet present
-    if (!parsedIsi.fields.Spesifikasi_Grade && parsedIsi.fields.Spek_Material) {
-      parsedIsi.fields.Spesifikasi_Grade = String(parsedIsi.fields.Spek_Material);
-      if (parsedIsi.coordinates["Spek_Material"]) {
-        parsedIsi.coordinates["Spesifikasi_Grade"] = parsedIsi.coordinates["Spek_Material"];
-      }
-    }
-
-    // Auto-map Deskripsi_Barang -> Uraian_Barang if Uraian_Barang is not yet present
-    if (!parsedIsi.fields.Uraian_Barang && parsedIsi.fields.Deskripsi_Barang) {
-      parsedIsi.fields.Uraian_Barang = String(parsedIsi.fields.Deskripsi_Barang);
-      if (parsedIsi.coordinates["Deskripsi_Barang"]) {
-        parsedIsi.coordinates["Uraian_Barang"] = parsedIsi.coordinates["Deskripsi_Barang"];
-      }
-    }
-
-    // Auto-map Negara_Asal on BL if not yet present
-    if (meta.code === "BL" && !parsedIsi.fields.Negara_Asal) {
-      if (parsedIsi.fields.Country_of_Origin) {
-        parsedIsi.fields.Negara_Asal = String(parsedIsi.fields.Country_of_Origin);
-      } else if (parsedIsi.fields.Port_of_Loading && String(parsedIsi.fields.Port_of_Loading).toUpperCase().includes("KOREA")) {
-        parsedIsi.fields.Negara_Asal = "Korea";
-        if (parsedIsi.coordinates["Port_of_Loading"]) {
-          parsedIsi.coordinates["Negara_Asal"] = parsedIsi.coordinates["Port_of_Loading"];
-        }
-      } else if (parsedIsi.fields.Shipper && String(parsedIsi.fields.Shipper).toUpperCase().includes("KOREA")) {
-        parsedIsi.fields.Negara_Asal = "Korea";
-        if (parsedIsi.coordinates["Shipper"]) {
-          parsedIsi.coordinates["Negara_Asal"] = parsedIsi.coordinates["Shipper"];
-        }
-      }
-    }
-
     supportingDocs.push({
       id: d.id,
       code: meta.code,
@@ -835,18 +640,18 @@ export function buildComparisonFields(
       { id: "inv-1", number: "1", label: "Identitas penjual / supplier", pibKeys: ["Identitas_Penjual", "Nama_Penjual", "Nama_Pengirim", "Pengirim", "Supplier"], supportingKeys: ["Identitas_Penjual", "Exporter", "Seller", "Shipper", "Supplier", "Nama_Penjual", "Identitas_Supplier"], fieldName: "Identitas_Penjual", pibPageDefault: 1, supPageDefault: 1 },
       { id: "inv-2", number: "2", label: "Nomor invoice", pibKeys: ["No_Invoice", "Invoice_Number", "Nomor_Invoice", "No Invoice"], supportingKeys: ["No_Invoice", "Invoice_Number", "Invoice Number", "Nomor_Invoice"], fieldName: "No_Invoice", pibPageDefault: 1, supPageDefault: 1 },
       { id: "inv-3", number: "3", label: "Tanggal invoice", pibKeys: ["Tanggal_Invoice", "Invoice_Date", "Tanggal Invoice"], supportingKeys: ["Tanggal_Invoice", "Invoice_Date", "Invoice Date", "Tanggal"], fieldName: "Tanggal_Invoice", pibPageDefault: 1, supPageDefault: 1 },
-      { id: "inv-4", number: "4", label: "Valuta", pibKeys: ["Valuta", "Mata_Uang", "Currency", "Jenis_Valuta"], supportingKeys: ["Valuta", "Mata_Uang", "Currency", "Curr"], fieldName: "Valuta", pibPageDefault: 1, supPageDefault: 3 },
-      { id: "inv-5", number: "5", label: "Incoterms dan lokasi", pibKeys: ["Incoterms_Lokasi", "Incoterms", "Ket_FOB", "Cara_Penyerahan", "Terms_of_Delivery"], supportingKeys: ["Incoterms_Lokasi", "Incoterms", "Terms_of_Delivery", "Delivery_Terms", "Cara_Penyerahan"], fieldName: "Incoterms_Lokasi", pibPageDefault: 1, supPageDefault: 3 },
-      { id: "inv-6", number: "6", label: "Nilai pabean", pibKeys: ["Nilai_Pabean", "Nilai_Total_Invoice", "Nilai Pabean", "Nilai Total"], supportingKeys: ["Nilai_Total_Invoice", "Total", "Nilai Total", "Total_Amount", "Invoice_Total", "Nilai_Pabean", "Amount"], fieldName: "Nilai_Pabean", pibPageDefault: 1, supPageDefault: 3 },
-      { id: "inv-7", number: "7", label: "Jumlah coil", pibKeys: ["Jumlah_Coil", "Jumlah", "Jumlah_Kemasan", "Total_Packages"], supportingKeys: ["Jumlah_Coil", "Total_Coils", "Jumlah", "QTY", "Total_Packages", "Coils"], fieldName: "Jumlah_Coil", pibPageDefault: 1, supPageDefault: 3 },
-      { id: "inv-8", number: "8", label: "Berat Bersih", pibKeys: ["Berat_Bersih", "Net_Weight", "Total_Net_Weight"], supportingKeys: ["Berat_Bersih", "Net_Weight", "Total_Net_Weight", "Net Weight", "N.W.", "Total_Jumlah_Berat"], fieldName: "Berat_Bersih", pibPageDefault: 1, supPageDefault: 3 },
-      { id: "inv-9", number: "9", label: "Berat Kotor", pibKeys: ["Berat_Kotor", "Gross_Weight", "Total_Gross_Weight"], supportingKeys: ["Berat_Kotor", "Gross_Weight", "Total_Gross_Weight", "Gross Weight", "G.W."], fieldName: "Berat_Kotor", pibPageDefault: 1, supPageDefault: 3 },
-      { id: "inv-10", number: "10", label: "Uraian barang", pibKeys: ["Uraian_Barang", "Deskripsi_Barang", "Description", "Description_of_Goods"], supportingKeys: ["Uraian_Barang", "Deskripsi_Barang", "Description", "Commodity", "Item_Description", "Description_of_Goods"], fieldName: "Uraian_Barang", pibPageDefault: 2, supPageDefault: 1 },
+      { id: "inv-4", number: "4", label: "Valuta", pibKeys: ["Valuta", "Mata_Uang", "Currency", "Jenis_Valuta"], supportingKeys: ["Mata_Uang", "Valuta", "Currency", "Curr"], fieldName: "Valuta", pibPageDefault: 1, supPageDefault: 1 },
+      { id: "inv-5", number: "5", label: "Incoterms dan lokasi", pibKeys: ["Incoterms_Lokasi", "Incoterms", "Ket_FOB", "Cara_Penyerahan", "Terms_of_Delivery"], supportingKeys: ["Incoterms_Lokasi", "Incoterms", "Terms_of_Delivery", "Delivery_Terms", "Cara_Penyerahan"], fieldName: "Incoterms_Lokasi", pibPageDefault: 1, supPageDefault: 1 },
+      { id: "inv-6", number: "6", label: "Nilai pabean", pibKeys: ["Nilai_Pabean", "Nilai_Total_Invoice", "Nilai Pabean", "Nilai Total"], supportingKeys: ["Nilai_Total_Invoice", "Total", "Nilai Total", "Total_Amount", "Invoice_Total", "Nilai_Pabean", "Amount"], fieldName: "Nilai_Pabean", pibPageDefault: 1, supPageDefault: 1 },
+      { id: "inv-7", number: "7", label: "Jumlah coil", pibKeys: ["Jumlah_Coil", "Jumlah", "Jumlah_Kemasan", "Total_Packages"], supportingKeys: ["Jumlah_Coil", "Total_Coils", "Jumlah", "QTY", "Total_Packages", "Coils"], fieldName: "Jumlah_Coil", pibPageDefault: 1, supPageDefault: 1 },
+      { id: "inv-8", number: "8", label: "Berat Bersih", pibKeys: ["Berat_Bersih", "Net_Weight", "Total_Net_Weight"], supportingKeys: ["Net_Weight", "Total_Net_Weight", "Berat_Bersih", "Net Weight", "N.W.", "Total_Jumlah_Berat"], fieldName: "Berat_Bersih", pibPageDefault: 1, supPageDefault: 1 },
+      { id: "inv-9", number: "9", label: "Berat Kotor", pibKeys: ["Berat_Kotor", "Gross_Weight", "Total_Gross_Weight"], supportingKeys: ["Gross_Weight", "Total_Gross_Weight", "Berat_Kotor", "Gross Weight", "G.W."], fieldName: "Berat_Kotor", pibPageDefault: 1, supPageDefault: 1 },
+      { id: "inv-10", number: "10", label: "Uraian barang", pibKeys: ["Uraian_Barang", "Deskripsi_Barang", "Description", "Description_of_Goods"], supportingKeys: ["Deskripsi_Barang", "Uraian_Barang", "Description", "Commodity", "Item_Description", "Description_of_Goods"], fieldName: "Uraian_Barang", pibPageDefault: 2, supPageDefault: 1 },
       { id: "inv-11", number: "11", label: "Ukuran barang", pibKeys: ["Ukuran_Barang", "Ukuran", "Size", "Dimension", "Dimensions", "Ukuran_Dimensi"], supportingKeys: ["Ukuran_Barang", "Size", "Dimension", "Dimensions", "Ukuran", "Thickness", "Ukuran_Dimensi"], fieldName: "Ukuran_Barang", pibPageDefault: 2, supPageDefault: 2 },
       { id: "inv-12", number: "12", label: "Spesifikasi / grade", pibKeys: ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade", "Specification"], supportingKeys: ["Spesifikasi_Grade", "Spek_Material", "Spesifikasi", "Grade", "Specification", "Steel_Grade"], fieldName: "Spesifikasi_Grade", pibPageDefault: 2, supPageDefault: 2 },
-      { id: "inv-13", number: "13", label: "Jumlah Satuan Barang", pibKeys: ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Jumlah_Satuan_Barang_action", "Berat_Bersih"], supportingKeys: ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Net_Weight", "Total_Weight", "Weight", "Berat_Bersih", "Total_Net_Weight", "Berat_Coil"], fieldName: "Jumlah_Satuan_Barang", pibPageDefault: 2, supPageDefault: 2 },
-      { id: "inv-14", number: "14", label: "Jumlah Satuan Coil", pibKeys: ["Jumlah_Satuan_Coil", "Jumlah_Coil_Item", "Jumlah_Coil", "Total_Coils", "Coils", "Qty_Coil"], supportingKeys: ["Jumlah_Satuan_Coil", "Jumlah_Coil_Item", "Jumlah_Coil", "Total_Coils", "Coils", "QTY", "Qty_Coil", "QTY_Coil"], fieldName: "Jumlah_Satuan_Coil", pibPageDefault: 2, supPageDefault: 2 },
-      { id: "inv-15", number: "15", label: "Harga satuan", pibKeys: ["Harga_Satuan", "Nilai_Pabean_Item", "Nilai_Barang", "Unit_Price", "Harga_Nilai_Pabean", "Nilai_Pabean"], supportingKeys: ["Harga_Satuan", "Unit_Price", "Price", "Rate", "Amount", "Total_Price", "Nilai_Barang"], fieldName: "Harga_Satuan", pibPageDefault: 2, supPageDefault: 2 },
+      { id: "inv-13", number: "13", label: "Jumlah Satuan Barang", pibKeys: ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Jumlah_Satuan_Barang_action", "Berat_Bersih"], supportingKeys: ["Jumlah_Satuan_Barang", "Berat_Bersih_Item", "Net_Weight_Item", "Weight_Item"], fieldName: "Jumlah_Satuan_Barang", pibPageDefault: 2, supPageDefault: 2 },
+      { id: "inv-14", number: "14", label: "Jumlah Satuan Coil", pibKeys: ["Jumlah_Satuan_Coil", "Jumlah_Coil_Item"], supportingKeys: ["Jumlah_Satuan_Coil", "Jumlah_Coil_Item", "Qty_Coil_Item", "Coils_Item"], fieldName: "Jumlah_Satuan_Coil", pibPageDefault: 2, supPageDefault: 2 },
+      { id: "inv-15", number: "15", label: "Harga satuan", pibKeys: ["Harga_Satuan", "Nilai_Pabean_Item", "Nilai_Barang"], supportingKeys: ["Harga_Satuan", "Unit_Price", "Price", "UnitPrice"], fieldName: "Harga_Satuan", pibPageDefault: 2, supPageDefault: 2 },
     ];
   } else if (code === "PL" || code.includes("PACKING")) {
     defs = [
@@ -865,14 +670,14 @@ export function buildComparisonFields(
     ];
   } else if (code === "BL" || code.includes("LADING")) {
     defs = [
-      { id: "bl-1", number: "1", label: "Identitas PENGIRIM", pibKeys: ["Identitas_Pengirim", "Nama_Pengirim", "Pengirim", "Identitas_Penjual", "Nama_Penjual", "Shipper"], supportingKeys: ["Identitas_Pengirim", "Shipper", "Shipping_Marks", "Exporter", "Nama_Pengirim", "Nama_Penjual", "Pengirim"], fieldName: "Identitas_Pengirim", pibPageDefault: 1, supPageDefault: 1 },
-      { id: "bl-2", number: "2", label: "Pemilik Barang", pibKeys: ["Pemilik_Barang", "Nama_Importir", "Importir", "Identitas_Pembeli"], supportingKeys: ["Pemilik_Barang", "Consignee", "Nama_Consignee", "Buyer", "Importir", "Customer"], fieldName: "Pemilik_Barang", pibPageDefault: 1, supPageDefault: 1 },
-      { id: "bl-3", number: "3", label: "Moda / nama kapal (Shipped Per)", pibKeys: ["Moda", "Nama_Sarana_Pengangkut", "Nama_Sarana_Pengangkutan", "Nama_Kapal", "Vessel_Name"], supportingKeys: ["Moda", "Vessel_Name", "Vessel", "Nama_Kapal", "Shipped_Per", "Shipped Per"], fieldName: "Moda", pibPageDefault: 1, supPageDefault: 1 },
-      { id: "bl-4", number: "4", label: "Pelabuhan asal (From)", pibKeys: ["Pelabuhan_Muat", "Pelabuhan_Asal", "Port_of_Loading"], supportingKeys: ["Pelabuhan_Asal", "Port_of_Loading", "Pelabuhan_Muat", "Loading_Port", "From"], fieldName: "Pelabuhan_Asal", pibPageDefault: 1, supPageDefault: 1 },
-      { id: "bl-5", number: "5", label: "Pelabuhan tujuan (To)", pibKeys: ["Pelabuhan_Tujuan", "Destination", "Pelabuhan_Bongkar"], supportingKeys: ["Pelabuhan_Tujuan", "Port_of_Discharge", "Destination", "Pelabuhan_Bongkar", "To"], fieldName: "Pelabuhan_Tujuan", pibPageDefault: 1, supPageDefault: 1 },
+      { id: "bl-1", number: "1", label: "Identitas PENGIRIM", pibKeys: ["Identitas_Pengirim", "Nama_Pengirim", "Pengirim", "Identitas_Penjual", "Nama_Penjual", "Shipper"], supportingKeys: ["Shipper", "Identitas_Pengirim", "Shipping_Marks", "Exporter", "Nama_Pengirim", "Nama_Penjual", "Pengirim"], fieldName: "Identitas_Pengirim", pibPageDefault: 1, supPageDefault: 1 },
+      { id: "bl-2", number: "2", label: "Pemilik Barang", pibKeys: ["Pemilik_Barang", "Nama_Importir", "Importir", "Identitas_Pembeli"], supportingKeys: ["Notify_Party", "Consignee", "Pemilik_Barang", "Nama_Consignee", "Buyer", "Importir", "Customer"], fieldName: "Pemilik_Barang", pibPageDefault: 1, supPageDefault: 1 },
+      { id: "bl-3", number: "3", label: "Moda / nama kapal (Shipped Per)", pibKeys: ["Moda", "Nama_Sarana_Pengangkut", "Nama_Sarana_Pengangkutan", "Nama_Kapal", "Vessel_Name"], supportingKeys: ["Vessel_Name", "Moda", "Vessel", "Nama_Kapal", "Shipped_Per", "Shipped Per"], fieldName: "Moda", pibPageDefault: 1, supPageDefault: 1 },
+      { id: "bl-4", number: "4", label: "Pelabuhan asal (From)", pibKeys: ["Pelabuhan_Muat", "Pelabuhan_Asal", "Port_of_Loading"], supportingKeys: ["Port_of_Loading", "Pelabuhan_Asal", "Pelabuhan_Muat", "Loading_Port", "From"], fieldName: "Pelabuhan_Asal", pibPageDefault: 1, supPageDefault: 1 },
+      { id: "bl-5", number: "5", label: "Pelabuhan tujuan (To)", pibKeys: ["Pelabuhan_Tujuan", "Destination", "Pelabuhan_Bongkar"], supportingKeys: ["Port_of_Discharge", "Pelabuhan_Tujuan", "Destination", "Pelabuhan_Bongkar", "To"], fieldName: "Pelabuhan_Tujuan", pibPageDefault: 1, supPageDefault: 1 },
       { id: "bl-6", number: "6", label: "Nomor B/L", pibKeys: ["No_BL", "Nomor_BL", "BL_Number", "Nomor_B/L", "No_B/L", "House_BL_No", "B/L_No", "No_Dokumen", "No_Dokumen_BL", "No_House_BL", "House_BL"], supportingKeys: ["No_BL", "BL_Number", "Nomor_BL", "No_B/L", "Sea_Waybill_Number", "Waybill_Number", "House_BL", "No_House_BL", "B/L_No", "Nomor_B/L"], fieldName: "No_BL", pibPageDefault: 1, supPageDefault: 1 },
       { id: "bl-7", number: "7", label: "Tanggal B/L", pibKeys: ["Tanggal_BL", "Tanggal BL", "House_BL_Date", "Date_of_Issue", "Tanggal_B/L", "Master_BL_Date"], supportingKeys: ["Tanggal_BL", "Date_of_Issue", "BL_Date", "Shipped_on_Board_Date", "Date", "Tanggal_B/L", "Tanggal", "House_BL_Date"], fieldName: "Tanggal_BL", pibPageDefault: 1, supPageDefault: 1 },
-      { id: "bl-8", number: "8", label: "Negara asal (Country of Origin)", pibKeys: ["Negara_Asal", "Country_of_Origin", "Origin_Country", "Negara_Asal_Country_Of_Origin"], supportingKeys: ["Negara_Asal", "Country_of_Origin", "Origin_Country", "Negara_asal", "Origin"], fieldName: "Negara_Asal", pibPageDefault: 1, supPageDefault: 1 },
+      { id: "bl-8", number: "8", label: "Negara asal (Country of Origin)", pibKeys: ["Negara_Asal", "Country_of_Origin", "Origin_Country", "Negara_Asal_Country_Of_Origin"], supportingKeys: ["Country_of_Origin", "Negara_Asal", "Origin_Country", "Negara_asal", "Origin"], fieldName: "Negara_Asal", pibPageDefault: 1, supPageDefault: 1 },
     ];
   } else if (code === "AK") {
     defs = [

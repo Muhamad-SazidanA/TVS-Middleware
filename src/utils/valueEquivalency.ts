@@ -114,6 +114,49 @@ export function parseStandardDate(str: string): string | null {
   return null;
 }
 
+export function parseFlexibleNumber(s: string): number | null {
+  if (!s) return null;
+  let str = s
+    .toLowerCase()
+    .replace(/\b(?:usd|idr|rp|valuta|eur|jpy)\b/gi, "")
+    .replace(/[$€¥]/g, "")
+    .replace(/\((?:kg|mt|m\/t|pcs)\)/gi, "")
+    .replace(/\b(?:kg|mt|m\/t|pcs|coils|coil|sheets)\b/gi, "")
+    .replace(/\s+/g, "")
+    .trim();
+
+  const dotCount = (str.match(/\./g) || []).length;
+  const commaCount = (str.match(/,/g) || []).length;
+
+  if (dotCount > 1) {
+    if (commaCount === 1) {
+      str = str.replace(/\./g, "").replace(/,/g, ".");
+    } else {
+      const parts = str.split(".");
+      const lastPart = parts[parts.length - 1]!;
+      if (parts.length > 2 && (lastPart.length === 2 || lastPart.length === 4)) {
+        const thousands = parts.slice(0, -1).join("");
+        str = `${thousands}.${lastPart}`;
+      } else {
+        str = parts.join("");
+      }
+    }
+  } else if (dotCount === 1 && commaCount === 1) {
+    const dotIdx = str.indexOf(".");
+    const commaIdx = str.indexOf(",");
+    if (dotIdx < commaIdx) {
+      str = str.replace(/\./g, "").replace(/,/g, ".");
+    } else {
+      str = str.replace(/,/g, "");
+    }
+  } else if (commaCount === 1 && dotCount === 0) {
+    str = str.replace(/,/g, ".");
+  }
+
+  const num = parseFloat(str);
+  return isNaN(num) ? null : num;
+}
+
 /**
  * Checks equivalence between two values:
  *   1. Identical values (case-insensitive, normalized, or first-line for address blocks)
@@ -249,10 +292,10 @@ export function isEquivalentMatch(
     if (numA && numB && numA === numB) {
       return { isMatch: true, reason: "Kesesuaian nilai numerik" };
     }
-    const nA = Number(numA);
-    const nB = Number(numB);
-    if (!isNaN(nA) && !isNaN(nB) && numA !== "" && numB !== "") {
-      if (nA === nB) {
+    const nA = parseFlexibleNumber(cleanA) ?? Number(numA);
+    const nB = parseFlexibleNumber(cleanB) ?? Number(numB);
+    if (!isNaN(nA) && !isNaN(nB) && nA !== null && nB !== null) {
+      if (Math.abs(nA - nB) < 0.0001) {
         return { isMatch: true, reason: "Kesesuaian nilai numerik" };
       }
       // MT to KG conversion (1 MT = 1000 KG)
@@ -279,7 +322,13 @@ export function isEquivalentMatch(
         .replace(/\b(?:cm|mtr|m|inch)\b/gi, "")
         .replace(/[*×]/g, "x")
         .replace(/\s+/g, "")
-        .replace(/[^a-z0-9.]/g, "");
+        .replace(/[^a-z0-9.]/g, "")
+        .split("x")
+        .map((p) => {
+          const num = parseFloat(p);
+          return !isNaN(num) && String(num) === p.replace(/0+$/, "").replace(/\.$/, "") ? String(num) : p;
+        })
+        .join("x");
     const dA = cleanDim(cleanA);
     const dB = cleanDim(cleanB);
     if (dA && dB && dA === dB) {
