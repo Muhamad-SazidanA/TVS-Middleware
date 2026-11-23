@@ -185,55 +185,78 @@ export default function ComparisonPanel({
   // References for scrolling
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Active document group (strictly one document at a time: e.g. Invoice, PL, BL, AK, WL, MS)
+  const isAllSelected =
+    (selectedDocFilter || "").toUpperCase() === "ALL" ||
+    (selectedDocFilter || "").toUpperCase() === "SEMUA";
+
+  // Active document group (strictly one document at a time when filtered, or null if "ALL")
   const currentGroup = useMemo(() => {
+    if (isAllSelected) return null;
     const targetDoc = (selectedDocFilter || "").toUpperCase();
     return (
       groups.find((g) => g.docCode.toUpperCase() === targetDoc) ||
       groups[0] ||
       null
     );
-  }, [groups, selectedDocFilter]);
+  }, [groups, selectedDocFilter, isAllSelected]);
 
-  // Filter fields and line items of the active group based on search query
-  const filteredActiveGroup = useMemo(() => {
-    if (!currentGroup) return null;
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return currentGroup;
-
-    const matchingFields = currentGroup.fields.filter(
-      (f) =>
-        f.label.toLowerCase().includes(q) ||
-        f.pibValue.toLowerCase().includes(q) ||
-        f.supportingValue.toLowerCase().includes(q) ||
-        f.number.toLowerCase().includes(q)
-    );
-
-    return {
-      ...currentGroup,
-      fields: matchingFields,
-      lineItems: [],
-    };
-  }, [currentGroup, searchQuery]);
-
-  // filteredGroups always contains only the single active document
+  // Filter fields and line items of groups based on search query
   const filteredGroups = useMemo(() => {
-    return filteredActiveGroup ? [filteredActiveGroup] : [];
-  }, [filteredActiveGroup]);
+    const q = searchQuery.toLowerCase().trim();
+    const source = isAllSelected ? groups : currentGroup ? [currentGroup] : [];
+    if (!q) return source;
 
-  // Active document field totals
-  const totalFields = useMemo(() => {
-    return currentGroup?.fields.length ?? 0;
-  }, [currentGroup]);
+    return source
+      .map((g) => {
+        const matchingFields = g.fields.filter(
+          (f) =>
+            f.label.toLowerCase().includes(q) ||
+            f.pibValue.toLowerCase().includes(q) ||
+            f.supportingValue.toLowerCase().includes(q) ||
+            f.number.toLowerCase().includes(q)
+        );
+        return {
+          ...g,
+          fields: matchingFields,
+          lineItems: [],
+        };
+      })
+      .filter((g) => g.fields.length > 0);
+  }, [isAllSelected, groups, currentGroup, searchQuery]);
 
+  // Field counts and match totals
   const totalMatched = useMemo(() => {
+    if (isAllSelected) {
+      return groups.reduce((acc, g) => acc + g.matchedCount, 0);
+    }
     return currentGroup?.matchedCount ?? 0;
-  }, [currentGroup]);
+  }, [isAllSelected, groups, currentGroup]);
 
   const totalMismatched = useMemo(() => {
+    if (isAllSelected) {
+      return groups.reduce((acc, g) => acc + g.mismatchedCount, 0);
+    }
     return currentGroup?.mismatchedCount ?? 0;
-  }, [currentGroup]);
+  }, [isAllSelected, groups, currentGroup]);
+
+  const totalAllFieldsCount = useMemo(() => {
+    return groups.reduce((acc, g) => acc + g.fields.length, 0);
+  }, [groups]);
+
+  const handleTabClick = (docCode: string) => {
+    setSelectedDocFilter(docCode);
+    if (docCode === "ALL") {
+      onSelectDocCode?.("ALL");
+    } else {
+      onSelectDocCode?.(docCode);
+      onNavigateToDoc?.(docCode, 1);
+    }
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
 
   // Auto-scroll to active field card
   useEffect(() => {
@@ -328,10 +351,10 @@ export default function ComparisonPanel({
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-sm text-slate-900">
-              Data perbandingan {currentGroup ? `(${currentGroup.docCode})` : ""}
+              Data perbandingan {isAllSelected ? "(Semua)" : currentGroup ? `(${currentGroup.docCode})` : ""}
             </h3>
             <span className="text-[11px] font-medium text-slate-500">
-              PIB (acuan) vs {currentGroup?.docName || currentGroup?.docCode || "Dokumen"}
+              PIB (acuan) vs {isAllSelected ? "Semua Dokumen Pendukung" : currentGroup?.docName || currentGroup?.docCode || "Dokumen"}
             </span>
           </div>
 
@@ -354,7 +377,11 @@ export default function ComparisonPanel({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={`Cari field atau tabel di dokumen ${currentGroup?.docCode || ""}...`}
+            placeholder={
+              isAllSelected
+                ? "Cari field atau tabel di semua dokumen..."
+                : `Cari field atau tabel di dokumen ${currentGroup?.docCode || ""}...`
+            }
             className="w-full pl-9 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all"
           />
           {searchQuery && (
@@ -368,20 +395,41 @@ export default function ComparisonPanel({
           )}
         </div>
 
-        {/* Supporting Document Switcher Tabs (Only supporting documents, no 'Semua') */}
+        {/* Supporting Document Switcher Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5">
+          {/* Tab Semua */}
+          <button
+            type="button"
+            onClick={() => handleTabClick("ALL")}
+            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border shrink-0 flex items-center gap-1.5 ${
+              isAllSelected
+                ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
+                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+          >
+            <span>Semua</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                isAllSelected
+                  ? "bg-white/20 text-white"
+                  : groups.some((g) => g.mismatchedCount > 0)
+                  ? "bg-rose-50 text-rose-700 border border-rose-200"
+                  : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {totalAllFieldsCount}
+            </span>
+          </button>
+
           {groups.map((group) => {
             const isFilterActive =
+              !isAllSelected &&
               (currentGroup?.docCode || "").toUpperCase() === group.docCode.toUpperCase();
             return (
               <button
                 key={group.docCode}
                 type="button"
-                onClick={() => {
-                  setSelectedDocFilter(group.docCode);
-                  onSelectDocCode?.(group.docCode);
-                  onNavigateToDoc?.(group.docCode, 1);
-                }}
+                onClick={() => handleTabClick(group.docCode)}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border shrink-0 flex items-center gap-1.5 ${
                   isFilterActive
                     ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
@@ -407,7 +455,7 @@ export default function ComparisonPanel({
       </div>
 
       {/* 2. Scrollable Body: Grouped Fields & Grouped Line Items */}
-      <div className="flex-1 overflow-y-auto p-3.5 space-y-6 bg-slate-50/40">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-3.5 space-y-6 bg-slate-50/40">
         {filteredGroups.length === 0 ? (
           <div className="p-8 text-center text-slate-400 italic text-xs bg-white rounded-xl border border-dashed border-slate-200">
             Tidak ada perbandingan field yang sesuai dengan kata kunci pencarian.
