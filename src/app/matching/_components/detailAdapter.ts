@@ -645,7 +645,6 @@ export function buildComparisonFields(
       { id: "bl-5", number: "5", label: "Pelabuhan tujuan (To)", pibKeys: ["Pelabuhan_Tujuan", "Destination", "Pelabuhan_Bongkar"], supportingKeys: ["Port_of_Discharge", "Pelabuhan_Tujuan", "Destination", "Pelabuhan_Bongkar", "To"], fieldName: "Pelabuhan_Tujuan", pibPageDefault: 1, supPageDefault: 1 },
       { id: "bl-6", number: "6", label: "Nomor B/L", pibKeys: ["No_BL", "Nomor_BL", "BL_Number", "Nomor_B/L", "No_B/L", "House_BL_No", "B/L_No", "No_Dokumen", "No_Dokumen_BL", "No_House_BL", "House_BL"], supportingKeys: ["No_BL", "BL_Number", "Nomor_BL", "No_B/L", "Sea_Waybill_Number", "Waybill_Number", "House_BL", "No_House_BL", "B/L_No", "Nomor_B/L"], fieldName: "No_BL", pibPageDefault: 1, supPageDefault: 1 },
       { id: "bl-7", number: "7", label: "Tanggal B/L", pibKeys: ["Tanggal_BL", "Tanggal BL", "House_BL_Date", "Date_of_Issue", "Tanggal_B/L", "Master_BL_Date"], supportingKeys: ["Tanggal_BL", "Date_of_Issue", "BL_Date", "Shipped_on_Board_Date", "Date", "Tanggal_B/L", "Tanggal", "House_BL_Date"], fieldName: "Tanggal_BL", pibPageDefault: 1, supPageDefault: 1 },
-      { id: "bl-8", number: "8", label: "Negara asal (Country of Origin)", pibKeys: ["Negara_Asal", "Country_of_Origin", "Origin_Country", "Negara_Asal_Country_Of_Origin"], supportingKeys: ["Country_of_Origin", "Negara_Asal", "Origin_Country", "Negara_asal", "Origin"], fieldName: "Negara_Asal", pibPageDefault: 1, supPageDefault: 1 },
     ];
   } else if (code === "AK") {
     defs = [
