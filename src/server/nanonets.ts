@@ -148,15 +148,15 @@ const MS_FIELDS = new Set([
 const MS_TABLE = new Set(["ukuran", "no heat", "komposisi kimia", "size", "heat no"]);
 
 const BL_FIELDS = new Set([
-  "consignee", "voyage number", "notify party", "vessel name", "gross weight",
-  "port of discharge", "port of loading", "jumlah package", "original or copy",
-  "freight term", "shipping marks", "identitas dokumen", "no bl", "deskripsi barang",
-  // Aliases
-  "date", "tanggal", "tanggal bl", "bl date", "house bl date",
-  "sea waybill number", "waybill number", "bl number", "no house bl", "house bl",
-  "berat kotor", "qty", "jumlah", "jumlah coil"
+  "identitas pengirim", "shipper", "pengirim", "identitas dokumen",
+  "pemilik barang", "consignee",
+  "moda", "vessel name", "vessel", "nama kapal", "shipped per",
+  "pelabuhan asal", "port of loading", "from",
+  "pelabuhan tujuan", "port of discharge", "to", "destination",
+  "no bl", "nomor bl", "bl number", "sea waybill number", "waybill number", "b/l no", "no b/l",
+  "tanggal bl", "tanggal b/l", "date of issue", "bl date", "shipped on board date", "date", "tanggal", "house bl date"
 ]);
-const BL_TABLE = new Set(["marks", "qty", "desc", "gross weight", "berat kotor", "jumlah coil"]);
+const BL_TABLE = new Set<string>();
 
 const PACKING_FIELDS = new Set([
   "section code", "no sc order no", "negara asal", "identitas supplier", "pelabuhan asal",

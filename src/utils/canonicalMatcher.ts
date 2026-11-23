@@ -993,28 +993,20 @@ export function evaluateCanonicalBatchMatching(
     }
     // ─── Bill of Lading (BL) ─────────────────────────────────────────────────
     else if (ft === "bl" || ft.includes("lading") || ft.includes("ladding") || (ft.includes("bl") && !ft.includes("wl"))) {
-      // 1. Consignee (PIB Page 1 No.3 Pemilik Barang)
-      checkH("Consignee", ["Pemilik_Barang", "Nama_Importir", "Importir", "Identitas_Pembeli"], ["Consignee", "Nama_Consignee"], false);
-      // 2. Deskripsi Barang (PIB Page 2-5 No.18 Uraian barang *)
-      checkH("Deskripsi_Barang", ["Uraian_Barang", "Deskripsi_Barang", "Description"], ["Deskripsi_Barang", "Description", "Description_of_Goods"], false);
-      // 3. Gross Weight (PIB Page 1 No.16 Berat Kotor *)
-      checkH("Gross_Weight", ["Berat_Kotor", "Total_Gross_Weight", "Gross_Weight"], ["Gross_Weight", "Total_Gross_Weight", "G.W.", "Gross Weight"], false);
-      // 4. Jumlah Package (PIB Page 1 No.14 Jumlah coil *)
-      checkH("Jumlah_Package", ["Jumlah_Coil", "Jumlah", "Jumlah_Kemasan"], ["Jumlah_Package", "Total_Packages", "Jumlah_Coil", "Packages"], false);
-      // 5. Net Weight (PIB Page 1 No.15 Berat Bersih *)
-      checkH("Net_Weight", ["Berat_Bersih", "Total_Net_Weight", "Net_Weight"], ["Net_Weight", "Total_Net_Weight", "N.W.", "Net Weight"], false);
-      // 6. Notify Party (PIB Page 1 No.3 Pemilik Barang)
-      checkH("Notify_Party", ["Pemilik_Barang", "Nama_Importir", "Importir"], ["Notify_Party", "NotifyParty", "Notify_Party_action"], false);
-      // 7. Port of Discharge (PIB Page 1 No.6 Pelabuhan tujuan (To))
-      checkH("Port_of_Discharge", ["Pelabuhan_Tujuan", "Destination", "Pelabuhan_Bongkar"], ["Port_of_Discharge", "Destination", "Pelabuhan_Tujuan"], false);
-      // 8. Port of Loading (PIB Page 1 No.5 Pelabuhan asal (From))
-      checkH("Port_of_Loading", ["Pelabuhan_Muat", "Pelabuhan_Asal", "Port_of_Loading"], ["Port_of_Loading", "Pelabuhan_Muat", "Loading_Port"], false);
-      // 9. Shipper (PIB Page 1 No.1 Identitas PENGIRIM)
-      checkH("Shipper", ["Identitas_Pengirim", "Nama_Pengirim", "Pengirim", "Identitas_Penjual"], ["Shipper", "Shipping_Marks", "Identitas_Pengirim", "Exporter", "Nama_Pengirim"], false);
-      // 10. Tanggal BL (PIB Page 1 No.10 Tanggal B/L)
-      checkH("Tanggal_BL", ["Tanggal_BL", "Tanggal BL", "House_BL_Date", "Date_of_Issue"], ["Tanggal_BL", "Date_of_Issue", "BL_Date", "Shipped_on_Board_Date", "Date"], false);
-      // 11. Vessel Name (PIB Page 1 No.4 Moda / nama kapal)
-      checkH("Vessel_Name", ["Moda", "Nama_Sarana_Pengangkut", "Nama_Sarana_Pengangkutan", "Nama_Kapal"], ["Vessel_Name", "Vessel", "Nama_Kapal", "Moda"], false);
+      // 1. Identitas PENGIRIM (PIB Page 1 No.1 Identitas PENGIRIM, BL Page 7 No. 3)
+      checkH("Identitas_Pengirim", ["Identitas_Pengirim", "Nama_Pengirim", "Pengirim", "Identitas_Penjual", "Nama_Penjual", "Shipper"], ["Identitas_Pengirim", "Shipper", "Shipping_Marks", "Exporter", "Nama_Pengirim", "Nama_Penjual", "Pengirim"], false);
+      // 2. Pemilik Barang (PIB Page 1 No.3 Pemilik Barang, BL Page 7 No. 4)
+      checkH("Pemilik_Barang", ["Pemilik_Barang", "Nama_Importir", "Importir", "Identitas_Pembeli"], ["Pemilik_Barang", "Consignee", "Nama_Consignee", "Buyer", "Importir", "Customer"], false);
+      // 3. Moda / nama kapal (Shipped Per) (PIB Page 1 No.4 Moda / nama kapal, BL Page 7 No. 6)
+      checkH("Moda", ["Moda", "Nama_Sarana_Pengangkut", "Nama_Sarana_Pengangkutan", "Nama_Kapal", "Vessel_Name"], ["Moda", "Vessel_Name", "Vessel", "Nama_Kapal", "Shipped_Per", "Shipped Per"], false);
+      // 4. Pelabuhan asal (From) (PIB Page 1 No.5 Pelabuhan asal (From), BL Page 7 No. 8)
+      checkH("Pelabuhan_Asal", ["Pelabuhan_Muat", "Pelabuhan_Asal", "Port_of_Loading"], ["Pelabuhan_Asal", "Port_of_Loading", "Pelabuhan_Muat", "Loading_Port", "From"], false);
+      // 5. Pelabuhan tujuan (To) (PIB Page 1 No.6 Pelabuhan tujuan (To), BL Page 7 No. 9)
+      checkH("Pelabuhan_Tujuan", ["Pelabuhan_Tujuan", "Destination", "Pelabuhan_Bongkar"], ["Pelabuhan_Tujuan", "Port_of_Discharge", "Destination", "Pelabuhan_Bongkar", "To"], false);
+      // 6. Nomor B/L (PIB Page 1 No.10 Nomor B/L, BL Page 7 No. 2)
+      checkH("No_BL", ["No_BL", "Nomor_BL", "BL_Number", "Nomor_B/L", "No_B/L", "House_BL_No", "B/L_No", "No_Dokumen", "No_Dokumen_BL", "No_House_BL", "House_BL"], ["No_BL", "BL_Number", "Nomor_BL", "No_B/L", "Sea_Waybill_Number", "Waybill_Number", "House_BL", "No_House_BL", "B/L_No", "Nomor_B/L"], false);
+      // 7. Tanggal B/L (PIB Page 1 No.10 Tanggal B/L, BL Page 7 No. 12)
+      checkH("Tanggal_BL", ["Tanggal_BL", "Tanggal BL", "House_BL_Date", "Date_of_Issue", "Tanggal_B/L", "Master_BL_Date"], ["Tanggal_BL", "Date_of_Issue", "BL_Date", "Shipped_on_Board_Date", "Date", "Tanggal_B/L", "Tanggal", "House_BL_Date"], false);
     }
     // ─── Form AK (COO) ───────────────────────────────────────────────────────
     else if (ft === "ak" || ft.includes("ak") || ft.includes("coo") || ft.includes("origin")) {
