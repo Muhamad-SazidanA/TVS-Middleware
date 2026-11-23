@@ -11,6 +11,7 @@ import type {
 import type { FieldMatchStatus } from "~/types/documentComparison";
 import defaultDataActions from "~/config/data_actions.json";
 import { applyDataActionsToFields, applyDataActionsToTableRows } from "~/utils/workflowRunner";
+import { FIELD_SYNONYMS } from "~/utils/documentRegistry";
 
 // Bounded proportional padding expansion algorithm for OCR boxes
 export function expandBboxPadding(
@@ -36,12 +37,8 @@ export function expandBboxPadding(
 }
 
 // Helper to resolve physical page for header fields
-export function resolveHeaderPage(coord?: { page?: number }, pageDefault: number = 1, docCode?: string | boolean): number {
-  const dCode = typeof docCode === "string" ? docCode.toUpperCase() : "";
-  if (dCode === "WL" || dCode === "MS" || dCode === "BL") {
-    return 1;
-  }
-  if (coord?.page !== undefined) {
+export function resolveHeaderPage(coord?: { page?: number }, pageDefault: number = 1, _docCode?: string | boolean): number {
+  if (coord?.page !== undefined && !isNaN(Number(coord.page))) {
     return Number(coord.page) + 1;
   }
   return pageDefault;
@@ -190,31 +187,69 @@ function resolveFieldCoord(
   matchedKey: string,
   candidateKeys: string[]
 ): { xmin?: number; ymin?: number; xmax?: number; ymax?: number; page?: number } | undefined {
-  if (!docIsi.coordinates) return undefined;
+  if (!docIsi) return undefined;
 
-  // 1. Direct matchedKey
-  if (docIsi.coordinates[matchedKey]) return docIsi.coordinates[matchedKey];
+  // Build an expanded set of candidate keys using FIELD_SYNONYMS
+  const allCandidates = new Set<string>([matchedKey, ...candidateKeys]);
+  for (const cand of [matchedKey, ...candidateKeys]) {
+    const base = cand.replace(/_action$/i, "");
+    allCandidates.add(base);
+    allCandidates.add(`${base}_action`);
 
-  // 2. Base key without _action
-  const baseKey = matchedKey.replace(/_action$/i, "");
-  if (docIsi.coordinates[baseKey]) return docIsi.coordinates[baseKey];
-  if (docIsi.coordinates[`${baseKey}_action`]) return docIsi.coordinates[`${baseKey}_action`];
+    if (FIELD_SYNONYMS[cand]) {
+      for (const syn of FIELD_SYNONYMS[cand]) allCandidates.add(syn);
+    }
+    if (FIELD_SYNONYMS[base]) {
+      for (const syn of FIELD_SYNONYMS[base]) allCandidates.add(syn);
+    }
 
-  // 3. Candidate keys from the list of synonyms
-  for (const cand of candidateKeys) {
-    if (docIsi.coordinates[cand]) return docIsi.coordinates[cand];
-    const baseCand = cand.replace(/_action$/i, "");
-    if (docIsi.coordinates[baseCand]) return docIsi.coordinates[baseCand];
-    if (docIsi.coordinates[`${baseCand}_action`]) return docIsi.coordinates[`${baseCand}_action`];
+    const normBase = base.toLowerCase().replace(/[^a-z0-9]/g, "");
+    for (const [sk, sList] of Object.entries(FIELD_SYNONYMS)) {
+      const normSk = sk.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (normSk === normBase || sList.some((s) => s.toLowerCase().replace(/[^a-z0-9]/g, "") === normBase)) {
+        allCandidates.add(sk);
+        for (const s of sList) allCandidates.add(s);
+      }
+    }
   }
 
-  // 4. Normalized match against all available coordinates
-  const normCandidates = [matchedKey, baseKey, ...candidateKeys].map((c) =>
-    c.toLowerCase().replace(/[^a-z0-9]/g, "")
-  );
-  for (const [ck, cv] of Object.entries(docIsi.coordinates)) {
-    const normCk = ck.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (normCandidates.includes(normCk)) return cv;
+  // 1. Coordinates search in docIsi.coordinates
+  if (docIsi.coordinates) {
+    for (const c of allCandidates) {
+      if (docIsi.coordinates[c]) return docIsi.coordinates[c];
+      const b = c.replace(/_action$/i, "");
+      if (docIsi.coordinates[b]) return docIsi.coordinates[b];
+      if (docIsi.coordinates[`${b}_action`]) return docIsi.coordinates[`${b}_action`];
+    }
+
+    const normCandidates = new Set(
+      Array.from(allCandidates).map((c) => c.toLowerCase().replace(/[^a-z0-9]/g, ""))
+    );
+    for (const [ck, cv] of Object.entries(docIsi.coordinates)) {
+      const normCk = ck.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (normCandidates.has(normCk)) return cv;
+    }
+  }
+
+  // 2. Fallback to table row 0 coordinates (docIsi.tableCoordinates)
+  if (docIsi.tableCoordinates && docIsi.tableCoordinates.length > 0) {
+    const rowCoord = docIsi.tableCoordinates[0];
+    if (rowCoord) {
+      for (const c of allCandidates) {
+        if (rowCoord[c]) return rowCoord[c];
+        const b = c.replace(/_action$/i, "");
+        if (rowCoord[b]) return rowCoord[b];
+        if (rowCoord[`${b}_action`]) return rowCoord[`${b}_action`];
+      }
+
+      const normCandidates = new Set(
+        Array.from(allCandidates).map((c) => c.toLowerCase().replace(/[^a-z0-9]/g, ""))
+      );
+      for (const [ck, cv] of Object.entries(rowCoord)) {
+        const normCk = ck.toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (normCandidates.has(normCk)) return cv;
+      }
+    }
   }
 
   return undefined;
@@ -317,12 +352,11 @@ function extractFieldValueRaw(
   // 4. Table row 0
   if (docIsi.table && docIsi.table.length > 0) {
     const row = docIsi.table[0];
-    const rowCoord = docIsi.tableCoordinates?.[0];
     if (row) {
       for (const k of keys) {
         const actionKey = `${k}_action`;
         if (row[actionKey] !== undefined && row[actionKey] !== "") {
-          const coord = rowCoord?.[k] || rowCoord?.[actionKey];
+          const coord = resolveFieldCoord(docIsi, actionKey, keys);
           const transVal = String(row[actionKey]).trim();
           const rawOrig = row[k] !== undefined && row[k] !== null ? String(row[k]).trim() : undefined;
           const isDataAction = rawOrig !== undefined && rawOrig !== "" && rawOrig !== transVal;
@@ -340,7 +374,7 @@ function extractFieldValueRaw(
       }
       for (const k of keys) {
         if (row[k] !== undefined && row[k] !== "") {
-          const coord = rowCoord?.[k];
+          const coord = resolveFieldCoord(docIsi, k, keys);
           return {
             value: String(row[k]),
             isManual: false,
@@ -353,7 +387,7 @@ function extractFieldValueRaw(
         const cleanRk = rk.toLowerCase().replace(/[^a-z0-9]/g, "");
         for (const k of keys) {
           if (cleanRk === k.toLowerCase().replace(/[^a-z0-9]/g, "")) {
-            const coord = rowCoord?.[rk];
+            const coord = resolveFieldCoord(docIsi, rk, keys);
             return {
               value: String(rv),
               isManual: false,
@@ -802,8 +836,10 @@ export function buildComparisonFields(
   }
 
   return defs.map((d) => {
-    const pibRes = extractFieldValue(pibIsi, d.pibKeys, d.pibPageDefault, "PIB");
-    const supRes = extractFieldValue(supIsi, d.supportingKeys, d.supPageDefault, supportingDoc.code);
+    const pibKeys = [d.fieldName, ...d.pibKeys];
+    const supKeys = [d.fieldName, ...d.supportingKeys];
+    const pibRes = extractFieldValue(pibIsi, pibKeys, d.pibPageDefault, "PIB");
+    const supRes = extractFieldValue(supIsi, supKeys, d.supPageDefault, supportingDoc.code);
 
     // If supporting document has no value, mark as fallback
     let supportingVal = supRes.value;

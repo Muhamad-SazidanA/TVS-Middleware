@@ -5,6 +5,7 @@ import { createBatchLog } from "~/server/logger";
 import { evaluateDbBatchStatus } from "~/server/matchingEngine";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
 import { logSystemAudit } from "~/server/auditLogger";
+import { FIELD_SYNONYMS } from "~/utils/documentRegistry";
 
 export const dynamic = "force-dynamic";
 
@@ -103,9 +104,21 @@ export async function POST(
       pelabuhanmuat: ["pelabuhanmuat", "pelabuhanasal", "portofloading"],
       pelabuhantujuan: ["pelabuhantujuan", "destination", "portofdischarge", "pelabuhanbongkar"],
       moda: ["moda", "shippedper", "vessel", "vesselname", "namakapal", "namasaranapengangkutan", "namavessel"],
+      identitaspengirim: ["identitaspengirim", "namapengirim", "shipper", "pengirim", "exporter", "shippingmarks", "identitaspenjual", "namapenjual"],
+      namapengirim: ["identitaspengirim", "namapengirim", "shipper", "pengirim", "exporter", "shippingmarks"],
+      shipper: ["identitaspengirim", "namapengirim", "shipper", "pengirim", "exporter", "shippingmarks"],
     };
 
-    const synonyms = synonymMap[normKey] || [normKey];
+    const synSet = new Set<string>(synonymMap[normKey] || [normKey]);
+    for (const [sk, sArr] of Object.entries(FIELD_SYNONYMS)) {
+      const normSk = sk.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const normSArr = sArr.map((s) => s.toLowerCase().replace(/[^a-z0-9]/g, ""));
+      if (normSk === normKey || normSArr.includes(normKey)) {
+        synSet.add(normSk);
+        for (const s of normSArr) synSet.add(s);
+      }
+    }
+    const synonyms = Array.from(synSet);
 
     // Preserve original key if not set yet
     if (isiObj.fields[fieldName] === undefined && cleanOldVal && cleanOldVal !== "-") {
@@ -115,7 +128,7 @@ export async function POST(
     isiObj.fields[`${fieldName}_action`] = cleanNewVal;
 
     // Also update any existing fields matching synonyms
-    for (const [fk, fv] of Object.entries(isiObj.fields)) {
+    for (const [fk] of Object.entries(isiObj.fields)) {
       const cleanFk = fk.toLowerCase().replace(/[^a-z0-9]/g, "");
       if (synonyms.includes(cleanFk) && !fk.endsWith("_action")) {
         isiObj.fields[`${fk}_action`] = cleanNewVal;
