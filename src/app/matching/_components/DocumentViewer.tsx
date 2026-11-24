@@ -934,7 +934,7 @@ export default function DocumentViewer({
       {/* 3. Main Body: Split between Vertical Thumbnail Strip & Central Canvas Viewport */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Far-Left Vertical Thumbnail Strip (OUTSIDE <Document>, permanently stable layout) */}
-        <div className="w-16 sm:w-20 bg-slate-100/70 border-r border-slate-200/80 shrink-0 overflow-y-auto no-scrollbar p-1.5 space-y-1.5 flex flex-col items-center">
+        <div className="w-16 sm:w-20 bg-white border-r border-slate-200/80 shrink-0 overflow-y-auto no-scrollbar p-1.5 space-y-1.5 flex flex-col items-center">
           <div className="text-[9px] font-semibold text-slate-400 tracking-wider mb-0.5 w-full text-center select-none">
             Hal.
           </div>
