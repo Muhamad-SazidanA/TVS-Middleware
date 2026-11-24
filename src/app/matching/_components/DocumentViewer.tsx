@@ -731,19 +731,36 @@ export default function DocumentViewer({
       </div>
 
       {/* 2. Top Viewer Controls Bar */}
-      <div className="px-3.5 py-2 bg-slate-50/90 border-b border-slate-200/80 flex items-center justify-between gap-2 shrink-0 flex-wrap">
-        {/* Document Info */}
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-medium text-slate-800 text-xs truncate max-w-[180px] sm:max-w-[240px]" title={activeDoc.fileName}>
-            {activeDoc.fileName}
-          </span>
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-200/70 text-slate-600 border border-slate-300/60">
-            {isPibActive ? "Dokumen acuan" : "Dokumen pendukung"}
-          </span>
-        </div>
+      <div className="flex border-b border-slate-200/80 shrink-0">
+        {/* Left: Back button container aligned with thumbnail sidebar below */}
+        {onBack && (
+          <div className="w-28 sm:w-32 bg-slate-100/80 border-r border-slate-200/80 p-1.5 flex items-center justify-center shrink-0">
+            <button
+              type="button"
+              onClick={onBack}
+              className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 rounded-xl text-xs font-semibold shadow-2xs transition-all cursor-pointer group"
+              title="Kembali ke daftar file"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-800 transition-colors shrink-0" />
+              <span className="truncate">Kembali</span>
+            </button>
+          </div>
+        )}
 
-        {/* Toolbar Controls */}
-        <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+        {/* Right: Controls Bar aligned with PDF canvas */}
+        <div className="flex-1 px-3.5 py-2 bg-slate-50/90 flex items-center justify-between gap-2 min-w-0 flex-wrap">
+          {/* Document Info */}
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-medium text-slate-800 text-xs truncate max-w-[180px] sm:max-w-[240px]" title={activeDoc.fileName}>
+              {activeDoc.fileName}
+            </span>
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-200/70 text-slate-600 border border-slate-300/60">
+              {isPibActive ? "Dokumen acuan" : "Dokumen pendukung"}
+            </span>
+          </div>
+
+          {/* Toolbar Controls */}
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
           {/* Tampilkan grid toggle */}
           <button
             type="button"
@@ -870,31 +887,15 @@ export default function DocumentViewer({
           </div>
         </div>
       </div>
+    </div>
 
       {/* 3. Main Body: Split between Vertical Thumbnail Strip & Central Canvas Viewport */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Far-Left Vertical Thumbnail Strip (OUTSIDE <Document>, permanently stable layout) */}
-        <div className="w-28 sm:w-32 bg-slate-100/80 border-r border-slate-200/80 shrink-0 flex flex-col overflow-hidden">
-          {/* Back button pinned at the top */}
-          {onBack && (
-            <div className="p-2 border-b border-slate-200/80 shrink-0 w-full">
-              <button
-                type="button"
-                onClick={onBack}
-                className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 rounded-xl text-xs font-semibold shadow-2xs transition-all cursor-pointer group"
-                title="Kembali ke daftar file"
-              >
-                <ArrowLeft className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-800 transition-colors shrink-0" />
-                <span className="truncate">Kembali</span>
-              </button>
-            </div>
-          )}
-
-          {/* Scrollable Thumbnails list */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-2.5 flex flex-col items-center w-full">
-            <div className="text-[10px] font-semibold text-slate-500 tracking-wider mb-0.5 w-full text-center">
-              Halaman
-            </div>
+        <div className="w-28 sm:w-32 bg-slate-100/80 border-r border-slate-200/80 shrink-0 overflow-y-auto p-2 space-y-2.5 flex flex-col items-center">
+          <div className="text-[10px] font-semibold text-slate-500 tracking-wider mb-0.5 w-full text-center">
+            Halaman
+          </div>
           {numPages && numPages > 0 ? (
             Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => {
               const isSelectedPage = safeTargetPage === pageNum;
@@ -961,7 +962,6 @@ export default function DocumentViewer({
               ))}
             </div>
           )}
-          </div>
         </div>
 
         {/* Central PDF Canvas Viewport Area */}
