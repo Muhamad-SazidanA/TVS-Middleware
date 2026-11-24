@@ -918,49 +918,53 @@ export default function DocumentViewer({
                   onClick={() => changeToPage(pageNum, true)}
                   className={`group w-full flex flex-col items-center rounded-lg p-1.5 transition-all cursor-pointer select-none ${
                     isSelectedPage
-                      ? "bg-slate-900 text-white shadow-xs"
-                      : "bg-white hover:bg-slate-200/70 text-slate-700 border border-slate-200/80"
+                      ? "bg-white text-blue-700 border-2 border-blue-600 shadow-xs ring-2 ring-blue-500/20"
+                      : "bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/80 shadow-2xs"
                   }`}
                   title={`Pindah ke Halaman ${pageNum}`}
                 >
                   <div
                     className={`w-8 h-10 rounded border flex flex-col justify-between p-1 mb-1 transition-colors ${
                       isSelectedPage
-                        ? "bg-white/10 border-white/30"
+                        ? "bg-blue-50/60 border-blue-300"
                         : "bg-slate-50 border-slate-200 group-hover:border-slate-300"
                     }`}
                   >
                     <div className="space-y-0.5">
                       <div
                         className={`h-0.5 rounded-full w-full ${
-                          isSelectedPage ? "bg-white/80" : "bg-slate-200"
+                          isSelectedPage ? "bg-blue-500" : "bg-slate-200"
                         }`}
                       />
                       <div
                         className={`h-0.5 rounded-full w-4/5 ${
-                          isSelectedPage ? "bg-white/60" : "bg-slate-200"
+                          isSelectedPage ? "bg-blue-400" : "bg-slate-200"
                         }`}
                       />
                       <div
                         className={`h-0.5 rounded-full w-3/5 ${
-                          isSelectedPage ? "bg-white/60" : "bg-slate-200"
+                          isSelectedPage ? "bg-blue-400" : "bg-slate-200"
                         }`}
                       />
                     </div>
                     <div className="flex items-center justify-between w-full">
                       {isRenderingThis && (
-                        <RefreshCw className="w-2 h-2 animate-spin text-amber-300" />
+                        <RefreshCw className="w-2 h-2 animate-spin text-amber-500" />
                       )}
                       <span
                         className={`text-[7px] font-mono font-bold ml-auto ${
-                          isSelectedPage ? "text-white" : "text-slate-400"
+                          isSelectedPage ? "text-blue-600" : "text-slate-400"
                         }`}
                       >
                         {pageNum}
                       </span>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold tracking-tight">
+                  <span
+                    className={`text-[10px] font-bold tracking-tight ${
+                      isSelectedPage ? "text-blue-700" : "text-slate-600"
+                    }`}
+                  >
                     Hal. {pageNum}
                   </span>
                 </button>
