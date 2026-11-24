@@ -24,6 +24,7 @@ export interface TableBatchItem {
   id: string;
   no: number;
   nama: string;
+  noPengajuan?: string | null;
   subtext: string;
   totalFile: number;
   status: "Matching" | "Mismatching" | "Proses" | "Ditolak";
@@ -173,13 +174,13 @@ export default function MatchingTable({
                 {/* Visual thumbnail column header */}
               </th>
 
-              {/* 3. Nama file Column (Frozen on the left with shadow divider) */}
+              {/* 3. No. Pengajuan Column (Frozen on the left with shadow divider) */}
               <th
                 onClick={() => onSortChange("nama")}
                 className="min-w-[260px] py-3.5 px-4 cursor-pointer group/col hover:text-slate-900 transition-colors sticky left-[104px] z-30 bg-slate-50 border-b border-r border-slate-200 shadow-[6px_0_12px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap"
               >
                 <div className="flex items-center gap-1.5 whitespace-nowrap">
-                  <span>Nama file</span>
+                  <span>No. Pengajuan</span>
                   {renderSortIcon("nama")}
                 </div>
               </th>
@@ -362,32 +363,48 @@ export default function MatchingTable({
                       </div>
                     </td>
 
-                    {/* 3. Nama file with Option A: 2 vertical lines (Frozen on the left with shadow divider) */}
+                    {/* 3. No. Pengajuan (Option B: primary = Nomor Pengajuan PIB, secondary = #{batch.id}) */}
                     <td
                       className={`min-w-[260px] py-3 px-4 sticky left-[104px] z-10 ${
                         isSelected ? "bg-blue-50 group-hover:bg-blue-100/80" : "bg-white group-hover:bg-slate-50"
                       } transition-colors border-r border-slate-200/80 shadow-[6px_0_12px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap`}
                     >
-                      <div className="flex flex-col justify-center">
-                        <div className="flex items-center gap-1.5 font-medium text-slate-800 text-xs whitespace-nowrap">
-                          <span className="font-semibold text-slate-900">{batch.pibFileName}</span>
-                          <button
-                            type="button"
-                            onClick={(e) => handleCopy(batch.pibFileName, batch.id, e)}
-                            className="p-1 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors cursor-pointer shrink-0"
-                            title="Salin nama file"
-                          >
-                            {copiedId === batch.id ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
-                            ) : (
-                              <Copy className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono mt-0.5 whitespace-nowrap truncate max-w-[220px]" title={`Batch #${batch.id} - ${batch.nama}`}>
-                          #{batch.id} • {batch.nama}
-                        </div>
-                      </div>
+                      {(() => {
+                        const ajuNo =
+                          batch.noPengajuan ||
+                          (batch.nama && !batch.nama.startsWith("Batch #") && !batch.nama.toLowerCase().includes("united steel")
+                            ? batch.nama
+                            : null);
+                        const displayTitle = ajuNo || `Batch #${batch.id}`;
+                        const displaySubtitle = ajuNo
+                          ? `#${batch.id}`
+                          : isBatchProcessing
+                          ? "Memproses OCR..."
+                          : `#${batch.id}`;
+
+                        return (
+                          <div className="flex flex-col justify-center">
+                            <div className="flex items-center gap-1.5 font-medium text-slate-800 text-xs whitespace-nowrap">
+                              <span className="font-semibold text-slate-900 font-mono tracking-tight">{displayTitle}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleCopy(displayTitle, batch.id, e)}
+                                className="p-1 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors cursor-pointer shrink-0"
+                                title="Salin no. pengajuan"
+                              >
+                                {copiedId === batch.id ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono mt-0.5 whitespace-nowrap truncate max-w-[220px]">
+                              {displaySubtitle}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* 4. Status review pill (strictly 1 line) */}

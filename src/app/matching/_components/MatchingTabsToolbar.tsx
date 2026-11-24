@@ -146,7 +146,7 @@ export default function MatchingTabsToolbar({
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
-            placeholder="Cari nama file"
+            placeholder="Cari no. pengajuan / batch"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-48 sm:w-56 pl-8.5 pr-3 py-1.5 bg-white border border-slate-200/90 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#091E42] focus:ring-1 focus:ring-[#091E42] transition-all shadow-2xs"

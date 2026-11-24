@@ -28,6 +28,8 @@ interface DetailBatch {
   batchId: string;
   fileType: string;
   fileId: string;
+  nomorAju?: string | null;
+  nomorInvoice?: string | null;
   isi?: string | null;
   createdAt?: string;
 }
@@ -36,6 +38,7 @@ interface RawBatchItem {
   id: string;
   no: number;
   nama: string;
+  noPengajuan?: string | null;
   subtext: string;
   totalFile: number;
   status: "Matching" | "Mismatching" | "Proses" | "Ditolak";
@@ -227,6 +230,7 @@ function MatchingPageContent() {
     return batches.map((batch, index) => {
       const pibFileName = "PIB.pdf";
       const fields: Record<string, string> = {};
+      let pibAjuNo = (batch as any).noPengajuan || "";
 
       if (batch.details && batch.details.length > 0) {
         const pibDet = batch.details.find((d) => {
@@ -234,28 +238,52 @@ function MatchingPageContent() {
           return ft === "pib" || ft.includes("file acuan") || ft.startsWith("pib");
         });
 
-        if (pibDet && pibDet.isi) {
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const parsed: any = typeof pibDet.isi === "string" ? JSON.parse(pibDet.isi) : pibDet.isi;
-            const rawFields = parsed?.fields || parsed?.prediction?.fields || {};
+        if (pibDet) {
+          if (!pibAjuNo && pibDet.nomorAju && String(pibDet.nomorAju).trim()) {
+            pibAjuNo = String(pibDet.nomorAju).trim();
+          }
 
-            for (const [k, v] of Object.entries(rawFields)) {
-              if (k.endsWith("_action")) continue;
-              const actionKey = `${k}_action`;
-              const actionVal = rawFields[actionKey];
-              if (actionVal !== undefined && actionVal !== null && String(actionVal).trim() !== "") {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                fields[k] = typeof actionVal === "object" ? String((actionVal as any).value || "") : String(actionVal);
-              } else if (v !== undefined && v !== null) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                fields[k] = typeof v === "object" ? String((v as any).value || "") : String(v);
+          if (pibDet.isi) {
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const parsed: any = typeof pibDet.isi === "string" ? JSON.parse(pibDet.isi) : pibDet.isi;
+              const rawFields = parsed?.fields || parsed?.prediction?.fields || {};
+
+              if (!pibAjuNo) {
+                pibAjuNo =
+                  rawFields["No_Pengajuan"] ||
+                  rawFields["Nomor_Pengajuan"] ||
+                  rawFields["No_Aju"] ||
+                  rawFields["Nomor_Aju"] ||
+                  "";
               }
+
+              for (const [k, v] of Object.entries(rawFields)) {
+                if (k.endsWith("_action")) continue;
+                const actionKey = `${k}_action`;
+                const actionVal = rawFields[actionKey];
+                if (actionVal !== undefined && actionVal !== null && String(actionVal).trim() !== "") {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  fields[k] = typeof actionVal === "object" ? String((actionVal as any).value || "") : String(actionVal);
+                } else if (v !== undefined && v !== null) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  fields[k] = typeof v === "object" ? String((v as any).value || "") : String(v);
+                }
+              }
+            } catch {
+              // keep empty fields on JSON error
             }
-          } catch {
-            // keep empty fields on JSON error
           }
         }
+      }
+
+      if (
+        !pibAjuNo &&
+        batch.nama &&
+        !batch.nama.startsWith("Batch #") &&
+        !batch.nama.toLowerCase().includes("united steel")
+      ) {
+        pibAjuNo = batch.nama;
       }
 
       // Bind status badges and per-document status directly from server data with dynamic consistency
@@ -281,7 +309,8 @@ function MatchingPageContent() {
       return {
         id: batch.id,
         no: batch.no || index + 1,
-        nama: batch.nama || `Batch #${batch.id}`,
+        nama: pibAjuNo || batch.nama || `Batch #${batch.id}`,
+        noPengajuan: pibAjuNo || null,
         subtext: batch.subtext || "",
         totalFile: batch.totalFile || (batch.details || []).length || 1,
         status: effectiveStatus,
@@ -440,10 +469,11 @@ function MatchingPageContent() {
       const matchNama = b.nama.toLowerCase().includes(q);
       const matchId = b.id.toLowerCase().includes(q);
       const matchSubtext = b.subtext.toLowerCase().includes(q);
+      const matchNoPengajuan = b.noPengajuan ? b.noPengajuan.toLowerCase().includes(q) : false;
       const matchField = Object.values(b.fields).some((val) =>
         val.toLowerCase().includes(q)
       );
-      return matchFileName || matchNama || matchId || matchSubtext || matchField;
+      return matchFileName || matchNama || matchId || matchSubtext || matchNoPengajuan || matchField;
     });
   }, [tabFilteredBatches, searchQuery]);
 
@@ -577,7 +607,8 @@ function MatchingPageContent() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast(`File "${batchToDelete.pibFileName}" berhasil dihapus`);
+        const itemLabel = batchToDelete.noPengajuan || `Batch #${batchToDelete.id}`;
+        showToast(`Batch "${itemLabel}" berhasil dihapus`);
         setBatches((prev) => prev.filter((b) => b.id !== batchToDelete.id));
         setSelectedBatchIds((prev) => prev.filter((id) => id !== batchToDelete.id));
         setDeleteConfirm({ isOpen: false, batch: null });
@@ -595,7 +626,8 @@ function MatchingPageContent() {
   // Single Row Download Handler
   const handleDownloadSingle = async (batch: TableBatchItem) => {
     try {
-      showToast(`Mengunduh data hasil untuk ${batch.pibFileName}...`);
+      const itemLabel = batch.noPengajuan || `Batch #${batch.id}`;
+      showToast(`Mengunduh data hasil untuk ${itemLabel}...`);
       const rawBatch = batches.find((b) => b.id === batch.id);
       if (!rawBatch) return;
 
@@ -633,7 +665,7 @@ function MatchingPageContent() {
         customFilename: `Laporan_Matching_Batch_${rawBatch.id}`,
       });
 
-      showToast(`Berhasil mengunduh laporan ${batch.pibFileName}`);
+      showToast(`Berhasil mengunduh laporan ${itemLabel}`);
     } catch (err) {
       console.error("Download error:", err);
       showToast("Gagal mengunduh data batch.");
@@ -769,8 +801,8 @@ function MatchingPageContent() {
             onDownload={handleDownloadSingle}
             onDelete={handleDeleteClick}
             onAssign={handleAssign}
-            onCopyFileName={(fileName) =>
-              showToast(`Nama file "${fileName}" berhasil disalin ke clipboard`)
+            onCopyFileName={(val) =>
+              showToast(`"${val}" berhasil disalin ke clipboard`)
             }
             sortColumn={sortColumn}
             sortDirection={sortDirection}
@@ -817,11 +849,11 @@ function MatchingPageContent() {
           deleteConfirm.batch ? (
             <div className="space-y-1.5">
               <p>
-                Apakah Anda yakin ingin menghapus file{" "}
+                Apakah Anda yakin ingin menghapus batch{" "}
                 <strong className="text-slate-800">
-                  {deleteConfirm.batch.pibFileName}
-                </strong>{" "}
-                (Batch #{deleteConfirm.batch.id})?
+                  {deleteConfirm.batch.noPengajuan || `Batch #${deleteConfirm.batch.id}`}
+                </strong>
+                ?
               </p>
               <p className="text-xs text-slate-500">
                 Data hasil ekstraksi dan matching pada file ini akan dihapus secara permanen dari sistem.

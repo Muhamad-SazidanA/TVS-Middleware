@@ -130,22 +130,58 @@ export async function GET(req: Request) {
       let batchTitle = `Batch #${batch.id}`;
       let batchSubtext = "";
 
+      let pibAjuNo = "";
       let importirName = "";
       let docNo = "";
 
       for (const det of batch.details || []) {
+        if (det.nomorAju && String(det.nomorAju).trim() && !pibAjuNo) {
+          pibAjuNo = String(det.nomorAju).trim();
+        }
         if (!det.isi) continue;
         const p = parseIsi(det.isi);
         const f = p?.fields || {};
+        const ft = (det.fileType || "").trim().toLowerCase();
+        const isPib = ft === "pib" || ft.includes("file acuan") || ft.startsWith("pib");
+
+        if (isPib && (!pibAjuNo || pibAjuNo === "-")) {
+          const ajuVal = getVal(
+            f,
+            "No_Pengajuan",
+            "No Pengajuan",
+            "Nomor_Pengajuan",
+            "Nomor Pengajuan",
+            "No_Aju",
+            "No Aju",
+            "Nomor_Aju",
+            "Nomor Aju"
+          );
+          if (ajuVal && ajuVal !== "-") pibAjuNo = ajuVal;
+        }
+
         if (!importirName || importirName === "-") {
           const val = getVal(f, "Nama_Importir", "Nama Importir", "Consignee", "Importir");
           if (val && val !== "-") importirName = val;
         }
         if (!docNo || docNo === "-") {
-          const val = getVal(f, "Nomor_Pengajuan", "Nomor Pengajuan", "No_Aju", "No Aju", "Invoice_Number", "Invoice Number");
+          const val = getVal(
+            f,
+            "No_Pengajuan",
+            "No Pengajuan",
+            "Nomor_Pengajuan",
+            "Nomor Pengajuan",
+            "No_Aju",
+            "No Aju",
+            "Nomor_Aju",
+            "Nomor Aju",
+            "Invoice_Number",
+            "Invoice Number"
+          );
           if (val && val !== "-") docNo = val;
         }
       }
+
+      const noPengajuan = pibAjuNo && pibAjuNo !== "-" ? pibAjuNo : docNo && docNo !== "-" ? docNo : null;
 
       const dateStr = batch.createdAt
         ? new Date(batch.createdAt).toLocaleDateString("id-ID", {
@@ -155,11 +191,11 @@ export async function GET(req: Request) {
           })
         : "";
 
-      if (importirName) {
+      if (noPengajuan) {
+        batchTitle = noPengajuan;
+        batchSubtext = `Batch #${batch.id}`;
+      } else if (importirName) {
         batchTitle = importirName;
-        batchSubtext = dateStr ? `Batch #${batch.id} • ${dateStr}` : `Batch #${batch.id}`;
-      } else if (docNo) {
-        batchTitle = `PIB ${docNo}`;
         batchSubtext = dateStr ? `Batch #${batch.id} • ${dateStr}` : `Batch #${batch.id}`;
       } else {
         batchTitle = `Batch #${batch.id}`;
@@ -175,6 +211,7 @@ export async function GET(req: Request) {
         id: batch.id,
         no: index + 1,
         nama: batchTitle,
+        noPengajuan,
         subtext: batchSubtext,
         totalFile: batch.totalFile || (batch.details || []).length || 0,
         status: evaluatedStatus,
