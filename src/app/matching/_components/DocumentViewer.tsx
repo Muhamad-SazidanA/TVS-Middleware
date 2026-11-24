@@ -838,9 +838,9 @@ export default function DocumentViewer({
       {/* 3. Main Body: Split between Vertical Thumbnail Strip & Central Canvas Viewport */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Far-Left Vertical Thumbnail Strip (OUTSIDE <Document>, permanently stable layout) */}
-        <div className="w-28 sm:w-32 bg-slate-100/80 border-r border-slate-200/80 shrink-0 overflow-y-auto p-2 space-y-2.5 flex flex-col items-center">
-          <div className="text-[10px] font-semibold text-slate-500 tracking-wider mb-0.5 w-full text-center">
-            Halaman
+        <div className="w-16 sm:w-20 bg-slate-100/70 border-r border-slate-200/80 shrink-0 overflow-y-auto no-scrollbar p-1.5 space-y-1.5 flex flex-col items-center">
+          <div className="text-[9px] font-semibold text-slate-400 tracking-wider mb-0.5 w-full text-center select-none">
+            Hal.
           </div>
           {numPages && numPages > 0 ? (
             Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => {
@@ -851,43 +851,43 @@ export default function DocumentViewer({
                   key={pageNum}
                   type="button"
                   onClick={() => changeToPage(pageNum, true)}
-                  className={`group w-full flex flex-col items-center rounded-xl p-2 transition-all cursor-pointer ${
+                  className={`group w-full flex flex-col items-center rounded-lg p-1.5 transition-all cursor-pointer select-none ${
                     isSelectedPage
                       ? "bg-slate-900 text-white shadow-xs"
-                      : "bg-white hover:bg-slate-200/80 text-slate-700 border border-slate-200/80"
+                      : "bg-white hover:bg-slate-200/70 text-slate-700 border border-slate-200/80"
                   }`}
                   title={`Pindah ke Halaman ${pageNum}`}
                 >
                   <div
-                    className={`w-11 h-13 rounded-md border flex flex-col justify-between p-1.5 mb-1 transition-colors ${
+                    className={`w-8 h-10 rounded border flex flex-col justify-between p-1 mb-1 transition-colors ${
                       isSelectedPage
                         ? "bg-white/10 border-white/30"
                         : "bg-slate-50 border-slate-200 group-hover:border-slate-300"
                     }`}
                   >
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       <div
-                        className={`h-1 rounded-full w-full ${
+                        className={`h-0.5 rounded-full w-full ${
                           isSelectedPage ? "bg-white/80" : "bg-slate-200"
                         }`}
                       />
                       <div
-                        className={`h-1 rounded-full w-4/5 ${
+                        className={`h-0.5 rounded-full w-4/5 ${
                           isSelectedPage ? "bg-white/60" : "bg-slate-200"
                         }`}
                       />
                       <div
-                        className={`h-1 rounded-full w-3/5 ${
+                        className={`h-0.5 rounded-full w-3/5 ${
                           isSelectedPage ? "bg-white/60" : "bg-slate-200"
                         }`}
                       />
                     </div>
                     <div className="flex items-center justify-between w-full">
                       {isRenderingThis && (
-                        <RefreshCw className="w-2.5 h-2.5 animate-spin text-amber-300" />
+                        <RefreshCw className="w-2 h-2 animate-spin text-amber-300" />
                       )}
                       <span
-                        className={`text-[8px] font-mono font-bold ml-auto ${
+                        className={`text-[7px] font-mono font-bold ml-auto ${
                           isSelectedPage ? "text-white" : "text-slate-400"
                         }`}
                       >
@@ -895,16 +895,16 @@ export default function DocumentViewer({
                       </span>
                     </div>
                   </div>
-                  <span className="text-[11px] font-bold">
+                  <span className="text-[10px] font-bold tracking-tight">
                     Hal. {pageNum}
                   </span>
                 </button>
               );
             })
           ) : (
-            <div className="flex flex-col items-center gap-2 py-4 w-full">
+            <div className="flex flex-col items-center gap-1.5 py-2 w-full">
               {[1, 2].map((i) => (
-                <div key={i} className="w-full h-18 rounded-xl bg-slate-200/50 animate-pulse border border-slate-200/60" />
+                <div key={i} className="w-full h-14 rounded-lg bg-slate-200/50 animate-pulse border border-slate-200/60" />
               ))}
             </div>
           )}
