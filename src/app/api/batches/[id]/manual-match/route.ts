@@ -90,6 +90,9 @@ export async function POST(
           if (f.fieldId) {
             isiObj.manualMatches[f.fieldId] = matchEntry;
           }
+          if (f.fieldLabel) {
+            isiObj.manualMatches[f.fieldLabel] = matchEntry;
+          }
           if (f.fieldName) {
             isiObj.manualMatches[f.fieldName] = matchEntry;
             const cleanKey = f.fieldName.toLowerCase().replace(/[^a-z0-9]/g, "");

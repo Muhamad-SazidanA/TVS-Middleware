@@ -92,9 +92,8 @@ export default function MatchingDetailView({
 
   // Active view states
   const [currentDocCode, setCurrentDocCode] = useState<string>(initialDocCode); // "PIB" or supporting code
-  const [selectedSupportingCode, setSelectedSupportingCode] = useState<string>(
-    initialDocCode.toUpperCase() === "PIB" ? "" : initialDocCode
-  );
+  const [selectedSupportingCode, setSelectedSupportingCode] = useState<string>("ALL");
+  const [activeTabCode, setActiveTabCode] = useState<string>("ALL");
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
 
   // Footer Actions state
@@ -249,27 +248,31 @@ export default function MatchingDetailView({
   }, [comparisonGroups]);
 
   // Active document group & title for footer actions
-  const effectiveDocCode = useMemo(() => {
-    if (selectedSupportingCode && selectedSupportingCode.toUpperCase() !== "PIB") {
-      return selectedSupportingCode;
-    }
-    return comparisonGroups[0]?.docCode || "";
-  }, [selectedSupportingCode, comparisonGroups]);
+  const isAllSelected =
+    !activeTabCode ||
+    activeTabCode.toUpperCase() === "ALL" ||
+    activeTabCode.toUpperCase() === "SEMUA";
 
   const activeGroup = useMemo(() => {
-    if (!effectiveDocCode || effectiveDocCode.toUpperCase() === "ALL") return null;
+    if (isAllSelected) return null;
     return (
       comparisonGroups.find(
-        (g) => g.docCode.toUpperCase() === effectiveDocCode.toUpperCase()
+        (g) => g.docCode.toUpperCase() === activeTabCode.toUpperCase()
       ) || null
     );
-  }, [effectiveDocCode, comparisonGroups]);
+  }, [isAllSelected, activeTabCode, comparisonGroups]);
 
-  const activeDocTitle = activeGroup ? activeGroup.docName : "Semua Field";
+  const activeDocTitle = isAllSelected
+    ? "Semua"
+    : activeGroup
+    ? activeGroup.docName
+    : "Semua";
 
   const fieldsToApprove = useMemo(() => {
-    return activeGroup ? activeGroup.fields : comparisonGroups.flatMap((g) => g.fields);
-  }, [activeGroup, comparisonGroups]);
+    return isAllSelected || !activeGroup
+      ? comparisonGroups.flatMap((g) => g.fields)
+      : activeGroup.fields;
+  }, [isAllSelected, activeGroup, comparisonGroups]);
 
   const pendingCount = useMemo(() => {
     return fieldsToApprove.filter((f) => f.status !== "MATCH" && !f.isManualConfirmed).length;
@@ -297,15 +300,20 @@ export default function MatchingDetailView({
 
   // Document switcher click handler
   const handleSelectDocCode = (code: string) => {
-    setCurrentDocCode(code);
-    setSelectedSupportingCode(code);
+    setActiveTabCode(code);
+    if (code.toUpperCase() !== "ALL" && code.toUpperCase() !== "SEMUA") {
+      setCurrentDocCode(code);
+      setSelectedSupportingCode(code);
+    }
   };
 
   // Direct document & page navigator for line items and field clicks
   const handleNavigateToDoc = (docCode: string, page?: number) => {
-    setCurrentDocCode(docCode);
-    if (docCode.toUpperCase() !== "PIB") {
-      setSelectedSupportingCode(docCode);
+    if (docCode) {
+      setCurrentDocCode(docCode);
+      if (activeTabCode.toUpperCase() !== "ALL" && docCode.toUpperCase() !== "PIB") {
+        setSelectedSupportingCode(docCode);
+      }
     }
     if (page) {
       setViewerTargetPage({ page, timestamp: Date.now() });
@@ -319,8 +327,12 @@ export default function MatchingDetailView({
   };
 
   const handleLoadSupportingInViewer = (fieldId: string, docCode: string) => {
-    setCurrentDocCode(docCode);
-    setSelectedSupportingCode(docCode);
+    if (docCode) {
+      setCurrentDocCode(docCode);
+      if (activeTabCode.toUpperCase() !== "ALL") {
+        setSelectedSupportingCode(docCode);
+      }
+    }
     setActiveFieldId(fieldId);
   };
 
@@ -435,12 +447,12 @@ export default function MatchingDetailView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           bulk: true,
-          docCode: activeGroup ? activeGroup.docCode : "ALL",
+          docCode: isAllSelected ? "ALL" : activeGroup ? activeGroup.docCode : "ALL",
           fields: fieldsToApprove.map((f) => ({
             fieldId: f.id,
             fieldName: f.fieldName,
             fieldLabel: f.label,
-            docCode: f.docCode || activeGroup?.docCode,
+            docCode: f.docCode || (activeGroup ? activeGroup.docCode : undefined),
             detailId: f.supportingDetailId || f.pibDetailId,
           })),
         }),
@@ -667,12 +679,12 @@ export default function MatchingDetailView({
               pibDoc={batchModel.pib}
               groups={comparisonGroups}
               currentLoadedDoc={currentLoadedDoc}
-              activeDocCode={currentDocCode.toUpperCase() === "PIB" ? selectedSupportingCode : currentDocCode}
+              activeDocCode={activeTabCode}
               onSelectDocCode={handleSelectDocCode}
               activeFieldId={activeFieldId}
               onSelectField={(fieldId, docCode) => {
                 setActiveFieldId(fieldId);
-                if (docCode && currentDocCode !== "PIB" && currentDocCode.toUpperCase() !== docCode.toUpperCase()) {
+                if (docCode && currentDocCode.toUpperCase() !== docCode.toUpperCase()) {
                   setCurrentDocCode(docCode);
                 }
               }}
@@ -686,49 +698,53 @@ export default function MatchingDetailView({
               onDeleteManualNote={handleDeleteManualNote}
               className="h-full"
               footer={
-                <div className="flex items-center justify-between w-full gap-2 flex-wrap">
+                <div className="flex items-center justify-between w-full gap-3 flex-wrap">
                   <div className="flex items-center gap-2 min-w-0">
                     {rawBatch?.status === "APPROVED" ? (
-                      <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-2xs">
-                        <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                      <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-2xs">
+                        <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
                         <span>
-                          Telah Disetujui
+                          File Telah Disetujui
                           {rawBatch.approvedBy?.name ? ` (${rawBatch.approvedBy.name})` : ""}
                         </span>
                       </span>
                     ) : (
-                      <span className="text-xs text-slate-500 font-medium hidden sm:inline">
-                        Tindakan verifikasi berkas:
-                      </span>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                        <span>Verifikasi berkas:</span>
+                        <span className="font-semibold text-slate-700 font-mono">
+                          {pendingCount > 0 ? `${pendingCount} mismatch tersisa` : "Semua field cocok"}
+                        </span>
+                      </div>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0 ml-auto">
-                    {/* BUTTON 1: Setujui Tab/Dokumen yang sedang dibuka (Images 2) */}
+                  <div className="flex items-center gap-2.5 shrink-0 ml-auto">
+                    {/* BUTTON 1: Setujui Tab yang Sedang Dibuka (Semua / Invoice / BL) */}
                     <button
                       type="button"
                       onClick={handleApproveActiveDoc}
                       disabled={isBulkApproving || isApproving || isAllDocMatched}
-                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-2xs ${
+                      className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs ${
                         isAllDocMatched
-                          ? "bg-emerald-50/80 text-emerald-700 border border-emerald-300 opacity-90 cursor-default"
-                          : "bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-800 border-2 border-emerald-500 hover:border-emerald-600 shadow-xs"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-300 opacity-90 cursor-default"
+                          : "bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-emerald-600/20 hover:shadow-sm"
                       } disabled:opacity-50`}
-                      title={`Menyetujui seluruh field pada dokumen ${activeDocTitle} yang sedang dibuka`}
+                      title={`Menyetujui seluruh field pada tab ${activeDocTitle} yang sedang dibuka`}
                     >
                       {isBulkApproving ? (
                         <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
                           <span>Menyetujui...</span>
                         </>
                       ) : isAllDocMatched ? (
                         <>
-                          <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                          <Check className="w-3.5 h-3.5 stroke-[3] text-emerald-600" />
                           <span>{activeDocTitle} Cocok</span>
                         </>
                       ) : (
                         <>
-                          <CheckCheck className="w-4 h-4 text-emerald-600 stroke-[2.2]" />
+                          <CheckCheck className="w-4 h-4 stroke-[2.5]" />
                           <span>Setujui {activeDocTitle} {pendingCount > 0 ? `(${pendingCount})` : ""}</span>
                         </>
                       )}
@@ -739,7 +755,7 @@ export default function MatchingDetailView({
                       type="button"
                       onClick={handleApproveBatch}
                       disabled={isApproving || isBulkApproving}
-                      className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-xl text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                      className="inline-flex items-center gap-2 px-4.5 py-2 text-xs font-bold rounded-xl text-white bg-emerald-800 hover:bg-emerald-900 active:bg-slate-900 transition-all cursor-pointer shadow-xs shadow-emerald-900/20 hover:shadow-sm disabled:opacity-50 border border-emerald-700/60"
                       title="Setujui seluruh berkas dan pindahkan ke daftar file yang sudah diapprove"
                     >
                       {isApproving ? (
@@ -754,7 +770,7 @@ export default function MatchingDetailView({
                         </>
                       ) : (
                         <>
-                          <Check className="w-4 h-4 stroke-[2.5]" />
+                          <Check className="w-4 h-4 stroke-[3]" />
                           <span>Selesaikan & Pindahkan File</span>
                         </>
                       )}

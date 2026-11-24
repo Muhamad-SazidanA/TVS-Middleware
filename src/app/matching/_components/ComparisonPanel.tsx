@@ -81,9 +81,10 @@ export default function ComparisonPanel({
   className = "",
 }: ComparisonPanelProps) {
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const defaultDoc = activeDocCode && activeDocCode.toUpperCase() !== "PIB"
-    ? activeDocCode
-    : (groups[0]?.docCode ?? "Invoice");
+  const defaultDoc =
+    activeDocCode && activeDocCode.toUpperCase() !== "PIB"
+      ? activeDocCode
+      : "ALL";
   const [selectedDocFilter, setSelectedDocFilter] = useState<string>(defaultDoc);
 
   // Manual Match confirmation state
