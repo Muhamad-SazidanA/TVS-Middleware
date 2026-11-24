@@ -11,6 +11,7 @@ import {
   ArrowDown,
   FileText,
   RefreshCw,
+  Lock,
 } from "lucide-react";
 import type { ColumnVisibility } from "./MatchingTabsToolbar";
 
@@ -44,6 +45,7 @@ export interface MatchingTableProps {
   onToggleSelectRow: (id: string, e: React.MouseEvent | React.ChangeEvent) => void;
   isAllSelected: boolean;
   onRowClick: (id: string, initialDocCode?: string) => void;
+  onLockedClick?: (id: string) => void;
   onDownload: (batch: TableBatchItem) => void;
   onDelete: (batch: TableBatchItem) => void;
   onAssign: (batchId: string) => void;
@@ -107,6 +109,7 @@ export default function MatchingTable({
   onToggleSelectRow,
   isAllSelected,
   onRowClick,
+  onLockedClick,
   onDownload,
   onDelete,
   onAssign,
@@ -299,12 +302,25 @@ export default function MatchingTable({
                 return (
                   <tr
                     key={batch.id}
-                    onClick={() => onRowClick(batch.id, "PIB")}
-                    className={`group transition-colors cursor-pointer select-none ${
-                      isSelected
-                        ? "bg-blue-50/50 hover:bg-blue-50/70"
-                        : "hover:bg-slate-50/70"
+                    onClick={() => {
+                      if (isBatchProcessing) {
+                        onLockedClick?.(batch.id);
+                        return;
+                      }
+                      onRowClick(batch.id, "PIB");
+                    }}
+                    className={`group transition-colors select-none ${
+                      isBatchProcessing
+                        ? "cursor-not-allowed bg-slate-50/50 hover:bg-slate-100/60 opacity-90"
+                        : isSelected
+                        ? "cursor-pointer bg-blue-50/50 hover:bg-blue-50/70"
+                        : "cursor-pointer hover:bg-slate-50/70"
                     }`}
+                    title={
+                      isBatchProcessing
+                        ? "Dokumen masih diproses oleh OCR Nanonets, mohon tunggu hingga selesai."
+                        : undefined
+                    }
                   >
                     {/* 1. Checkbox Column (Frozen on the left) */}
                     <td
@@ -376,10 +392,13 @@ export default function MatchingTable({
                         className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap ${reviewBadge.className}`}
                       >
                         {isBatchProcessing && (
-                          <span className="relative flex h-2 w-2 shrink-0">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600" />
-                          </span>
+                          <>
+                            <Lock className="w-3 h-3 text-blue-600 shrink-0" />
+                            <span className="relative flex h-2 w-2 shrink-0">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600" />
+                            </span>
+                          </>
                         )}
                         <span>{reviewBadge.label}</span>
                       </span>
@@ -421,13 +440,27 @@ export default function MatchingTable({
                           onClick={(e) => {
                             if (st !== "-") {
                               e.stopPropagation();
+                              if (isBatchProcessing) {
+                                onLockedClick?.(batch.id);
+                                return;
+                              }
                               onRowClick(batch.id, col.key);
                             }
                           }}
                           className={`py-3.5 px-4 text-center whitespace-nowrap ${
-                            st !== "-" ? "cursor-pointer hover:bg-blue-50/70" : ""
+                            isBatchProcessing
+                              ? "cursor-not-allowed opacity-75"
+                              : st !== "-"
+                              ? "cursor-pointer hover:bg-blue-50/70"
+                              : ""
                           }`}
-                          title={st !== "-" ? `Buka berkas ${col.key} di viewer` : undefined}
+                          title={
+                            isBatchProcessing
+                              ? "Dokumen masih diproses oleh OCR Nanonets, mohon tunggu hingga selesai."
+                              : st !== "-"
+                              ? `Buka berkas ${col.key} di viewer`
+                              : undefined
+                          }
                         >
                           {st === "Match" ? (
                             <span className="inline-flex items-center px-3 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">

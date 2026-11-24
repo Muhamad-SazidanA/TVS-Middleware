@@ -87,29 +87,6 @@ function MatchingPageContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(50); // Default per spec: "Baris per halaman: 50"
 
-  // Detail View State (opened on row click or deep link)
-  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
-  const [selectedDocCode, setSelectedDocCode] = useState<string>("PIB");
-
-  // Deep-link auto-opening from URL query ?batchId=...
-  useEffect(() => {
-    if (urlBatchId && initialBatchHandledRef.current !== urlBatchId) {
-      initialBatchHandledRef.current = urlBatchId;
-      setSelectedBatchId(urlBatchId);
-    }
-  }, [urlBatchId]);
-
-  // Dialogs & Modals
-  const [deleteConfirm, setDeleteConfirm] = useState<{
-    isOpen: boolean;
-    batch: TableBatchItem | null;
-  }>({
-    isOpen: false,
-    batch: null,
-  });
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [auditLogBatchId, setAuditLogBatchId] = useState<string | null>(null);
-
   // Toast notification
   const [toast, setToast] = useState<{ show: boolean; message: string }>({
     show: false,
@@ -122,6 +99,42 @@ function MatchingPageContent() {
       setToast({ show: false, message: "" });
     }, 3000);
   }, []);
+
+  // Detail View State (opened on row click or deep link)
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [selectedDocCode, setSelectedDocCode] = useState<string>("PIB");
+
+  // Deep-link auto-opening from URL query ?batchId=... with lock guard
+  useEffect(() => {
+    if (urlBatchId && initialBatchHandledRef.current !== urlBatchId) {
+      const target = batches.find((b) => b.id === urlBatchId);
+      if (target) {
+        initialBatchHandledRef.current = urlBatchId;
+        const st = (target.status || "").toLowerCase();
+        const isProcessing = st === "proses" || st === "pending";
+        if (isProcessing) {
+          showToast(`Dokumen batch #${urlBatchId} masih diproses oleh OCR Nanonets, mohon tunggu hingga selesai.`);
+          router.replace("/matching", { scroll: false });
+          return;
+        }
+        setSelectedBatchId(urlBatchId);
+      } else if (!loading) {
+        initialBatchHandledRef.current = urlBatchId;
+        setSelectedBatchId(urlBatchId);
+      }
+    }
+  }, [urlBatchId, batches, loading, router, showToast]);
+
+  // Dialogs & Modals
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    batch: TableBatchItem | null;
+  }>({
+    isOpen: false,
+    batch: null,
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [auditLogBatchId, setAuditLogBatchId] = useState<string | null>(null);
 
   // Fetch batches from backend with in-flight overlap guard
   const isFetchingRef = useRef<boolean>(false);
@@ -191,6 +204,22 @@ function MatchingPageContent() {
     fetchBatches(false);
     fetchEquivalencies();
   }, [fetchBatches, fetchEquivalencies]);
+
+  // Auto-polling (every 3s) whenever any batch is in PROSES / PENDING status waiting for Nanonets webhooks
+  useEffect(() => {
+    const hasProcessingBatch = batches.some((b) => {
+      const st = (b.status || "").toLowerCase();
+      return st === "proses" || st === "pending";
+    });
+
+    if (!hasProcessingBatch) return;
+
+    const interval = setInterval(() => {
+      fetchBatches(true); // Silent background refresh
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [batches, fetchBatches]);
 
   // Transform raw batches into TableBatchItem
   const tableBatches = useMemo<TableBatchItem[]>(() => {
@@ -708,8 +737,17 @@ function MatchingPageContent() {
             onToggleSelectRow={handleToggleSelectRow}
             isAllSelected={isAllSelected}
             onRowClick={(id, docCode) => {
+              const target = batches.find((b) => b.id === id);
+              const st = (target?.status || "").toLowerCase();
+              if (st === "proses" || st === "pending") {
+                showToast("Dokumen masih diproses oleh OCR Nanonets, mohon tunggu hingga selesai.");
+                return;
+              }
               setSelectedBatchId(id);
               setSelectedDocCode(docCode || "PIB");
+            }}
+            onLockedClick={(id) => {
+              showToast(`Batch #${id} masih diproses oleh OCR Nanonets, mohon tunggu hingga selesai.`);
             }}
             onDownload={handleDownloadSingle}
             onDelete={handleDeleteClick}
