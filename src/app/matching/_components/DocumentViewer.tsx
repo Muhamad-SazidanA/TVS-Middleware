@@ -990,21 +990,6 @@ export default function DocumentViewer({
             isPanning ? "cursor-grabbing select-none" : zoom > 100 ? "cursor-grab" : ""
           }`}
         >
-          {/* Floating Page Number Tag (Opsi B: Pinned to top-left of canvas viewport) */}
-          {numPages && numPages > 0 && !isNotFound && !loadError ? (
-            <div className="sticky top-0 left-0 z-20 w-fit pointer-events-none mb-[-28px]">
-              <div className="bg-slate-900/85 backdrop-blur-xs text-white text-[11px] font-mono px-2.5 py-1 rounded-md shadow-md flex items-center gap-1.5 select-none inline-flex">
-                <span className="font-bold">Hal. {safeTargetPage}</span>
-                <span className="text-slate-300 text-[10px]">/ {numPages}</span>
-                {isRenderingTarget && (
-                  <span className="flex items-center gap-1 text-[10px] text-amber-300 pl-1.5 border-l border-white/20">
-                    <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                    <span>Memuat...</span>
-                  </span>
-                )}
-              </div>
-            </div>
-          ) : null}
           {isNotFound || loadError ? (
             <div className="m-auto p-6 max-w-sm w-full bg-white rounded-2xl border border-slate-200 text-center shadow-xs">
               <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
