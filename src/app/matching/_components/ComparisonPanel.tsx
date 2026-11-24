@@ -373,7 +373,7 @@ export default function ComparisonPanel({
       className={`flex flex-col h-full bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden ${className}`}
     >
       {/* 1. Header Row: Title + Search Input */}
-      <div className="p-3.5 border-b border-slate-200/80 bg-slate-50/70 space-y-2.5 shrink-0">
+      <div className="p-3.5 border-b border-slate-200/80 bg-white space-y-2.5 shrink-0">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             <h3 className="font-bold text-sm text-slate-900">
@@ -411,7 +411,7 @@ export default function ComparisonPanel({
                 ? "Cari field atau tabel di semua dokumen..."
                 : `Cari field atau tabel di dokumen ${currentGroup?.docCode || ""}...`
             }
-            className="w-full pl-9 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all"
+            className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50/70 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 transition-all"
           />
           {searchQuery && (
             <button
@@ -424,29 +424,25 @@ export default function ComparisonPanel({
           )}
         </div>
 
-        {/* Supporting Document Switcher Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5">
+        {/* Supporting Document Switcher Tabs (Clean Segmented Control) */}
+        <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/60 overflow-x-auto no-scrollbar">
           {/* Tab Semua */}
           <button
             type="button"
             onClick={() => handleTabClick("ALL")}
-            className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border shrink-0 flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
               isAllSelected
-                ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
-                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/40"
             }`}
             title={`Semua: ${totalAllFieldsCount} field`}
           >
             <span>Semua</span>
             <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-semibold border ${
+              className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-mono font-semibold ${
                 groups.some((g) => g.mismatchedCount > 0)
-                  ? isAllSelected
-                    ? "bg-rose-500/25 text-rose-300 border-rose-500/40"
-                    : "bg-rose-50 text-rose-700 border-rose-200"
-                  : isAllSelected
-                  ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/40"
-                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  ? "bg-rose-100/90 text-rose-700 border border-rose-200/70"
+                  : "bg-emerald-100/90 text-emerald-700 border border-emerald-200/70"
               }`}
             >
               {totalAllFieldsCount}
@@ -464,23 +460,19 @@ export default function ComparisonPanel({
                 key={group.docCode}
                 type="button"
                 onClick={() => handleTabClick(group.docCode)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border shrink-0 flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
                   isFilterActive
-                    ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
-                    : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                    ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/40"
                 }`}
                 title={`${group.docCode}: ${group.fields.length} field (${isDocMatch ? "Semua Match" : `${group.mismatchedCount} Mismatch`})`}
               >
                 <span>{group.docCode}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-semibold border ${
+                  className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-mono font-semibold ${
                     isDocMatch
-                      ? isFilterActive
-                        ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/40"
-                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      : isFilterActive
-                      ? "bg-rose-500/25 text-rose-300 border-rose-500/40"
-                      : "bg-rose-50 text-rose-700 border border-rose-200"
+                      ? "bg-emerald-100/90 text-emerald-700 border border-emerald-200/70"
+                      : "bg-rose-100/90 text-rose-700 border border-rose-200/70"
                   }`}
                 >
                   {group.fields.length}
