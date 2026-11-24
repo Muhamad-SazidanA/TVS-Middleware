@@ -8,12 +8,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   RefreshCw,
-  Download,
-  Trash2,
   Check,
   Lock,
 } from "lucide-react";
-import ConfirmDialog from "../../_components/ui/ConfirmDialog";
 import ComparisonPanel from "./ComparisonPanel";
 import {
   adaptBatchToModel,
@@ -26,8 +23,6 @@ import type {
   DocumentComparisonGroup,
 } from "./detailTypes";
 import type { DbEquivalencyGroup } from "~/utils/valueEquivalency";
-import { generateMatchingExcel } from "~/utils/excelExporter";
-import { evaluateCanonicalBatchMatching } from "~/utils/canonicalMatcher";
 
 const DocumentViewer = dynamic(() => import("./DocumentViewer"), {
   ssr: false,
@@ -102,10 +97,7 @@ export default function MatchingDetailView({
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
 
   // Footer Actions state
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>(false);
-  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [isApproving, setIsApproving] = useState<boolean>(false);
-  const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -205,13 +197,13 @@ export default function MatchingDetailView({
   // Handle ESC key to close
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !isDeleteDialogOpen) {
+      if (e.key === "Escape") {
         onClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, isDeleteDialogOpen]);
+  }, [onClose]);
 
   // Transform raw batch into Normalized Batch Model
   const batchModel: BatchComparisonModel | null = useMemo(() => {
@@ -391,26 +383,6 @@ export default function MatchingDetailView({
     }
   };
 
-  // Delete Batch Handler
-  const handleDeleteBatch = async () => {
-    try {
-      setIsDeleting(true);
-      const res = await fetch(`/api/batches/${batchId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        throw new Error("Gagal menghapus batch.");
-      }
-      setIsDeleteDialogOpen(false);
-      onClose();
-    } catch (err) {
-      console.error("Delete batch error:", err);
-      showToast(err instanceof Error ? err.message : "Gagal menghapus batch.");
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
   // Approve Batch Handler ("Setujui file")
   const handleApproveBatch = async () => {
     try {
@@ -433,62 +405,6 @@ export default function MatchingDetailView({
       showToast(err instanceof Error ? err.message : "Gagal menyetujui file.");
     } finally {
       setIsApproving(false);
-    }
-  };
-
-  // Export Excel Handler
-  const handleExportExcel = async () => {
-    if (!rawBatch) return;
-    try {
-      setIsDownloading(true);
-      showToast("Menyiapkan berkas Excel...");
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await generateMatchingExcel({
-        batches: [rawBatch] as any,
-        getComparisonReport: (b) => {
-          const rep = evaluateCanonicalBatchMatching(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (b.details || []) as any[],
-            b.totalFile,
-            b.id,
-            equivalencyGroups
-          );
-          return {
-            allFields: rep.allFields.map((f) => ({
-              documentType: f.documentType,
-              fieldName: f.fieldName,
-              pibValue: f.pibValue,
-              pembandingValue: f.targetValue,
-              status: f.status,
-              isMatch: f.isMatch,
-              notes: f.notes,
-            })),
-            mismatches: rep.mismatches.map((m) => ({
-              documentType: m.documentType,
-              fieldName: m.fieldName,
-              pibValue: m.pibValue,
-              pembandingValue: m.targetValue,
-              status: m.status,
-              isMatch: m.isMatch,
-              notes: m.notes,
-            })),
-          };
-        },
-        getEffectiveStatus: () => {
-          return rawBatch.status === "MATCHING" || rawBatch.status === "Matching"
-            ? "Matching"
-            : "Mismatching";
-        },
-        customFilename: `Laporan_Matching_Batch_${batchId}`,
-      });
-
-      showToast("Berhasil mengunduh laporan Excel.");
-    } catch (err) {
-      console.error("Export error:", err);
-      showToast("Gagal mengunduh laporan.");
-    } finally {
-      setIsDownloading(false);
     }
   };
 
@@ -643,8 +559,6 @@ export default function MatchingDetailView({
     );
   }
 
-  const pibFileName = batchModel.pib.fileName || "PIB.pdf";
-
   return (
     <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col overflow-hidden animate-in fade-in duration-150">
       {/* Main Areas (Split / Responsive Layout) */}
@@ -693,93 +607,52 @@ export default function MatchingDetailView({
               onEditManualNote={handleEditManualNote}
               onDeleteManualNote={handleDeleteManualNote}
               className="h-full"
+              footer={
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    {rawBatch?.status === "APPROVED" && (
+                      <span className="text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>
+                          Disetujui
+                          {rawBatch.approvedBy?.name ? ` (${rawBatch.approvedBy.name})` : ""}
+                        </span>
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleApproveBatch}
+                    disabled={isApproving}
+                    className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-xl text-white bg-slate-900 hover:bg-slate-800 transition-colors cursor-pointer shadow-xs disabled:opacity-50 ml-auto"
+                  >
+                    {isApproving ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Menyetujui...</span>
+                      </>
+                    ) : rawBatch?.status === "APPROVED" ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-slate-300" />
+                        <span>Disetujui</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Setujui file</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              }
             />
           </div>
         </div>
       </main>
 
-      {/* 3. Footer Bar */}
-      <footer className="h-14 bg-white border-t border-slate-200/90 px-4 sm:px-6 flex items-center justify-between shrink-0 z-20">
-        {/* Left Side: Unduh & Hapus */}
-        <div className="flex items-center gap-2">
-          {/* Unduh button */}
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            disabled={isDownloading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
-            title="Unduh laporan matching data batch ini"
-          >
-            <Download className="w-3.5 h-3.5 text-slate-500" />
-            <span>Unduh</span>
-          </button>
-
-          {/* Hapus button (danger secondary) */}
-          <button
-            type="button"
-            onClick={() => setIsDeleteDialogOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl text-rose-700 bg-rose-50/80 hover:bg-rose-100/90 border border-rose-200 transition-colors cursor-pointer shadow-2xs"
-            title="Hapus batch ini"
-          >
-            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-            <span>Hapus</span>
-          </button>
-        </div>
-
-        {/* Right Side: Setujui file (Slim, Monochromatic Slate) */}
-        <div className="flex items-center gap-2.5">
-          {rawBatch?.status === "APPROVED" && (
-            <span className="text-[11px] font-medium text-slate-700 bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-              <Check className="w-3.5 h-3.5 text-slate-600" />
-              <span>
-                Disetujui
-                {rawBatch.approvedBy?.name ? ` (${rawBatch.approvedBy.name})` : ""}
-              </span>
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={handleApproveBatch}
-            disabled={isApproving}
-            className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-lg text-white bg-slate-900 hover:bg-slate-800 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-          >
-            {isApproving ? (
-              <>
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span>Menyetujui...</span>
-              </>
-            ) : rawBatch?.status === "APPROVED" ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-slate-300" />
-                <span>Disetujui</span>
-              </>
-            ) : (
-              <>
-                <Check className="w-3.5 h-3.5" />
-                <span>Setujui file</span>
-              </>
-            )}
-          </button>
-        </div>
-      </footer>
-
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        isOpen={isDeleteDialogOpen}
-        onClose={() => setIsDeleteDialogOpen(false)}
-        onConfirm={handleDeleteBatch}
-        title="Hapus file ini?"
-        description={`Apakah Anda yakin ingin menghapus file "${pibFileName}" (Batch #${batchId})? Data yang sudah dihapus tidak dapat dipulihkan.`}
-        confirmText="Hapus"
-        cancelText="Batal"
-        variant="danger"
-        isLoading={isDeleting}
-      />
-
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-18 right-6 z-50 bg-slate-900/95 backdrop-blur-xs text-white border border-slate-800 text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900/95 backdrop-blur-xs text-white border border-slate-800 text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           <span>{toastMessage}</span>
         </div>

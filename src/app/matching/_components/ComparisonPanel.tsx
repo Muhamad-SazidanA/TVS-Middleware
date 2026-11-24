@@ -57,6 +57,7 @@ export interface ComparisonPanelProps {
   ) => Promise<void>;
   onEditManualNote?: (noteId: string, text: string) => Promise<void>;
   onDeleteManualNote?: (noteId: string) => Promise<void>;
+  footer?: React.ReactNode;
   className?: string;
 }
 
@@ -77,6 +78,7 @@ export default function ComparisonPanel({
   onAddManualNote,
   onEditManualNote,
   onDeleteManualNote,
+  footer,
   className = "",
 }: ComparisonPanelProps) {
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -893,7 +895,14 @@ export default function ComparisonPanel({
         )}
       </div>
 
-      {/* 4. Inline Edit Modal Dialog */}
+      {/* 4. Panel Footer (Actions Slot) */}
+      {footer && (
+        <div className="px-4 py-2.5 border-t border-slate-200/80 bg-slate-50/70 flex items-center shrink-0">
+          {footer}
+        </div>
+      )}
+
+      {/* 5. Inline Edit Modal Dialog */}
       {editingField && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
