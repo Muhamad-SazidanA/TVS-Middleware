@@ -878,7 +878,7 @@ export default function ComparisonPanel({
 
       {/* 4. Panel Footer (Actions Slot) */}
       {footer && (
-        <div className="px-4 py-2.5 border-t border-slate-200/80 bg-slate-50/70 flex items-center shrink-0">
+        <div className="px-3.5 py-2 border-t border-slate-200/80 bg-white flex items-center shrink-0">
           {footer}
         </div>
       )}

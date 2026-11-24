@@ -701,51 +701,73 @@ export default function MatchingDetailView({
                 <div className="flex items-center justify-between w-full gap-3 flex-wrap">
                   <div className="flex items-center gap-2 min-w-0">
                     {rawBatch?.status === "APPROVED" ? (
-                      <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-2xs">
-                        <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-200">
+                        <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
                         <span>
                           File Telah Disetujui
                           {rawBatch.approvedBy?.name ? ` (${rawBatch.approvedBy.name})` : ""}
                         </span>
                       </span>
                     ) : (
-                      <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                        <span>Verifikasi berkas:</span>
-                        <span className="font-semibold text-slate-700 font-mono">
-                          {pendingCount > 0 ? `${pendingCount} mismatch tersisa` : "Semua field cocok"}
+                      <div className="flex items-center gap-2 text-xs">
+                        <span className="relative flex h-2 w-2 shrink-0">
+                          {pendingCount > 0 && (
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                          )}
+                          <span
+                            className={`relative inline-flex rounded-full h-2 w-2 ${
+                              pendingCount > 0 ? "bg-amber-500" : "bg-emerald-500"
+                            }`}
+                          />
+                        </span>
+                        <span className="text-slate-500 font-normal">
+                          Verifikasi berkas:{" "}
+                          <span
+                            className={
+                              pendingCount > 0
+                                ? "font-semibold text-slate-800 font-mono"
+                                : "font-semibold text-emerald-700 font-mono"
+                            }
+                          >
+                            {pendingCount > 0 ? `${pendingCount} mismatch tersisa` : "Semua field cocok"}
+                          </span>
                         </span>
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2.5 shrink-0 ml-auto">
+                  <div className="flex items-center gap-2 shrink-0 ml-auto">
                     {/* BUTTON 1: Setujui Tab yang Sedang Dibuka (Semua / Invoice / BL) */}
                     <button
                       type="button"
                       onClick={handleApproveActiveDoc}
                       disabled={isBulkApproving || isApproving || isAllDocMatched}
-                      className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all cursor-pointer ${
                         isAllDocMatched
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-300 opacity-90 cursor-default"
-                          : "bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-emerald-600/20 hover:shadow-sm"
+                          ? "bg-emerald-50/80 text-emerald-700 border border-emerald-200/90 opacity-90 cursor-default"
+                          : "bg-emerald-50 hover:bg-emerald-100/90 active:bg-emerald-200 text-emerald-800 border border-emerald-300 hover:border-emerald-400 shadow-2xs"
                       } disabled:opacity-50`}
                       title={`Menyetujui seluruh field pada tab ${activeDocTitle} yang sedang dibuka`}
                     >
                       {isBulkApproving ? (
                         <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-700" />
                           <span>Menyetujui...</span>
                         </>
                       ) : isAllDocMatched ? (
                         <>
-                          <Check className="w-3.5 h-3.5 stroke-[3] text-emerald-600" />
+                          <Check className="w-3.5 h-3.5 stroke-[2.5] text-emerald-600" />
                           <span>{activeDocTitle} Cocok</span>
                         </>
                       ) : (
                         <>
-                          <CheckCheck className="w-4 h-4 stroke-[2.5]" />
-                          <span>Setujui {activeDocTitle} {pendingCount > 0 ? `(${pendingCount})` : ""}</span>
+                          <CheckCheck className="w-3.5 h-3.5 stroke-[2.2] text-emerald-600" />
+                          <span>Setujui {activeDocTitle}</span>
+                          {pendingCount > 0 && (
+                            <span className="ml-0.5 px-1.5 py-0.2 text-[10.5px] font-mono font-bold rounded-full bg-emerald-200/70 text-emerald-900 border border-emerald-300/60">
+                              {pendingCount}
+                            </span>
+                          )}
                         </>
                       )}
                     </button>
@@ -755,7 +777,7 @@ export default function MatchingDetailView({
                       type="button"
                       onClick={handleApproveBatch}
                       disabled={isApproving || isBulkApproving}
-                      className="inline-flex items-center gap-2 px-4.5 py-2 text-xs font-bold rounded-xl text-white bg-emerald-800 hover:bg-emerald-900 active:bg-slate-900 transition-all cursor-pointer shadow-xs shadow-emerald-900/20 hover:shadow-sm disabled:opacity-50 border border-emerald-700/60"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition-all cursor-pointer shadow-2xs hover:shadow-xs disabled:opacity-50 shadow-emerald-600/20"
                       title="Setujui seluruh berkas dan pindahkan ke daftar file yang sudah diapprove"
                     >
                       {isApproving ? (
@@ -765,12 +787,12 @@ export default function MatchingDetailView({
                         </>
                       ) : rawBatch?.status === "APPROVED" ? (
                         <>
-                          <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
                           <span>File Telah Disetujui</span>
                         </>
                       ) : (
                         <>
-                          <Check className="w-4 h-4 stroke-[3]" />
+                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
                           <span>Selesaikan & Pindahkan File</span>
                         </>
                       )}
