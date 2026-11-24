@@ -270,27 +270,31 @@ export default function MatchingTable({
                 // "Validasi lolos" (neutral soft pill)
                 // "Perlu review manual" (warning soft pill)
                 // "Ditolak" (danger soft pill)
+                const isBatchProcessing =
+                  batch.status === "Proses" ||
+                  (batch.status as string).toLowerCase() === "pending";
+
+                const isMatching =
+                  batch.status === "Matching" ||
+                  (batch.status as string) === "MATCHING";
+
                 let reviewBadge: {
                   label: string;
                   className: string;
                 } = {
-                  label: "Perlu review manual",
-                  className: "bg-amber-50 text-amber-800 border-amber-200/80",
+                  label: "Mismatch",
+                  className: "bg-rose-50 text-rose-700 border border-rose-200",
                 };
-
-                const isBatchProcessing =
-                  batch.status === "Proses" ||
-                  (batch.status as string).toLowerCase() === "pending";
 
                 if (isBatchProcessing) {
                   reviewBadge = {
                     label: "Sedang memproses OCR...",
                     className: "bg-blue-50 text-blue-800 border-blue-200",
                   };
-                } else if (batch.status === "Matching") {
+                } else if (isMatching) {
                   reviewBadge = {
                     label: "Match",
-                    className: "bg-emerald-50 text-emerald-800 border border-emerald-200/80",
+                    className: "bg-emerald-50 text-emerald-700 border border-emerald-200",
                   };
                 } else if (batch.status === "Ditolak") {
                   reviewBadge = {

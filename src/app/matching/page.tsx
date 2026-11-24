@@ -165,10 +165,11 @@ function MatchingPageContent() {
 
   const handleDetailClose = useCallback(() => {
     setSelectedBatchId(null);
+    fetchBatches(true);
     if (urlBatchId) {
       router.replace("/matching", { scroll: false });
     }
-  }, [urlBatchId, router]);
+  }, [urlBatchId, router, fetchBatches]);
 
   const handleDetailStatusUpdate = useCallback(() => {
     fetchBatches(true);
@@ -257,9 +258,25 @@ function MatchingPageContent() {
         }
       }
 
-      // Bind status badges and per-document status directly from server data
-      const effectiveStatus = batch.status || "Mismatching";
+      // Bind status badges and per-document status directly from server data with dynamic consistency
       const docStatuses = batch.docStatuses || calculateDocStatuses(batch, equivalencyGroups);
+      const docStatusList = Object.values(docStatuses).map((d) => d.status);
+      const isAnyDocMismatch = docStatusList.some((s) => s === "Mismatch");
+      const isAnyDocProses =
+        docStatusList.some((s) => s === "Proses") ||
+        (batch.status || "").toLowerCase() === "proses" ||
+        (batch.status || "").toLowerCase() === "pending";
+
+      let effectiveStatus: "Matching" | "Mismatching" | "Proses" | "Ditolak" = "Matching";
+      if (batch.status === "Ditolak") {
+        effectiveStatus = "Ditolak";
+      } else if (isAnyDocProses) {
+        effectiveStatus = "Proses";
+      } else if (isAnyDocMismatch || batch.status === "Mismatching" || (batch.status as string) === "MISMATCHING") {
+        effectiveStatus = "Mismatching";
+      } else {
+        effectiveStatus = "Matching";
+      }
 
       return {
         id: batch.id,

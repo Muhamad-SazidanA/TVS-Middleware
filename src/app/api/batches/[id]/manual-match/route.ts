@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "~/server/db";
 import { auth } from "~/server/auth";
 import { createBatchLog } from "~/server/logger";
-import { evaluateDbBatchStatus } from "~/server/matchingEngine";
+import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
 import { logSystemAudit } from "~/server/auditLogger";
 
@@ -201,16 +201,18 @@ export async function POST(
       where: { id: batchId },
     });
 
-    const evaluatedStatus = evaluateDbBatchStatus(
-      allDetails,
-      batchRecord?.totalFile,
+    const evalResult = evaluateBatchComparison(
+      {
+        ...batchRecord,
+        details: allDetails,
+      },
       serverGroups
     );
 
     const dbStatusStr =
-      evaluatedStatus === "Matching"
+      evalResult.status === "Matching"
         ? "MATCHING"
-        : evaluatedStatus === "Mismatching"
+        : evalResult.status === "Mismatching"
         ? "MISMATCHING"
         : "PROSES";
 
@@ -226,7 +228,8 @@ export async function POST(
       success: true,
       message: `Status field "${displayName}" berhasil diperbarui.`,
       confirmed: isConfirmed,
-      batchStatus: evaluatedStatus,
+      batchStatus: evalResult.status,
+      docStatuses: evalResult.docStatuses,
       updatedDetail,
     });
   } catch (error: unknown) {

@@ -379,6 +379,20 @@ export default function ComparisonPanel({
             <h3 className="font-bold text-sm text-slate-900">
               Data perbandingan {isAllSelected ? "(Semua)" : currentGroup ? `(${currentGroup.docCode})` : ""}
             </h3>
+            {(() => {
+              const hasMismatch = isAllSelected
+                ? groups.some((g) => g.mismatchedCount > 0)
+                : (currentGroup?.mismatchedCount ?? 0) > 0;
+              return hasMismatch ? (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                  Mismatch
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Match
+                </span>
+              );
+            })()}
             <span className="text-[11px] font-medium text-slate-500">
               PIB (acuan) vs {isAllSelected ? "Semua Dokumen Pendukung" : currentGroup?.docName || currentGroup?.docCode || "Dokumen"}
             </span>
@@ -440,6 +454,8 @@ export default function ComparisonPanel({
             const isFilterActive =
               !isAllSelected &&
               (currentGroup?.docCode || "").toUpperCase() === group.docCode.toUpperCase();
+            const isDocMatch = group.mismatchedCount === 0;
+
             return (
               <button
                 key={group.docCode}
@@ -453,15 +469,17 @@ export default function ComparisonPanel({
               >
                 <span>{group.docCode}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                    isFilterActive
-                      ? "bg-white/20 text-white"
-                      : group.mismatchedCount > 0
-                      ? "bg-rose-50 text-rose-700 border border-rose-200"
-                      : "bg-slate-100 text-slate-600"
+                  className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-semibold border ${
+                    isDocMatch
+                      ? isFilterActive
+                        ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/40"
+                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : isFilterActive
+                      ? "bg-rose-500/25 text-rose-300 border-rose-500/40"
+                      : "bg-rose-50 text-rose-700 border border-rose-200"
                   }`}
                 >
-                  {group.fields.length}
+                  {isDocMatch ? "Match" : "Mismatch"}
                 </span>
               </button>
             );

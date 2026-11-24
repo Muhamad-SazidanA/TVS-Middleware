@@ -55,11 +55,13 @@ export function evaluateBatchMatchingSync(
   return evaluateCanonicalBatchMatching(details, totalFile, batchId);
 }
 
+import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
+
 /**
- * Evaluates batch status for DB batches.
+ * Evaluates batch status for DB batches using unified detailAdapter comparison engine.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function evaluateDbBatchStatus(details: any[], totalFile?: number, dbGroups?: DbEquivalencyGroup[]): "Matching" | "Mismatching" | "Proses" {
-  const result = evaluateCanonicalBatchMatching(details, totalFile, "0", dbGroups);
-  return result.uiStatus;
+  const result = evaluateBatchComparison({ details, totalFile }, dbGroups);
+  return result.status;
 }

@@ -1,5 +1,5 @@
 import { env } from "~/env";
-import { evaluateCanonicalBatchMatching } from "~/utils/canonicalMatcher";
+import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import type { DbEquivalencyGroup } from "~/utils/valueEquivalency";
 
 export const CATEGORY_MODEL_MAP: Record<string, string> = {
@@ -394,6 +394,6 @@ export function evaluateBatchMatching(
   details: Array<{ fileType: string; isi?: string | null }>,
   dbGroups?: DbEquivalencyGroup[]
 ): "MATCHING" | "MISMATCHING" {
-  const result = evaluateCanonicalBatchMatching(details, undefined, "0", dbGroups);
-  return result.status === "MATCHING" ? "MATCHING" : "MISMATCHING";
+  const result = evaluateBatchComparison({ details }, dbGroups);
+  return result.status === "Matching" ? "MATCHING" : "MISMATCHING";
 }

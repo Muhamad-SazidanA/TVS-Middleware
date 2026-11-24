@@ -709,6 +709,10 @@ export default function DocumentViewer({
           {/* Dynamic Supporting Document Options */}
           {supportingDocs.map((doc) => {
             const isSelected = !isPibActive && currentDocCode.toUpperCase() === doc.code.toUpperCase();
+            const docFields = fields.filter((f) => f.docCode && f.docCode.toUpperCase() === doc.code.toUpperCase());
+            const hasMismatch = docFields.some((f) => f.status === "MISMATCH");
+            const isDocMatch = docFields.length > 0 && !hasMismatch;
+
             return (
               <button
                 key={doc.id}
@@ -721,6 +725,21 @@ export default function DocumentViewer({
                 }`}
               >
                 <span className="font-mono">{doc.code}</span>
+                {docFields.length > 0 && (
+                  <span
+                    className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-semibold border ${
+                      isDocMatch
+                        ? isSelected
+                          ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/40"
+                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : isSelected
+                        ? "bg-rose-500/25 text-rose-300 border-rose-500/40"
+                        : "bg-rose-50 text-rose-700 border border-rose-200"
+                    }`}
+                  >
+                    {isDocMatch ? "Match" : "Mismatch"}
+                  </span>
+                )}
                 <span className="text-[11px] opacity-75 hidden sm:inline truncate max-w-[120px]">
                   {doc.name !== doc.code ? `(${doc.name})` : ""}
                 </span>

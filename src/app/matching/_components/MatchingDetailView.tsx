@@ -302,6 +302,9 @@ export default function MatchingDetailView({
     showToast(`Field ${fieldName} berhasil disimpan.`);
     // Re-fetch batch to refresh all data & re-evaluate status (silent)
     loadBatch(true);
+    if (onStatusUpdate) {
+      onStatusUpdate(batchId, "UPDATED");
+    }
   };
 
   const handleManualMatchToggled = (fieldLabel: string, confirmed: boolean) => {
@@ -311,6 +314,9 @@ export default function MatchingDetailView({
         : `Konfirmasi manual "${fieldLabel}" dibatalkan.`
     );
     loadBatch(true);
+    if (onStatusUpdate) {
+      onStatusUpdate(batchId, "UPDATED");
+    }
   };
 
   // Manual Note Handlers
