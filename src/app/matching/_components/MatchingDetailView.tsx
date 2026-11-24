@@ -268,17 +268,19 @@ export default function MatchingDetailView({
     ? activeGroup.docName
     : "Semua";
 
+  // Strictly only mismatch fields that are not yet manually confirmed
   const fieldsToApprove = useMemo(() => {
-    return isAllSelected || !activeGroup
-      ? comparisonGroups.flatMap((g) => g.fields)
-      : activeGroup.fields;
+    const pool =
+      isAllSelected || !activeGroup
+        ? comparisonGroups.flatMap((g) => g.fields)
+        : activeGroup.fields;
+    return pool.filter(
+      (f) => f.status === "MISMATCH" && !f.isManualConfirmed
+    );
   }, [isAllSelected, activeGroup, comparisonGroups]);
 
-  const pendingCount = useMemo(() => {
-    return fieldsToApprove.filter((f) => f.status !== "MATCH" && !f.isManualConfirmed).length;
-  }, [fieldsToApprove]);
-
-  const isAllDocMatched = fieldsToApprove.length > 0 && pendingCount === 0;
+  const pendingCount = fieldsToApprove.length;
+  const isAllDocMatched = pendingCount === 0;
 
   // Default active field selection
   useEffect(() => {
@@ -438,7 +440,7 @@ export default function MatchingDetailView({
     try {
       setIsBulkApproving(true);
       if (fieldsToApprove.length === 0) {
-        showToast("Tidak ada field yang perlu disetujui.");
+        showToast("Tidak ada field mismatch yang perlu disetujui.");
         return;
       }
 
@@ -463,7 +465,7 @@ export default function MatchingDetailView({
         throw new Error(errJson.error || "Gagal menyetujui field dokumen.");
       }
 
-      showToast(`Semua field ${activeDocTitle} berhasil disetujui.`);
+      showToast(`${fieldsToApprove.length} field mismatch pada "${activeDocTitle}" berhasil disetujui.`);
       await loadBatch(true);
     } catch (err) {
       console.error("Approve active doc error:", err);
@@ -700,7 +702,7 @@ export default function MatchingDetailView({
               footer={
                 <div className="flex items-center justify-between w-full gap-3 flex-wrap">
                   <div className="flex items-center gap-2 min-w-0">
-                    {rawBatch?.status === "APPROVED" ? (
+                    {rawBatch?.status === "APPROVED" && (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-200">
                         <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
                         <span>
@@ -708,46 +710,25 @@ export default function MatchingDetailView({
                           {rawBatch.approvedBy?.name ? ` (${rawBatch.approvedBy.name})` : ""}
                         </span>
                       </span>
-                    ) : (
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="relative flex h-2 w-2 shrink-0">
-                          {pendingCount > 0 && (
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                          )}
-                          <span
-                            className={`relative inline-flex rounded-full h-2 w-2 ${
-                              pendingCount > 0 ? "bg-amber-500" : "bg-emerald-500"
-                            }`}
-                          />
-                        </span>
-                        <span className="text-slate-500 font-normal">
-                          Verifikasi berkas:{" "}
-                          <span
-                            className={
-                              pendingCount > 0
-                                ? "font-semibold text-slate-800 font-mono"
-                                : "font-semibold text-emerald-700 font-mono"
-                            }
-                          >
-                            {pendingCount > 0 ? `${pendingCount} mismatch tersisa` : "Semua field cocok"}
-                          </span>
-                        </span>
-                      </div>
                     )}
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0 ml-auto">
-                    {/* BUTTON 1: Setujui Tab yang Sedang Dibuka (Semua / Invoice / BL) */}
+                    {/* BUTTON 1: Setujui Field Mismatch pada Tab yang Sedang Dibuka */}
                     <button
                       type="button"
                       onClick={handleApproveActiveDoc}
                       disabled={isBulkApproving || isApproving || isAllDocMatched}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all cursor-pointer ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                         isAllDocMatched
-                          ? "bg-emerald-50/80 text-emerald-700 border border-emerald-200/90 opacity-90 cursor-default"
-                          : "bg-emerald-50 hover:bg-emerald-100/90 active:bg-emerald-200 text-emerald-800 border border-emerald-300 hover:border-emerald-400 shadow-2xs"
-                      } disabled:opacity-50`}
-                      title={`Menyetujui seluruh field pada tab ${activeDocTitle} yang sedang dibuka`}
+                          ? "bg-slate-50 text-slate-400 border border-slate-200 opacity-60 cursor-not-allowed"
+                          : "bg-emerald-50 hover:bg-emerald-100/90 active:bg-emerald-200 text-emerald-800 border border-emerald-300 hover:border-emerald-400 cursor-pointer shadow-2xs"
+                      }`}
+                      title={
+                        isAllDocMatched
+                          ? `Tidak ada field mismatch pada tab ${activeDocTitle}`
+                          : `Menyetujui ${pendingCount} field mismatch pada tab ${activeDocTitle}`
+                      }
                     >
                       {isBulkApproving ? (
                         <>
@@ -756,18 +737,16 @@ export default function MatchingDetailView({
                         </>
                       ) : isAllDocMatched ? (
                         <>
-                          <Check className="w-3.5 h-3.5 stroke-[2.5] text-emerald-600" />
+                          <Check className="w-3.5 h-3.5 stroke-[2] text-slate-400" />
                           <span>{activeDocTitle} Cocok</span>
                         </>
                       ) : (
                         <>
                           <CheckCheck className="w-3.5 h-3.5 stroke-[2.2] text-emerald-600" />
                           <span>Setujui {activeDocTitle}</span>
-                          {pendingCount > 0 && (
-                            <span className="ml-0.5 px-1.5 py-0.2 text-[10.5px] font-mono font-bold rounded-full bg-emerald-200/70 text-emerald-900 border border-emerald-300/60">
-                              {pendingCount}
-                            </span>
-                          )}
+                          <span className="ml-0.5 px-1.5 py-0.2 text-[10.5px] font-mono font-bold rounded-full bg-emerald-200/70 text-emerald-900 border border-emerald-300/60">
+                            {pendingCount}
+                          </span>
                         </>
                       )}
                     </button>

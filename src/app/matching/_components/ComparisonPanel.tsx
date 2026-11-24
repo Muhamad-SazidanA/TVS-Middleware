@@ -620,36 +620,45 @@ export default function ComparisonPanel({
                           </span>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {statusBadge}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleToggleManualMatch(field, group.docCode);
-                              }}
-                              disabled={togglingManualMatchId === field.id}
-                              className={`w-7 h-7 rounded-full border transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-2xs ${
-                                field.isManualConfirmed
-                                  ? "bg-emerald-50 text-emerald-600 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400 ring-2 ring-emerald-400/20"
-                                  : "bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/60"
-                              }`}
-                              title={
-                                field.isManualConfirmed
-                                  ? "Dikonfirmasi manual Match. Klik untuk membatalkan konfirmasi"
-                                  : "Konfirmasi manual sebagai Match (hanya untuk batch ini)"
-                              }
-                            >
-                              {togglingManualMatchId === field.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
-                              ) : (
-                                <Check
-                                  className={`w-3.5 h-3.5 ${
-                                    field.isManualConfirmed
-                                      ? "stroke-[2.5]"
-                                      : "stroke-2"
-                                  }`}
-                                />
-                              )}
-                            </button>
+                            {isMatch && !field.isManualConfirmed ? (
+                              <div
+                                className="w-7 h-7 rounded-full border border-slate-200/70 bg-slate-50/70 text-slate-300 flex items-center justify-center shrink-0 cursor-not-allowed opacity-40 shadow-2xs"
+                                title="Field ini sudah cocok (Match) secara otomatis"
+                              >
+                                <Check className="w-3.5 h-3.5 stroke-2" />
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleManualMatch(field, group.docCode);
+                                }}
+                                disabled={togglingManualMatchId === field.id}
+                                className={`w-7 h-7 rounded-full border transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-2xs ${
+                                  field.isManualConfirmed
+                                    ? "bg-emerald-50 text-emerald-600 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400 ring-2 ring-emerald-400/20"
+                                    : "bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/60"
+                                }`}
+                                title={
+                                  field.isManualConfirmed
+                                    ? "Dikonfirmasi manual Match. Klik untuk membatalkan konfirmasi"
+                                    : "Konfirmasi manual sebagai Match (hanya untuk batch ini)"
+                                }
+                              >
+                                {togglingManualMatchId === field.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                                ) : (
+                                  <Check
+                                    className={`w-3.5 h-3.5 ${
+                                      field.isManualConfirmed
+                                        ? "stroke-[2.5]"
+                                        : "stroke-2"
+                                    }`}
+                                  />
+                                )}
+                              </button>
+                            )}
                           </div>
                         </div>
 
