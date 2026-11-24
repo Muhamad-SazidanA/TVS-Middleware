@@ -435,15 +435,18 @@ export default function ComparisonPanel({
                 ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
                 : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
             }`}
+            title={`Semua: ${totalAllFieldsCount} field`}
           >
             <span>Semua</span>
             <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                isAllSelected
-                  ? "bg-white/20 text-white"
-                  : groups.some((g) => g.mismatchedCount > 0)
-                  ? "bg-rose-50 text-rose-700 border border-rose-200"
-                  : "bg-slate-100 text-slate-600"
+              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-semibold border ${
+                groups.some((g) => g.mismatchedCount > 0)
+                  ? isAllSelected
+                    ? "bg-rose-500/25 text-rose-300 border-rose-500/40"
+                    : "bg-rose-50 text-rose-700 border-rose-200"
+                  : isAllSelected
+                  ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/40"
+                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
               }`}
             >
               {totalAllFieldsCount}
@@ -466,10 +469,11 @@ export default function ComparisonPanel({
                     ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
                     : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
                 }`}
+                title={`${group.docCode}: ${group.fields.length} field (${isDocMatch ? "Semua Match" : `${group.mismatchedCount} Mismatch`})`}
               >
                 <span>{group.docCode}</span>
                 <span
-                  className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-semibold border ${
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-semibold border ${
                     isDocMatch
                       ? isFilterActive
                         ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/40"
@@ -479,7 +483,7 @@ export default function ComparisonPanel({
                       : "bg-rose-50 text-rose-700 border border-rose-200"
                   }`}
                 >
-                  {isDocMatch ? "Match" : "Mismatch"}
+                  {group.fields.length}
                 </span>
               </button>
             );
