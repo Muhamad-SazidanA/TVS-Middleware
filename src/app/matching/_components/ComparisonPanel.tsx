@@ -8,7 +8,6 @@ import {
   X,
   Save,
   Loader2,
-  Eye,
   Plus,
   Trash2,
   Check,
@@ -492,9 +491,9 @@ export default function ComparisonPanel({
       </div>
 
       {/* 2. Scrollable Body: Grouped Fields & Grouped Line Items */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-3.5 space-y-6 bg-slate-50/40">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-3.5 pb-4 pt-0 space-y-6 bg-slate-50/40">
         {filteredGroups.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 italic text-xs bg-white rounded-xl border border-dashed border-slate-200">
+          <div className="p-8 text-center text-slate-400 italic text-xs bg-white rounded-xl border border-dashed border-slate-200 mt-3.5">
             Tidak ada perbandingan field yang sesuai dengan kata kunci pencarian.
           </div>
         ) : (
@@ -507,49 +506,8 @@ export default function ComparisonPanel({
                 }}
                 className="space-y-3"
               >
-                {/* Group Section Header */}
-                <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/90 pt-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-xs uppercase px-2 py-0.5 rounded-md bg-slate-900 text-white tracking-wide">
-                      {group.docCode}
-                    </span>
-                    <span className="font-bold text-xs text-slate-800">
-                      PIB ↔ {group.docName}
-                    </span>
-                    <span className="text-[11px] text-slate-400 font-mono">
-                      ({group.fields.length} field)
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
-                      {group.matchedCount} Match
-                    </span>
-                    {group.mismatchedCount > 0 && (
-                      <span className="text-[10px] font-semibold text-rose-800 bg-rose-50 border border-rose-200/80 px-2 py-0.5 rounded-full">
-                        {group.mismatchedCount} Mismatch
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onNavigateToDoc?.(group.docCode, 1);
-                        onLoadSupportingInViewer(
-                          group.fields[0]?.id || "",
-                          group.docCode
-                        );
-                      }}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
-                      title={`Buka dokumen ${group.docCode} di viewer PDF`}
-                    >
-                      <Eye className="w-3 h-3 text-slate-500" />
-                      <span>Lihat dokumen</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Sub-header: FIELD */}
-                <div className="flex items-center justify-between pt-1 pb-0.5">
+                {/* Sub-header: FIELD (Sticky / Fixed at the top) */}
+                <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-xs py-2.5 -mx-3.5 px-3.5 border-b border-slate-200/80 shadow-2xs flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-[10px] uppercase tracking-wider text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
                       Field
@@ -571,7 +529,7 @@ export default function ComparisonPanel({
                 </div>
 
                 {/* Field Cards for this Group */}
-                <div className="space-y-2.5">
+                <div className="space-y-2.5 pt-1">
                   {group.fields.map((field) => {
                     const isActive = activeFieldId === field.id;
                     const isMatch = field.status === "MATCH";
