@@ -5,16 +5,13 @@ import dynamic from "next/dynamic";
 import {
   ArrowLeft,
   X,
-  FileText,
   CheckCircle2,
   AlertTriangle,
-  AlertCircle,
   RefreshCw,
   Download,
   Trash2,
   Check,
 } from "lucide-react";
-import BatchLogModal from "../../_components/BatchLogModal";
 import ConfirmDialog from "../../_components/ui/ConfirmDialog";
 import ComparisonPanel from "./ComparisonPanel";
 import {
@@ -94,7 +91,6 @@ export default function MatchingDetailView({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [equivalencyGroups, setEquivalencyGroups] = useState<DbEquivalencyGroup[]>([]);
-  const [auditLogOpen, setAuditLogOpen] = useState<boolean>(false);
   const initialLoadDoneRef = useRef<string | null>(null);
 
   // Active view states
@@ -229,16 +225,6 @@ export default function MatchingDetailView({
         setSelectedSupportingCode(batchModel.supporting[0]!.code);
       }
     }
-  }, [batchModel, selectedSupportingCode]);
-
-  // Identify currently active supporting document
-  const activeSupportingDoc: BatchDocumentModel | null = useMemo(() => {
-    if (!batchModel || batchModel.supporting.length === 0) return null;
-    return (
-      batchModel.supporting.find(
-        (d) => d.code.toUpperCase() === selectedSupportingCode.toUpperCase()
-      ) || batchModel.supporting[0] || null
-    );
   }, [batchModel, selectedSupportingCode]);
 
   // Identify document currently loaded in viewer
@@ -597,98 +583,11 @@ export default function MatchingDetailView({
     );
   }
 
-  // Determine overall status badge
-  const isBatchMatching =
-    batchModel.status === "Matching" ||
-    batchModel.status === "MATCHING" ||
-    batchModel.status === "Cocok";
-
-  const isBatchMismatching =
-    batchModel.status === "Mismatching" ||
-    batchModel.status === "MISMATCHING" ||
-    batchModel.status === "Tidak cocok";
-
   const pibFileName = batchModel.pib.fileName || "PIB.pdf";
-  const currentActiveFileName =
-    currentDocCode.toUpperCase() === "PIB"
-      ? pibFileName
-      : (activeSupportingDoc?.fileName || `${currentDocCode}.pdf`);
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col overflow-hidden animate-in fade-in duration-150">
-      {/* 1. Header Bar */}
-      <header className="h-14 bg-white border-b border-slate-200/90 px-4 sm:px-6 flex items-center justify-between shrink-0 z-20">
-        <div className="flex items-center gap-3 min-w-0">
-          {/* Back arrow button */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-            title="Kembali ke daftar file"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-
-          {/* File/Batch Name & Status */}
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="font-bold text-sm text-slate-900 truncate max-w-[180px] sm:max-w-xs md:max-w-md" title={currentActiveFileName}>
-              {currentActiveFileName}
-            </span>
-            <span className="text-xs text-slate-400 font-mono hidden sm:inline">#{batchId}</span>
-
-            {/* Status Badge */}
-            {isDetailBatchProcessing ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200/80">
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600" />
-                </span>
-                <span>Sedang memproses OCR...</span>
-              </span>
-            ) : isBatchMatching ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Match</span>
-              </span>
-            ) : isBatchMismatching ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200/80">
-                <AlertCircle className="w-3.5 h-3.5" />
-                <span>Mismatch</span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <span>Perlu review manual</span>
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Log audit pipeline button */}
-          <button
-            type="button"
-            onClick={() => setAuditLogOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-medium rounded-xl transition-colors cursor-pointer shadow-2xs"
-          >
-            <FileText className="w-3.5 h-3.5 text-slate-500" />
-            <span className="hidden sm:inline">Log audit pipeline</span>
-            <span className="sm:hidden">Log</span>
-          </button>
-
-          {/* Close X Button */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-            title="Tutup (Esc)"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-      </header>
-
-      {/* 2. Two Main Areas (Split / Responsive Layout) */}
+      {/* Main Areas (Split / Responsive Layout) */}
       <main className="flex-1 overflow-hidden p-2 sm:p-3 bg-slate-100/70">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full overflow-y-auto lg:overflow-hidden">
           {/* LEFT AREA: DOCUMENT VIEWER */}
@@ -703,6 +602,7 @@ export default function MatchingDetailView({
                 activeFieldId={activeFieldId}
                 onSelectField={setActiveFieldId}
                 targetPage={viewerTargetPage}
+                onBack={onClose}
                 className="h-full"
               />
             </ViewerErrorBoundary>
@@ -803,16 +703,6 @@ export default function MatchingDetailView({
         </div>
       </footer>
 
-      {/* Pipeline Audit Log Modal */}
-      {auditLogOpen && (
-        <BatchLogModal
-          batchId={String(batchId)}
-          batchTitle={batchModel.nama}
-          batchStatus={batchModel.status}
-          isOpen={auditLogOpen}
-          onClose={() => setAuditLogOpen(false)}
-        />
-      )}
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

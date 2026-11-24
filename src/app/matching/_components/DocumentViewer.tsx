@@ -14,6 +14,7 @@ import {
   FileText,
   AlertCircle,
   RefreshCw,
+  ArrowLeft,
 } from "lucide-react";
 import type { BatchDocumentModel, ComparisonFieldModel, NormalizedBbox } from "./detailTypes";
 
@@ -80,6 +81,9 @@ export interface DocumentViewerProps {
   // Explicit page navigation request (e.g. from line items card click)
   targetPage?: { page: number; timestamp: number } | null;
 
+  // Optional back callback (returns to files / batch list)
+  onBack?: () => void;
+
   className?: string;
 }
 
@@ -92,6 +96,7 @@ export default function DocumentViewer({
   activeFieldId,
   onSelectField,
   targetPage,
+  onBack,
   className = "",
 }: DocumentViewerProps) {
   // Identify currently active document
@@ -869,10 +874,27 @@ export default function DocumentViewer({
       {/* 3. Main Body: Split between Vertical Thumbnail Strip & Central Canvas Viewport */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Far-Left Vertical Thumbnail Strip (OUTSIDE <Document>, permanently stable layout) */}
-        <div className="w-24 sm:w-28 bg-slate-100/80 border-r border-slate-200/80 overflow-y-auto p-2 space-y-2.5 shrink-0 flex flex-col items-center">
-          <div className="text-[10px] font-semibold text-slate-500 tracking-wider mb-0.5 w-full text-center">
-            Halaman
-          </div>
+        <div className="w-28 sm:w-32 bg-slate-100/80 border-r border-slate-200/80 shrink-0 flex flex-col overflow-hidden">
+          {/* Back button pinned at the top */}
+          {onBack && (
+            <div className="p-2 border-b border-slate-200/80 shrink-0 w-full">
+              <button
+                type="button"
+                onClick={onBack}
+                className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 hover:text-slate-900 border border-slate-300 rounded-xl text-xs font-semibold shadow-2xs transition-all cursor-pointer group"
+                title="Kembali ke daftar file"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-800 transition-colors shrink-0" />
+                <span className="truncate">Kembali</span>
+              </button>
+            </div>
+          )}
+
+          {/* Scrollable Thumbnails list */}
+          <div className="flex-1 overflow-y-auto p-2 space-y-2.5 flex flex-col items-center w-full">
+            <div className="text-[10px] font-semibold text-slate-500 tracking-wider mb-0.5 w-full text-center">
+              Halaman
+            </div>
           {numPages && numPages > 0 ? (
             Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => {
               const isSelectedPage = safeTargetPage === pageNum;
@@ -939,6 +961,7 @@ export default function DocumentViewer({
               ))}
             </div>
           )}
+          </div>
         </div>
 
         {/* Central PDF Canvas Viewport Area */}
