@@ -22,7 +22,146 @@ export async function POST(
       fieldLabel,
       docCode,
       confirmed = true,
+      bulk = false,
+      fields = [],
     } = body;
+
+    // Handle Bulk Approval for all fields in a document/batch
+    if (bulk && Array.isArray(fields) && fields.length > 0) {
+      const session = await auth();
+      const actionByName = session?.user?.name || session?.user?.email || "Operator";
+      const matchEntry = {
+        confirmed: true,
+        confirmedAt: new Date().toISOString(),
+        confirmedBy: actionByName,
+      };
+
+      // 1. Fetch all detail batches for this batch
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const batchDetails = await (db as any).detailBatch.findMany({
+        where: { batchId },
+      });
+
+      // Group fields by detail
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detailUpdateMap = new Map<number, any>();
+
+      for (const f of fields) {
+        let targetDetail = f.detailId
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ? batchDetails.find((d: any) => d.id === Number(f.detailId))
+          : null;
+
+        if (!targetDetail && f.docCode) {
+          const dc = f.docCode.toLowerCase();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          targetDetail = batchDetails.find((d: any) => {
+            const ft = (d.fileType || "").toLowerCase();
+            return ft.includes(dc) || dc.includes(ft);
+          });
+        }
+
+        if (!targetDetail && docCode) {
+          const dc = docCode.toLowerCase();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          targetDetail = batchDetails.find((d: any) => {
+            const ft = (d.fileType || "").toLowerCase();
+            return ft.includes(dc) || dc.includes(ft);
+          });
+        }
+
+        if (targetDetail) {
+          let isiObj = detailUpdateMap.get(targetDetail.id);
+          if (!isiObj) {
+            try {
+              isiObj =
+                typeof targetDetail.isi === "string"
+                  ? JSON.parse(targetDetail.isi)
+                  : targetDetail.isi || {};
+            } catch {
+              isiObj = {};
+            }
+            if (!isiObj.manualMatches || typeof isiObj.manualMatches !== "object") {
+              isiObj.manualMatches = {};
+            }
+            detailUpdateMap.set(targetDetail.id, isiObj);
+          }
+
+          if (f.fieldId) {
+            isiObj.manualMatches[f.fieldId] = matchEntry;
+          }
+          if (f.fieldName) {
+            isiObj.manualMatches[f.fieldName] = matchEntry;
+            const cleanKey = f.fieldName.toLowerCase().replace(/[^a-z0-9]/g, "");
+            isiObj.manualMatches[cleanKey] = matchEntry;
+          }
+        }
+      }
+
+      // Update all affected details in DB
+      for (const [dId, updatedIsi] of detailUpdateMap.entries()) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (db as any).detailBatch.update({
+          where: { id: dId },
+          data: { isi: JSON.stringify(updatedIsi) },
+        });
+      }
+
+      const targetDocLabel = docCode || "Dokumen Aktif";
+      await logSystemAudit({
+        action: "OVERRIDE",
+        category: "BATCH_DATA",
+        title: `Konfirmasi Massal: Seluruh Field ${targetDocLabel}`,
+        details: `${actionByName} menyetujui seluruh ${fields.length} field pada "${targetDocLabel}" sebagai MATCH untuk Batch #${batchId}.`,
+        metadata: { batchId, docCode: targetDocLabel, count: fields.length },
+        userName: actionByName,
+        userEmail: session?.user?.email || undefined,
+        userId: session?.user?.id || undefined,
+      }).catch((err) => console.warn("[Audit] Failed bulk manual-match audit:", err));
+
+      await createBatchLog({
+        batchId,
+        step: "MANUAL_OVERRIDE",
+        stepNumber: 7,
+        level: "INFO",
+        title: `Konfirmasi Massal: Seluruh Field ${targetDocLabel}`,
+        message: `${actionByName} menyetujui seluruh ${fields.length} field pada "${targetDocLabel}" sebagai MATCH.`,
+        details: { docCode: targetDocLabel, count: fields.length },
+      }).catch((err) => console.warn("[BatchLog] Failed to create log:", err));
+
+      // Re-evaluate matching
+      const serverGroups = await loadServerEquivalencyGroups();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const allDetails = await (db as any).detailBatch.findMany({ where: { batchId } });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const batchRecord = await (db as any).batch.findUnique({ where: { id: batchId } });
+      const evalResult = evaluateBatchComparison(
+        { ...batchRecord, details: allDetails },
+        serverGroups
+      );
+
+      const dbStatusStr =
+        evalResult.status === "Matching"
+          ? "MATCHING"
+          : evalResult.status === "Mismatching"
+          ? "MISMATCHING"
+          : "PROSES";
+      if (batchRecord && batchRecord.status !== dbStatusStr) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (db as any).batch.update({
+          where: { id: batchId },
+          data: { status: dbStatusStr },
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Seluruh field ${targetDocLabel} (${fields.length} field) berhasil disetujui.`,
+        confirmed: true,
+        batchStatus: evalResult.status,
+        docStatuses: evalResult.docStatuses,
+      });
+    }
 
     if (!batchId || (!detailId && !fieldId && !fieldName)) {
       return NextResponse.json(

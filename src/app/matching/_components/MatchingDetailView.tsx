@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Check,
+  CheckCheck,
   Lock,
 } from "lucide-react";
 import ComparisonPanel from "./ComparisonPanel";
@@ -98,6 +99,7 @@ export default function MatchingDetailView({
 
   // Footer Actions state
   const [isApproving, setIsApproving] = useState<boolean>(false);
+  const [isBulkApproving, setIsBulkApproving] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -246,6 +248,35 @@ export default function MatchingDetailView({
     return comparisonGroups.flatMap((g) => g.fields);
   }, [comparisonGroups]);
 
+  // Active document group & title for footer actions
+  const effectiveDocCode = useMemo(() => {
+    if (selectedSupportingCode && selectedSupportingCode.toUpperCase() !== "PIB") {
+      return selectedSupportingCode;
+    }
+    return comparisonGroups[0]?.docCode || "";
+  }, [selectedSupportingCode, comparisonGroups]);
+
+  const activeGroup = useMemo(() => {
+    if (!effectiveDocCode || effectiveDocCode.toUpperCase() === "ALL") return null;
+    return (
+      comparisonGroups.find(
+        (g) => g.docCode.toUpperCase() === effectiveDocCode.toUpperCase()
+      ) || null
+    );
+  }, [effectiveDocCode, comparisonGroups]);
+
+  const activeDocTitle = activeGroup ? activeGroup.docName : "Semua Field";
+
+  const fieldsToApprove = useMemo(() => {
+    return activeGroup ? activeGroup.fields : comparisonGroups.flatMap((g) => g.fields);
+  }, [activeGroup, comparisonGroups]);
+
+  const pendingCount = useMemo(() => {
+    return fieldsToApprove.filter((f) => f.status !== "MATCH" && !f.isManualConfirmed).length;
+  }, [fieldsToApprove]);
+
+  const isAllDocMatched = fieldsToApprove.length > 0 && pendingCount === 0;
+
   // Default active field selection
   useEffect(() => {
     if (allFields.length > 0) {
@@ -389,7 +420,48 @@ export default function MatchingDetailView({
     }
   };
 
-  // Approve Batch Handler ("Setujui file")
+  // Bulk approve handler for currently open tab (images 2)
+  const handleApproveActiveDoc = async () => {
+    if (isBulkApproving) return;
+    try {
+      setIsBulkApproving(true);
+      if (fieldsToApprove.length === 0) {
+        showToast("Tidak ada field yang perlu disetujui.");
+        return;
+      }
+
+      const res = await fetch(`/api/batches/${batchId}/manual-match`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bulk: true,
+          docCode: activeGroup ? activeGroup.docCode : "ALL",
+          fields: fieldsToApprove.map((f) => ({
+            fieldId: f.id,
+            fieldName: f.fieldName,
+            fieldLabel: f.label,
+            docCode: f.docCode || activeGroup?.docCode,
+            detailId: f.supportingDetailId || f.pibDetailId,
+          })),
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || "Gagal menyetujui field dokumen.");
+      }
+
+      showToast(`Semua field ${activeDocTitle} berhasil disetujui.`);
+      await loadBatch(true);
+    } catch (err) {
+      console.error("Approve active doc error:", err);
+      showToast(err instanceof Error ? err.message : "Gagal menyetujui dokumen.");
+    } finally {
+      setIsBulkApproving(false);
+    }
+  };
+
+  // Approve Batch Handler ("Selesaikan & Pindahkan File")
   const handleApproveBatch = async () => {
     try {
       setIsApproving(true);
@@ -399,16 +471,16 @@ export default function MatchingDetailView({
         body: JSON.stringify({ status: "APPROVED" }),
       });
       if (!res.ok) {
-        throw new Error("Gagal menyetujui file");
+        throw new Error("Gagal menyetujui berkas");
       }
-      showToast("Batch berhasil disetujui & status tersimpan di database.");
+      showToast("Berkas berhasil disetujui & dipindahkan ke file cross check.");
       if (onStatusUpdate) {
         onStatusUpdate(batchId, "APPROVED");
       }
-      loadBatch(true);
+      await loadBatch(true);
     } catch (err) {
       console.error("Approve batch error:", err);
-      showToast(err instanceof Error ? err.message : "Gagal menyetujui file.");
+      showToast(err instanceof Error ? err.message : "Gagal menyetujui berkas.");
     } finally {
       setIsApproving(false);
     }
@@ -614,41 +686,80 @@ export default function MatchingDetailView({
               onDeleteManualNote={handleDeleteManualNote}
               className="h-full"
               footer={
-                <div className="flex items-center justify-between w-full">
-                  <div className="flex items-center gap-2">
-                    {rawBatch?.status === "APPROVED" && (
-                      <span className="text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg flex items-center gap-1.5">
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <div className="flex items-center justify-between w-full gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {rawBatch?.status === "APPROVED" ? (
+                      <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-2xs">
+                        <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
                         <span>
-                          Disetujui
+                          Telah Disetujui
                           {rawBatch.approvedBy?.name ? ` (${rawBatch.approvedBy.name})` : ""}
                         </span>
                       </span>
+                    ) : (
+                      <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+                        Tindakan verifikasi berkas:
+                      </span>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleApproveBatch}
-                    disabled={isApproving}
-                    className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-xl text-white bg-slate-900 hover:bg-slate-800 transition-colors cursor-pointer shadow-xs disabled:opacity-50 ml-auto"
-                  >
-                    {isApproving ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Menyetujui...</span>
-                      </>
-                    ) : rawBatch?.status === "APPROVED" ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-slate-300" />
-                        <span>Disetujui</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Setujui file</span>
-                      </>
-                    )}
-                  </button>
+
+                  <div className="flex items-center gap-2 shrink-0 ml-auto">
+                    {/* BUTTON 1: Setujui Tab/Dokumen yang sedang dibuka (Images 2) */}
+                    <button
+                      type="button"
+                      onClick={handleApproveActiveDoc}
+                      disabled={isBulkApproving || isApproving || isAllDocMatched}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-2xs ${
+                        isAllDocMatched
+                          ? "bg-emerald-50/80 text-emerald-700 border border-emerald-300 opacity-90 cursor-default"
+                          : "bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 text-emerald-800 border-2 border-emerald-500 hover:border-emerald-600 shadow-xs"
+                      } disabled:opacity-50`}
+                      title={`Menyetujui seluruh field pada dokumen ${activeDocTitle} yang sedang dibuka`}
+                    >
+                      {isBulkApproving ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                          <span>Menyetujui...</span>
+                        </>
+                      ) : isAllDocMatched ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                          <span>{activeDocTitle} Cocok</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCheck className="w-4 h-4 text-emerald-600 stroke-[2.2]" />
+                          <span>Setujui {activeDocTitle} {pendingCount > 0 ? `(${pendingCount})` : ""}</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* BUTTON 2: Selesaikan & Pindahkan File ke Approved / Cross Check */}
+                    <button
+                      type="button"
+                      onClick={handleApproveBatch}
+                      disabled={isApproving || isBulkApproving}
+                      className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-xl text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                      title="Setujui seluruh berkas dan pindahkan ke daftar file yang sudah diapprove"
+                    >
+                      {isApproving ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                          <span>Menyimpan...</span>
+                        </>
+                      ) : rawBatch?.status === "APPROVED" ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                          <span>File Telah Disetujui</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4 stroke-[2.5]" />
+                          <span>Selesaikan & Pindahkan File</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               }
             />
