@@ -707,48 +707,79 @@ export default function DocumentViewer({
     );
   };
 
-  // Viewport-aware tracking of visible page via IntersectionObserver for vertical scrolling
+  // Viewport-aware tracking of visible page synchronized with reading focus line (40% viewport height)
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !numPages || numPages <= 1) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (isProgrammaticScrollRef.current) return;
+    let rafId: number | null = null;
 
-        let bestEntry: IntersectionObserverEntry | null = null;
-        let maxVisibleHeight = 0;
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            const visibleHeight = entry.intersectionRect.height;
-            if (visibleHeight > maxVisibleHeight) {
-              maxVisibleHeight = visibleHeight;
-              bestEntry = entry;
+    const handleScroll = () => {
+      if (isProgrammaticScrollRef.current) return;
+
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        if (!container) return;
+
+        const containerRect = container.getBoundingClientRect();
+        // Focus line at 40% of container viewport height (where user reading focus sits)
+        const focusY = containerRect.top + containerRect.height * 0.4;
+
+        // Extreme bounds check: lock to page 1 at top, and numPages at bottom
+        if (container.scrollTop <= 30) {
+          if (safeTargetPage !== 1) {
+            changeToPage(1, false);
+          }
+          return;
+        }
+
+        if (container.scrollHeight - (container.scrollTop + container.clientHeight) <= 30) {
+          if (safeTargetPage !== numPages) {
+            changeToPage(numPages, false);
+          }
+          return;
+        }
+
+        // 1. Primary check: which page covers the focus line
+        let targetPage: number | null = null;
+        for (let p = 1; p <= numPages; p++) {
+          const el = pageRefs.current[p];
+          if (!el) continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.top <= focusY && rect.bottom > focusY) {
+            targetPage = p;
+            break;
+          }
+        }
+
+        // 2. Fallback check: if in inter-page margins, pick the page with maximum visible height
+        if (!targetPage) {
+          let maxVisible = 0;
+          for (let p = 1; p <= numPages; p++) {
+            const el = pageRefs.current[p];
+            if (!el) continue;
+            const rect = el.getBoundingClientRect();
+            const visibleTop = Math.max(containerRect.top, rect.top);
+            const visibleBottom = Math.min(containerRect.bottom, rect.bottom);
+            const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+            if (visibleHeight > maxVisible) {
+              maxVisible = visibleHeight;
+              targetPage = p;
             }
           }
         }
-        if (bestEntry && maxVisibleHeight > Math.min(container.clientHeight * 0.35, 200)) {
-          const pageNumAttr = (bestEntry.target as HTMLElement).getAttribute("data-page-number");
-          if (pageNumAttr) {
-            const p = parseInt(pageNumAttr, 10);
-            if (!isNaN(p) && p >= 1 && p <= numPages && p !== safeTargetPage) {
-              changeToPage(p, false);
-            }
-          }
-        }
-      },
-      {
-        root: container,
-        threshold: [0, 0.1, 0.25, 0.5, 0.75, 1.0],
-      }
-    );
 
-    Object.values(pageRefs.current).forEach((el) => {
-      if (el) observer.observe(el);
-    });
+        if (targetPage && targetPage !== safeTargetPage) {
+          changeToPage(targetPage, false);
+        }
+      });
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
 
     return () => {
-      observer.disconnect();
+      container.removeEventListener("scroll", handleScroll);
+      if (rafId) cancelAnimationFrame(rafId);
     };
   }, [numPages, safeTargetPage, changeToPage]);
 
