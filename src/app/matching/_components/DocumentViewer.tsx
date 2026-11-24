@@ -91,7 +91,7 @@ export default function DocumentViewer({
   pibDoc,
   supportingDocs,
   currentDocCode,
-  onSelectDocCode,
+  onSelectDocCode: _onSelectDocCode,
   fields,
   activeFieldId,
   onSelectField,
@@ -689,67 +689,7 @@ export default function DocumentViewer({
 
   return (
     <div className={`flex flex-col h-full bg-slate-50/70 rounded-2xl border border-slate-200/90 overflow-hidden shadow-xs ${className}`}>
-      {/* 1. Document Switcher Segmented Control */}
-      <div className="px-4 py-2.5 bg-white border-b border-slate-200/80 shrink-0">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
-          {/* PIB Option (Always first) */}
-          <button
-            type="button"
-            onClick={() => onSelectDocCode("PIB")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border shrink-0 flex items-center gap-1.5 ${
-              isPibActive
-                ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-            }`}
-          >
-            <FileText className={`w-3.5 h-3.5 ${isPibActive ? "text-white" : "text-slate-400"}`} />
-            <span>PIB (acuan)</span>
-          </button>
-
-          {/* Dynamic Supporting Document Options */}
-          {supportingDocs.map((doc) => {
-            const isSelected = !isPibActive && currentDocCode.toUpperCase() === doc.code.toUpperCase();
-            const docFields = fields.filter((f) => f.docCode && f.docCode.toUpperCase() === doc.code.toUpperCase());
-            const hasMismatch = docFields.some((f) => f.status === "MISMATCH");
-            const isDocMatch = docFields.length > 0 && !hasMismatch;
-
-            return (
-              <button
-                key={doc.id}
-                type="button"
-                onClick={() => onSelectDocCode(doc.code)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer border shrink-0 flex items-center gap-1.5 ${
-                  isSelected
-                    ? "bg-slate-900 text-white border-slate-900 shadow-xs"
-                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-                }`}
-              >
-                <span className="font-mono">{doc.code}</span>
-                {docFields.length > 0 && (
-                  <span
-                    className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-semibold border ${
-                      isDocMatch
-                        ? isSelected
-                          ? "bg-emerald-500/25 text-emerald-300 border-emerald-500/40"
-                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : isSelected
-                        ? "bg-rose-500/25 text-rose-300 border-rose-500/40"
-                        : "bg-rose-50 text-rose-700 border border-rose-200"
-                    }`}
-                  >
-                    {isDocMatch ? "Match" : "Mismatch"}
-                  </span>
-                )}
-                <span className="text-[11px] opacity-75 hidden sm:inline truncate max-w-[120px]">
-                  {doc.name !== doc.code ? `(${doc.name})` : ""}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 2. Top Viewer Controls Bar */}
+      {/* Top Viewer Controls Bar */}
       <div className="flex border-b border-slate-200/80 shrink-0">
         {/* Left: Back button container aligned with thumbnail sidebar below */}
         {onBack && (
