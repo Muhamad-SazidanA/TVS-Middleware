@@ -219,6 +219,71 @@ export default function DocumentViewer({
   const isProgrammaticScrollRef = useRef<boolean>(false);
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Mouse drag-to-pan & wheel zoom support
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number }>({
+    x: 0,
+    y: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+  });
+  const [isPanning, setIsPanning] = useState(false);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const target = e.target as HTMLElement;
+    if (target.closest("button") || target.closest("input") || target.closest("select")) {
+      return;
+    }
+
+    isDraggingRef.current = true;
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: container.scrollLeft,
+      scrollTop: container.scrollTop,
+    };
+    setIsPanning(true);
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+
+    container.scrollLeft = dragStartRef.current.scrollLeft - dx;
+    container.scrollTop = dragStartRef.current.scrollTop - dy;
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    isDraggingRef.current = false;
+    setIsPanning(false);
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 15 : -15;
+        setZoom((z) => Math.min(Math.max(50, z + delta), 200));
+      }
+    };
+
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    return () => {
+      container.removeEventListener("wheel", handleWheel);
+    };
+  }, []);
+
   const currentDocKey = `${activeDoc.code}-${activeDoc.id}-${activeDoc.fileUrl}`;
   const lastDocKeyRef = useRef<string>("");
   const pendingTargetPageRef = useRef<number | null>(null);
@@ -913,7 +978,13 @@ export default function DocumentViewer({
         {/* Central PDF Canvas Viewport Area */}
         <div
           ref={containerRef}
-          className="flex-1 overflow-auto p-4 flex justify-center bg-slate-200/50 relative"
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          className={`flex-1 overflow-auto p-4 bg-slate-200/50 relative ${
+            isPanning ? "cursor-grabbing select-none" : zoom > 100 ? "cursor-grab" : ""
+          }`}
         >
           {isNotFound || loadError ? (
             <div className="m-auto p-6 max-w-sm w-full bg-white rounded-2xl border border-slate-200 text-center shadow-xs">
@@ -959,10 +1030,10 @@ export default function DocumentViewer({
                   </div>
                 </div>
               }
-              className="flex flex-col items-center w-full min-h-full"
+              className="w-fit min-w-full mx-auto flex flex-col items-center min-h-full"
             >
               {numPages && numPages > 0 ? (
-                <div className="flex flex-col items-center py-4 w-full min-h-full space-y-4">
+                <div className="flex flex-col items-center py-4 w-fit min-w-full min-h-full space-y-4">
                   {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => {
                     const isWithinBufferWindow = Math.abs(pageNum - safeTargetPage) <= 1;
 
@@ -1005,7 +1076,9 @@ export default function DocumentViewer({
                         data-page-number={pageNum}
                         className="rounded-xl border border-slate-300 bg-white transition-shadow shrink-0 shadow-md relative overflow-hidden"
                         style={{
+                          width: `${scaledWidth}px`,
                           minWidth: `${scaledWidth}px`,
+                          height: `${scaledHeight}px`,
                           minHeight: `${scaledHeight}px`,
                           transform: rotation ? `rotate(${rotation}deg)` : undefined,
                           transition: "transform 0.2s ease",
