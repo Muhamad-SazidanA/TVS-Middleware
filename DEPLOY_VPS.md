@@ -2,7 +2,7 @@
 
 Panduan ini disiapkan khusus untuk menghubungkan repositori GitHub **`Muhamad-SazidanA/TVS-Middleware`** ke folder **`/root/docmatch`** di VPS dan mempublikasikannya ke **`https://docmatch.solusiaplikasi.id`** tanpa bentrok dengan aplikasi lain yang sudah berjalan di VPS (`app.spensify.ai`, `uti-spensify`, `Brilian.Ai`, `traefik`).
 
-> **Port & Database Default:** DocMatch berjalan di **`127.0.0.1:3100`** (aman dari port terpakai `3000`, `3001`, `9000`, `80`, `443`) dan database **PostgreSQL 16** berjalan terisolasi di container `docmatch-db` tanpa membuka port `5432` ke host/publik.
+> **Port & Database Default:** DocMatch berjalan di port host **`3100`** (`0.0.0.0:3100` agar bisa dijangkau `traefik` melalui `http://host.docker.internal:3100`, aman dari port terpakai `3000`, `3001`, `9000`, `80`, `443`) dan database **PostgreSQL 16** berjalan terisolasi di container `docmatch-db` tanpa membuka port `5432` ke host/publik.
 
 ---
 

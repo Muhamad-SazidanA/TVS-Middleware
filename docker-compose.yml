@@ -36,7 +36,7 @@ services:
       AUTH_TRUST_HOST: "true"
       RUN_DB_PUSH_ON_START: "true"
     ports:
-      - "127.0.0.1:${DOCMATCH_PORT:-3100}:3000"
+      - "${DOCMATCH_PORT:-3100}:3000"
     volumes:
       - ./public/uploads:/app/public/uploads
       - docmatch_config:/app/src/config
