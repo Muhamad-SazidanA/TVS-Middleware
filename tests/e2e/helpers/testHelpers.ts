@@ -3,7 +3,7 @@ import path from "path";
 
 // Ensure environment validation does not block pure unit/E2E runner execution
 process.env.SKIP_ENV_VALIDATION = "1";
-process.env.DATABASE_URL = process.env.DATABASE_URL || "mysql://user:pass@localhost:3306/usc_middleware";
+process.env.DATABASE_URL = process.env.DATABASE_URL || "postgresql://user:pass@localhost:5432/usc_middleware";
 
 /**
  * Loads a JSON fixture from the tests/e2e/fixtures directory

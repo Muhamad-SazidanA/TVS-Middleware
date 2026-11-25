@@ -4,7 +4,7 @@ set -euo pipefail
 mkdir -p /app/public/uploads
 
 if [ "${RUN_DB_PUSH_ON_START:-true}" = "true" ]; then
-  echo "[docmatch] Syncing Prisma schema to MySQL..."
+  echo "[docmatch] Syncing Prisma schema to PostgreSQL..."
   attempts=0
   max_attempts=15
   until npx prisma db push --skip-generate; do

@@ -1,22 +1,20 @@
 services:
   docmatch-db:
-    image: mysql:8.0
+    image: postgres:16-alpine
     container_name: docmatch-db
     restart: unless-stopped
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-docmatch_root_change_me}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-docmatch}
-      MYSQL_USER: ${MYSQL_USER:-docmatch}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-docmatch_pass_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-docmatch}
+      POSTGRES_USER: ${POSTGRES_USER:-docmatch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-docmatch_pass_change_me}
     volumes:
-      - docmatch_mysql_data:/var/lib/mysql
+      - docmatch_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-docmatch} -d $${POSTGRES_DB:-docmatch}"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 20s
+      start_period: 15s
     networks:
       - docmatch-net
 
@@ -46,7 +44,7 @@ services:
       - docmatch-net
 
 volumes:
-  docmatch_mysql_data:
+  docmatch_postgres_data:
   docmatch_config:
 
 networks:
