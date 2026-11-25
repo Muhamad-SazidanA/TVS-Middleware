@@ -7,12 +7,6 @@ import { useSession, signOut } from "next-auth/react";
 import { Database, LogOut, User as UserIcon } from "lucide-react";
 
 // Inline SVG Icons
-const DashboardIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-  </svg>
-);
-
 const UploadCloudIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -41,7 +35,6 @@ export default function Sidebar() {
     return null;
   }
 
-  const isDashboardActive = pathname === "/";
   const isUploadActive = pathname === "/upload" || pathname?.startsWith("/upload");
   const isMatchingActive = pathname === "/matching" || pathname?.startsWith("/matching") || pathname === "/Matching";
   const isAllDataActive = pathname === "/all-data" || pathname?.startsWith("/all-data");
@@ -68,17 +61,17 @@ export default function Sidebar() {
           Main Menu
         </div>
 
-        {/* 1. Dashboard Link */}
+        {/* 1. Matching Workspace Link (Halaman Utama) */}
         <Link
-          href="/"
+          href="/matching"
           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 focus:outline-none ${
-            isDashboardActive
+            isMatchingActive
               ? "text-blue-950 font-bold bg-blue-50/80"
               : "text-slate-600 hover:text-blue-950 hover:bg-slate-50"
           }`}
         >
-          <DashboardIcon className={`w-3.5 h-3.5 ${isDashboardActive ? "text-blue-950" : "text-slate-400"}`} />
-          <span className={isDashboardActive ? "text-blue-950 font-bold" : ""}>Dashboard</span>
+          <LayersIcon className={`w-3.5 h-3.5 ${isMatchingActive ? "text-blue-950" : "text-slate-400"}`} />
+          <span className={isMatchingActive ? "text-blue-950 font-bold" : ""}>Matching Workspace</span>
         </Link>
 
         {/* 2. Upload Link */}
@@ -92,19 +85,6 @@ export default function Sidebar() {
         >
           <UploadCloudIcon className={`w-3.5 h-3.5 ${isUploadActive ? "text-blue-950" : "text-slate-400"}`} />
           <span className={isUploadActive ? "text-blue-950 font-bold" : ""}>Upload dokumen</span>
-        </Link>
-
-        {/* 3. Matching Workspace Link (Personal data for Staff) */}
-        <Link
-          href="/matching"
-          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 focus:outline-none ${
-            isMatchingActive
-              ? "text-blue-950 font-bold bg-blue-50/80"
-              : "text-slate-600 hover:text-blue-950 hover:bg-slate-50"
-          }`}
-        >
-          <LayersIcon className={`w-3.5 h-3.5 ${isMatchingActive ? "text-blue-950" : "text-slate-400"}`} />
-          <span className={isMatchingActive ? "text-blue-950 font-bold" : ""}>Matching Workspace</span>
         </Link>
 
         {/* 4. All Data Room Link (Approved Only) */}

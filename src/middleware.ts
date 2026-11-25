@@ -51,12 +51,12 @@ export function middleware(request: NextRequest) {
     }
 
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
+    loginUrl.searchParams.set("callbackUrl", pathname === "/" ? "/matching" : pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // 5. If user is already authenticated and visits /login, redirect to /matching
-  if (isAuthenticated && pathname === "/login") {
+  // 5. If user is already authenticated and visits /login or /, redirect to /matching
+  if (isAuthenticated && (pathname === "/login" || pathname === "/")) {
     return NextResponse.redirect(new URL("/matching", request.url));
   }
 
