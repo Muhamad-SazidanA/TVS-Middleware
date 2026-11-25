@@ -1,0 +1,54 @@
+services:
+  docmatch-db:
+    image: mysql:8.0
+    container_name: docmatch-db
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-docmatch_root_change_me}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-docmatch}
+      MYSQL_USER: ${MYSQL_USER:-docmatch}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-docmatch_pass_change_me}
+    volumes:
+      - docmatch_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - docmatch-net
+
+  docmatch-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: docmatch-app
+    restart: unless-stopped
+    depends_on:
+      docmatch-db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      AUTH_TRUST_HOST: "true"
+      RUN_DB_PUSH_ON_START: "true"
+    ports:
+      - "127.0.0.1:${DOCMATCH_PORT:-3100}:3000"
+    volumes:
+      - ./public/uploads:/app/public/uploads
+      - docmatch_config:/app/src/config
+    networks:
+      - docmatch-net
+
+volumes:
+  docmatch_mysql_data:
+  docmatch_config:
+
+networks:
+  docmatch-net:
+    driver: bridge

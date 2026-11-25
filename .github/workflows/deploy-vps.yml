@@ -1,0 +1,82 @@
+name: Verify & Deploy DocMatch to VPS
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-docmatch-vps
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Typecheck & Production Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Next.js production build check
+        env:
+          SKIP_ENV_VALIDATION: "1"
+          NODE_OPTIONS: "--max-old-space-size=3072"
+        run: npm run build
+
+  deploy:
+    name: Deploy to VPS (/root/docmatch)
+    needs: verify
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
+    steps:
+      - name: Check VPS SSH secrets
+        id: check_secrets
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ -z "$VPS_HOST" ] || [ -z "$VPS_USER" ] || [ -z "$VPS_SSH_KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::VPS auto-deploy dilewati karena secrets VPS_HOST, VPS_USER, atau VPS_SSH_KEY belum diisi di GitHub Repository Secrets. Lihat DEPLOY_VPS.md."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy via SSH to VPS
+        if: steps.check_secrets.outputs.configured == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+          DEPLOY_MODE: ${{ secrets.DEPLOY_MODE }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/vps_deploy_key
+          chmod 600 ~/.ssh/vps_deploy_key
+          PORT="${VPS_PORT:-22}"
+          ssh-keyscan -p "$PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          APP_DIR="${VPS_APP_DIR:-/root/docmatch}"
+          MODE="${DEPLOY_MODE:-auto}"
+          ssh -i ~/.ssh/vps_deploy_key -p "$PORT" -o BatchMode=yes "${VPS_USER}@${VPS_HOST}" \
+            "cd '${APP_DIR}' && DEPLOY_MODE='${MODE}' bash deploy/deploy.sh"
+          rm -f ~/.ssh/vps_deploy_key
