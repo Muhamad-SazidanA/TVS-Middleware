@@ -14,6 +14,10 @@ import {
 } from "lucide-react";
 import ComparisonPanel from "./ComparisonPanel";
 import {
+  ComparisonPanelSkeleton,
+  DocumentViewerSkeleton,
+} from "./MatchingSkeletons";
+import {
   adaptBatchToModel,
   buildAllComparisonGroups,
 } from "./detailAdapter";
@@ -27,6 +31,7 @@ import type { DbEquivalencyGroup } from "~/utils/valueEquivalency";
 
 const DocumentViewer = dynamic(() => import("./DocumentViewer"), {
   ssr: false,
+  loading: () => <DocumentViewerSkeleton />,
 });
 
 
@@ -496,42 +501,21 @@ export default function MatchingDetailView({
     }
   };
 
-  // Loading state (Solid Full-screen Shell to eliminate background table flicker)
+  // Loading state matching exact post-load split layout (7/5 viewer + comparison skeleton)
   if (loading) {
     return (
       <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col overflow-hidden">
-        {/* Skeleton Header */}
-        <header className="h-14 bg-white border-b border-slate-200/90 px-4 sm:px-6 flex items-center justify-between shrink-0 z-20">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-              title="Kembali ke daftar file"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm text-slate-800">Memuat berkas...</span>
-              <span className="text-xs text-slate-400 font-mono">#{batchId}</span>
+        <main className="flex-1 overflow-hidden p-2 sm:p-3 bg-slate-100/70">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-full overflow-y-auto lg:overflow-hidden">
+            {/* LEFT AREA: DOCUMENT VIEWER SKELETON */}
+            <div className="lg:col-span-7 xl:col-span-7 h-[500px] lg:h-full flex flex-col min-h-0">
+              <DocumentViewerSkeleton onBack={onClose} />
             </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-            title="Tutup (Esc)"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </header>
 
-        {/* Skeleton Body */}
-        <main className="flex-1 overflow-hidden p-4 bg-slate-100/70 flex items-center justify-center">
-          <div className="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-sm border border-slate-200/80">
-            <RefreshCw className="w-8 h-8 animate-spin mx-auto text-slate-900 mb-3" />
-            <p className="font-semibold text-slate-800 text-sm">Memuat detail dokumen...</p>
-            <p className="text-xs text-slate-500 mt-1 font-mono">Batch #{batchId}</p>
+            {/* RIGHT AREA: COMPARISON PANEL SKELETON */}
+            <div className="lg:col-span-5 xl:col-span-5 h-[600px] lg:h-full flex flex-col min-h-0">
+              <ComparisonPanelSkeleton />
+            </div>
           </div>
         </main>
       </div>

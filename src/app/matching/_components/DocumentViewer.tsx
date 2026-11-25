@@ -2,6 +2,10 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
+import {
+  DocumentPageSkeleton,
+  ThumbnailStripSkeleton,
+} from "./MatchingSkeletons";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import {
@@ -783,6 +787,12 @@ export default function DocumentViewer({
     };
   }, [numPages, safeTargetPage, changeToPage]);
 
+  const documentSkeletonContent = (
+    <div className="flex flex-col items-center py-4 w-fit min-w-full min-h-full space-y-4">
+      <DocumentPageSkeleton width={scaledWidth} height={scaledHeight} />
+    </div>
+  );
+
   return (
     <div className={`flex flex-col h-full bg-slate-50/70 rounded-2xl border border-slate-200/90 overflow-hidden shadow-xs ${className}`}>
       {/* Top Viewer Controls Bar (Unified, Seamless & Clean) */}
@@ -1002,10 +1012,8 @@ export default function DocumentViewer({
               );
             })
           ) : (
-            <div className="flex flex-col items-center gap-1.5 py-2 w-full">
-              {[1, 2].map((i) => (
-                <div key={i} className="w-full h-14 rounded-lg bg-slate-200/50 animate-pulse border border-slate-200/60" />
-              ))}
+            <div className="py-0.5 w-full">
+              <ThumbnailStripSkeleton count={3} />
             </div>
           )}
         </div>
@@ -1043,12 +1051,7 @@ export default function DocumentViewer({
               suspense={false}
               onLoadSuccess={handleDocumentLoadSuccess}
               onLoadError={handleDocumentLoadError}
-              loading={
-                <div className="m-auto flex flex-col items-center justify-center p-8 text-slate-500 w-full h-full min-h-[400px]">
-                  <div className="w-8 h-8 border-2 border-slate-900 border-t-transparent rounded-full animate-spin mb-3" />
-                  <span className="text-xs font-semibold text-slate-700">Memuat berkas {activeDoc.fileName}...</span>
-                </div>
-              }
+              loading={documentSkeletonContent}
               error={
                 <div className="m-auto p-6 max-w-sm w-full bg-white rounded-2xl border border-slate-200 text-center shadow-xs">
                   <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
@@ -1149,13 +1152,11 @@ export default function DocumentViewer({
                               }
                             }}
                             loading={
-                              <div
-                                className="flex flex-col items-center justify-center bg-white rounded-xl"
-                                style={{ width: `${scaledWidth}px`, height: `${scaledHeight}px` }}
-                              >
-                                <div className="w-6 h-6 border-2 border-slate-900 border-t-transparent rounded-full animate-spin mb-2" />
-                                <span className="text-[11px] text-slate-400">Merender halaman {pageNum}...</span>
-                              </div>
+                              <DocumentPageSkeleton
+                                width={scaledWidth}
+                                height={scaledHeight}
+                                embedded
+                              />
                             }
                           />
                         </PageErrorBoundary>
@@ -1167,10 +1168,7 @@ export default function DocumentViewer({
                   })}
                 </div>
               ) : (
-                <div className="m-auto flex flex-col items-center justify-center p-8 text-slate-500 w-full h-full min-h-[400px]">
-                  <div className="w-8 h-8 border-2 border-slate-900 border-t-transparent rounded-full animate-spin mb-3" />
-                  <span className="text-xs font-semibold text-slate-700">Memuat berkas {activeDoc.fileName}...</span>
-                </div>
+                documentSkeletonContent
               )}
             </Document>
           )}
