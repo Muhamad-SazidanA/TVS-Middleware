@@ -270,14 +270,31 @@ async function main() {
     },
   ];
 
-  // Clear existing action logs and re-seed
-  await prisma.actionLog.deleteMany({});
-  for (const log of actionLogsData) {
-    await prisma.actionLog.create({
-      data: log,
+  // Clear and re-seed sample action logs only for batches that exist in DB
+  const sampleBatchIds = [...new Set(actionLogsData.map((l) => l.batchId))];
+  const existingBatches = new Set(
+    (
+      await prisma.batch.findMany({
+        where: { id: { in: sampleBatchIds } },
+        select: { id: true },
+      })
+    ).map((b) => b.id)
+  );
+  const logsToSeed = actionLogsData.filter((l) => existingBatches.has(l.batchId));
+
+  if (logsToSeed.length === 0) {
+    console.log("[ACTION LOGS] No sample batches present yet; skipping sample action logs.");
+  } else {
+    await prisma.actionLog.deleteMany({
+      where: { batchId: { in: [...existingBatches] } },
     });
+    for (const log of logsToSeed) {
+      await prisma.actionLog.create({
+        data: log,
+      });
+    }
+    console.log(`[ACTION LOGS] Seeded ${logsToSeed.length} revision action logs.`);
   }
-  console.log(`[ACTION LOGS] Seeded ${actionLogsData.length} revision action logs.`);
 
   console.log("=== Seeding Completed Successfully! ===");
 }
