@@ -6,25 +6,18 @@ import {
   Search,
   SlidersHorizontal,
   Columns,
-  Plus,
   RotateCcw,
   Download,
   ChevronDown,
 } from "lucide-react";
 
-export type MatchingTabId =
-  | "all"
-  | "approved"
-  | "assigned"
-  | "in_review"
-  | "rejected";
+export type MatchingTabId = "all" | "match" | "mismatch" | "failed";
 
 export interface TabCounts {
   all: number;
-  approved: number;
-  assigned: number;
-  in_review: number;
-  rejected: number;
+  match: number;
+  mismatch: number;
+  failed: number;
 }
 
 export interface ColumnVisibility {
@@ -40,7 +33,6 @@ export interface MatchingTabsToolbarProps {
   activeTab: MatchingTabId;
   onTabChange: (tab: MatchingTabId) => void;
   counts: TabCounts;
-  onAddBatch?: () => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onRefresh: () => void;
@@ -57,7 +49,6 @@ export default function MatchingTabsToolbar({
   activeTab,
   onTabChange,
   counts,
-  onAddBatch,
   searchQuery,
   onSearchChange,
   onRefresh,
@@ -72,12 +63,36 @@ export default function MatchingTabsToolbar({
   const [columnDropdownOpen, setColumnDropdownOpen] = useState(false);
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
 
-  const tabs: Array<{ id: MatchingTabId; label: string; count: number }> = [
-    { id: "all", label: "Semua file", count: counts.all },
-    { id: "approved", label: "Disetujui", count: counts.approved },
-    { id: "assigned", label: "Ditugaskan ke saya", count: counts.assigned },
-    { id: "in_review", label: "Dalam review", count: counts.in_review },
-    { id: "rejected", label: "Ditolak", count: counts.rejected },
+  const tabs: Array<{
+    id: MatchingTabId;
+    label: string;
+    count: number;
+    badgeClass: string;
+  }> = [
+    {
+      id: "all",
+      label: "All",
+      count: counts.all,
+      badgeClass: "bg-slate-200/80 text-slate-700 border-slate-300/60",
+    },
+    {
+      id: "match",
+      label: "Match",
+      count: counts.match,
+      badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200/70",
+    },
+    {
+      id: "mismatch",
+      label: "Mismatch",
+      count: counts.mismatch,
+      badgeClass: "bg-rose-50 text-rose-700 border-rose-200/70",
+    },
+    {
+      id: "failed",
+      label: "Failed",
+      count: counts.failed,
+      badgeClass: "bg-red-100/80 text-red-800 border-red-200/80",
+    },
   ];
 
   const columnKeys: Array<{ key: keyof ColumnVisibility; label: string }> = [
@@ -86,9 +101,9 @@ export default function MatchingTabsToolbar({
   ];
 
   return (
-    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-2">
-      {/* Left: Pill style tabs with dynamic counts & + button */}
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      {/* Left: Clean segmented filter tabs (All, Match, Mismatch, Failed) */}
+      <div className="inline-flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/70 overflow-x-auto no-scrollbar self-start">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           return (
@@ -96,35 +111,21 @@ export default function MatchingTabsToolbar({
               key={tab.id}
               type="button"
               onClick={() => onTabChange(tab.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs transition-all whitespace-nowrap cursor-pointer select-none flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors duration-150 whitespace-nowrap cursor-pointer select-none flex items-center gap-1.5 ${
                 isActive
-                  ? "bg-[#091E42] text-white font-bold shadow-xs"
-                  : "bg-slate-100/70 hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 font-medium"
+                  ? "bg-slate-200/80 text-slate-900 border-slate-300/60"
+                  : "text-slate-600 border-transparent hover:text-slate-900 hover:bg-slate-200/40"
               }`}
             >
               <span>{tab.label}</span>
               <span
-                className={`text-[11px] px-1.5 py-0.2 rounded-full font-mono ${
-                  isActive
-                    ? "bg-white/20 text-white font-bold"
-                    : "bg-slate-200/80 text-slate-600 font-medium"
-                }`}
+                className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-mono font-semibold border transition-colors duration-150 ${tab.badgeClass}`}
               >
                 {tab.count}
               </span>
             </button>
           );
         })}
-
-        {/* Plus Button */}
-        <button
-          type="button"
-          onClick={onAddBatch}
-          className="p-1.5 rounded-full bg-slate-100/70 hover:bg-slate-200/80 text-slate-500 hover:text-[#091E42] transition-colors cursor-pointer shrink-0"
-          title="Tambah batch baru"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
       </div>
 
       {/* Right: Toolbar (Refresh, Search, Filter, Column visibility) */}

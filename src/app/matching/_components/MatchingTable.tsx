@@ -27,7 +27,7 @@ export interface TableBatchItem {
   noPengajuan?: string | null;
   subtext: string;
   totalFile: number;
-  status: "Matching" | "Mismatching" | "Proses" | "Ditolak";
+  status: "Matching" | "Mismatching" | "Proses" | "Ditolak" | "Failed";
   assignedTo?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -297,10 +297,10 @@ export default function MatchingTable({
                     label: "Match",
                     className: "bg-emerald-50 text-emerald-700 border border-emerald-200",
                   };
-                } else if (batch.status === "Ditolak") {
+                } else if (batch.status === "Failed" || batch.status === "Ditolak") {
                   reviewBadge = {
-                    label: "Ditolak",
-                    className: "bg-rose-50 text-rose-800 border border-rose-200/80",
+                    label: "Failed",
+                    className: "bg-red-100/80 text-red-800 border border-red-200",
                   };
                 }
 

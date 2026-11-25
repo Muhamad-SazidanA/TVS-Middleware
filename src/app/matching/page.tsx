@@ -4,7 +4,6 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check } from "lucide-react";
 
-import MatchingHeader from "./_components/MatchingHeader";
 import MatchingTabsToolbar, {
   type MatchingTabId,
   type TabCounts,
@@ -17,7 +16,6 @@ import MatchingTable, {
 import MatchingFooter from "./_components/MatchingFooter";
 import MatchingDetailView from "./_components/MatchingDetailView";
 import ConfirmDialog from "@/app/_components/ui/ConfirmDialog";
-import BatchLogModal from "../_components/BatchLogModal";
 
 import { evaluateBatchComparison } from "./_components/detailAdapter";
 import { generateMatchingExcel } from "~/utils/excelExporter";
@@ -41,7 +39,9 @@ interface RawBatchItem {
   noPengajuan?: string | null;
   subtext: string;
   totalFile: number;
-  status: "Matching" | "Mismatching" | "Proses" | "Ditolak";
+  status: "Matching" | "Mismatching" | "Proses" | "Ditolak" | "Failed";
+  rawStatus?: string;
+  errorMessage?: string | null;
   createdAt?: string;
   updatedAt?: string;
   details?: DetailBatch[];
@@ -137,7 +137,6 @@ function MatchingPageContent() {
     batch: null,
   });
   const [isDeleting, setIsDeleting] = useState(false);
-  const [auditLogBatchId, setAuditLogBatchId] = useState<string | null>(null);
 
   // Fetch batches from backend with in-flight overlap guard
   const isFetchingRef = useRef<boolean>(false);
@@ -290,17 +289,28 @@ function MatchingPageContent() {
       const docStatuses = batch.docStatuses || calculateDocStatuses(batch, equivalencyGroups);
       const docStatusList = Object.values(docStatuses).map((d) => d.status);
       const isAnyDocMismatch = docStatusList.some((s) => s === "Mismatch");
+      const rawSt = (batch.rawStatus || "").toUpperCase();
+      const evalSt = (batch.status || "").toUpperCase();
+      const hasError = Boolean(batch.errorMessage && batch.errorMessage.trim() !== "");
+      const isFailed =
+        rawSt === "FAILED" ||
+        rawSt === "ERROR" ||
+        rawSt === "DITOLAK" ||
+        rawSt === "REJECTED" ||
+        evalSt === "FAILED" ||
+        evalSt === "DITOLAK" ||
+        hasError;
       const isAnyDocProses =
         docStatusList.some((s) => s === "Proses") ||
-        (batch.status || "").toLowerCase() === "proses" ||
-        (batch.status || "").toLowerCase() === "pending";
+        evalSt === "PROSES" ||
+        evalSt === "PENDING";
 
-      let effectiveStatus: "Matching" | "Mismatching" | "Proses" | "Ditolak" = "Matching";
-      if (batch.status === "Ditolak") {
-        effectiveStatus = "Ditolak";
+      let effectiveStatus: "Matching" | "Mismatching" | "Proses" | "Ditolak" | "Failed" = "Matching";
+      if (isFailed) {
+        effectiveStatus = "Failed";
       } else if (isAnyDocProses) {
         effectiveStatus = "Proses";
-      } else if (isAnyDocMismatch || batch.status === "Mismatching" || (batch.status as string) === "MISMATCHING") {
+      } else if (isAnyDocMismatch || evalSt === "MISMATCHING") {
         effectiveStatus = "Mismatching";
       } else {
         effectiveStatus = "Matching";
@@ -422,8 +432,8 @@ function MatchingPageContent() {
         const statusLabel =
           b.status === "Matching"
             ? "Validasi lolos"
-            : b.status === "Ditolak"
-            ? "Ditolak"
+            : b.status === "Failed" || b.status === "Ditolak"
+            ? "Failed"
             : "Perlu review manual";
         showToast(`Batch #${b.id} selesai diproses: ${statusLabel}`);
       }
@@ -436,29 +446,34 @@ function MatchingPageContent() {
     prevStatusesRef.current = nextMap;
   }, [tableBatches, showToast]);
 
+  const matchesTabFilter = useCallback((batch: TableBatchItem, tab: MatchingTabId): boolean => {
+    switch (tab) {
+      case "match":
+        return batch.status === "Matching";
+      case "mismatch":
+        return batch.status === "Mismatching";
+      case "failed":
+        return batch.status === "Failed" || batch.status === "Ditolak";
+      case "all":
+      default:
+        return true;
+    }
+  }, []);
+
   // Compute dynamic counts for the tabs
   const tabCounts = useMemo<TabCounts>(() => {
     return {
       all: tableBatches.length,
-      approved: tableBatches.filter((b) => b.status === "Matching").length,
-      assigned: tableBatches.filter((b) => Boolean(b.assignedTo)).length,
-      in_review: tableBatches.filter(
-        (b) => b.status === "Mismatching" || b.status === "Proses"
-      ).length,
-      rejected: tableBatches.filter((b) => b.status === "Ditolak").length,
+      match: tableBatches.filter((b) => matchesTabFilter(b, "match")).length,
+      mismatch: tableBatches.filter((b) => matchesTabFilter(b, "mismatch")).length,
+      failed: tableBatches.filter((b) => matchesTabFilter(b, "failed")).length,
     };
-  }, [tableBatches]);
+  }, [tableBatches, matchesTabFilter]);
 
   // Filter batches by active tab
   const tabFilteredBatches = useMemo(() => {
-    return tableBatches.filter((batch) => {
-      if (activeTab === "approved") return batch.status === "Matching";
-      if (activeTab === "assigned") return Boolean(batch.assignedTo);
-      if (activeTab === "in_review") return batch.status === "Mismatching" || batch.status === "Proses";
-      if (activeTab === "rejected") return batch.status === "Ditolak";
-      return true; // "all"
-    });
-  }, [tableBatches, activeTab]);
+    return tableBatches.filter((batch) => matchesTabFilter(batch, activeTab));
+  }, [tableBatches, activeTab, matchesTabFilter]);
 
   // Filter batches by search query
   const searchFilteredBatches = useMemo(() => {
@@ -729,19 +744,7 @@ function MatchingPageContent() {
   return (
     <div className="w-full h-full flex flex-col p-4 sm:p-5 pb-0 sm:pb-0 overflow-hidden min-w-0">
       <div className="flex-1 flex flex-col min-h-0 space-y-3 pb-2.5">
-        {/* 1. Header: Breadcrumb "PIB / Matching Data", ILM badge, AI Confidence, Kebab Menu */}
-        <div className="shrink-0">
-          <MatchingHeader
-            onRefresh={() => fetchBatches(false)}
-            onOpenAuditLog={() => {
-              if (batches.length > 0) {
-                setAuditLogBatchId(batches[0]?.id || null);
-              }
-            }}
-          />
-        </div>
-
-        {/* 2. Tabs & Toolbar: Pill style tabs + counts, Refresh, Search "Cari nama file", Filter, Column visibility */}
+        {/* 1. Tabs & Toolbar: Clean segmented filter tabs (All, Match, Mismatch, Failed) + Toolbar */}
         <div className="shrink-0">
           <MatchingTabsToolbar
             activeTab={activeTab}
@@ -750,7 +753,6 @@ function MatchingPageContent() {
               setCurrentPage(1);
             }}
             counts={tabCounts}
-            onAddBatch={() => router.push("/upload")}
             searchQuery={searchQuery}
             onSearchChange={(q) => {
               setSearchQuery(q);
@@ -763,7 +765,13 @@ function MatchingPageContent() {
             onResetColumns={handleResetColumns}
             hasActiveFilters={activeTab !== "all" || Boolean(searchQuery)}
             onOpenFilterDialog={() => {
-              showToast("Filter aktif: " + (activeTab === "all" ? "Semua file" : activeTab));
+              const tabLabels: Record<MatchingTabId, string> = {
+                all: "All",
+                match: "Match",
+                mismatch: "Mismatch",
+                failed: "Failed",
+              };
+              showToast(`Filter aktif: ${tabLabels[activeTab]}`);
             }}
             onExportPersonal={(mode) => {
               const params = new URLSearchParams();
@@ -875,17 +883,6 @@ function MatchingPageContent() {
           <Check className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toast.message}</span>
         </div>
-      )}
-
-      {/* 8. Audit Log Modal */}
-      {auditLogBatchId && (
-        <BatchLogModal
-          batchId={auditLogBatchId}
-          batchTitle={`Batch #${auditLogBatchId}`}
-          batchStatus="Matching"
-          isOpen={Boolean(auditLogBatchId)}
-          onClose={() => setAuditLogBatchId(null)}
-        />
       )}
     </div>
   );
