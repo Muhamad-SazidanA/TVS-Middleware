@@ -85,7 +85,13 @@ export default function ComparisonPanel({
     activeDocCode && activeDocCode.toUpperCase() !== "PIB"
       ? activeDocCode
       : "ALL";
-  const [selectedDocFilter, setSelectedDocFilter] = useState<string>(defaultDoc);
+  const [internalDocFilter, setInternalDocFilter] = useState<string>(defaultDoc);
+  const isControlledFilter = Boolean(
+    activeDocCode && activeDocCode.toUpperCase() !== "PIB"
+  );
+  const selectedDocFilter = isControlledFilter
+    ? activeDocCode!
+    : internalDocFilter;
 
   // Manual Match confirmation state
   const [togglingManualMatchId, setTogglingManualMatchId] = useState<string | null>(null);
@@ -132,14 +138,6 @@ export default function ComparisonPanel({
       setTogglingManualMatchId(null);
     }
   };
-
-  useEffect(() => {
-    if (activeDocCode && activeDocCode.toUpperCase() !== "PIB") {
-      setSelectedDocFilter(activeDocCode);
-    }
-  }, [activeDocCode]);
-
-
 
   // Inline edit state
   const [editingField, setEditingField] = useState<{
@@ -278,17 +276,44 @@ export default function ComparisonPanel({
   }, [groups]);
 
   const handleTabClick = (docCode: string) => {
-    setSelectedDocFilter(docCode);
-    if (docCode === "ALL") {
-      onSelectDocCode?.("ALL");
-    } else {
-      onSelectDocCode?.(docCode);
-      onNavigateToDoc?.(docCode, 1);
+    if (docCode.toUpperCase() === selectedDocFilter.toUpperCase()) return;
+    if (!isControlledFilter) {
+      setInternalDocFilter(docCode);
     }
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    onSelectDocCode?.(docCode);
+    if (scrollContainerRef.current && scrollContainerRef.current.scrollTop > 0) {
+      scrollContainerRef.current.scrollTop = 0;
     }
   };
+
+  const tabItems = useMemo(() => {
+    const anyMismatch = groups.some((g) => g.mismatchedCount > 0);
+    return [
+      {
+        code: "ALL",
+        label: "Semua",
+        count: totalAllFieldsCount,
+        isMatch: !anyMismatch,
+        isActive: isAllSelected,
+        title: `Semua: ${totalAllFieldsCount} field`,
+      },
+      ...groups.map((group) => {
+        const isDocMatch = group.mismatchedCount === 0;
+        return {
+          code: group.docCode,
+          label: group.docCode,
+          count: group.fields.length,
+          isMatch: isDocMatch,
+          isActive:
+            !isAllSelected &&
+            (currentGroup?.docCode || "").toUpperCase() === group.docCode.toUpperCase(),
+          title: `${group.docCode}: ${group.fields.length} field (${
+            isDocMatch ? "Semua Match" : `${group.mismatchedCount} Mismatch`
+          })`,
+        };
+      }),
+    ];
+  }, [groups, totalAllFieldsCount, isAllSelected, currentGroup]);
 
   // Auto-scroll to active field card
   useEffect(() => {
@@ -424,62 +449,32 @@ export default function ComparisonPanel({
           )}
         </div>
 
-        {/* Supporting Document Switcher Tabs (Clean Segmented Control) */}
-        <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/60 overflow-x-auto no-scrollbar">
-          {/* Tab Semua */}
-          <button
-            type="button"
-            onClick={() => handleTabClick("ALL")}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-              isAllSelected
-                ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/40"
-            }`}
-            title={`Semua: ${totalAllFieldsCount} field`}
-          >
-            <span>Semua</span>
-            <span
-              className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-mono font-semibold ${
-                groups.some((g) => g.mismatchedCount > 0)
-                  ? "bg-rose-100/90 text-rose-700 border border-rose-200/70"
-                  : "bg-emerald-100/90 text-emerald-700 border border-emerald-200/70"
+        {/* Supporting Document Switcher Tabs (Smooth Segmented Pill) */}
+        <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/70 overflow-x-auto no-scrollbar">
+          {tabItems.map((tab) => (
+            <button
+              key={tab.code}
+              type="button"
+              onClick={() => handleTabClick(tab.code)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors duration-150 cursor-pointer select-none shrink-0 flex items-center gap-1.5 ${
+                tab.isActive
+                  ? "bg-slate-200/80 text-slate-900 border-slate-300/60"
+                  : "text-slate-600 border-transparent hover:text-slate-900 hover:bg-slate-200/40"
               }`}
+              title={tab.title}
             >
-              {totalAllFieldsCount}
-            </span>
-          </button>
-
-          {groups.map((group) => {
-            const isFilterActive =
-              !isAllSelected &&
-              (currentGroup?.docCode || "").toUpperCase() === group.docCode.toUpperCase();
-            const isDocMatch = group.mismatchedCount === 0;
-
-            return (
-              <button
-                key={group.docCode}
-                type="button"
-                onClick={() => handleTabClick(group.docCode)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                  isFilterActive
-                    ? "bg-white text-slate-900 shadow-2xs border border-slate-200/80"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/40"
+              <span>{tab.label}</span>
+              <span
+                className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-mono font-semibold border transition-colors duration-150 ${
+                  tab.isMatch
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200/70"
+                    : "bg-rose-50 text-rose-700 border-rose-200/70"
                 }`}
-                title={`${group.docCode}: ${group.fields.length} field (${isDocMatch ? "Semua Match" : `${group.mismatchedCount} Mismatch`})`}
               >
-                <span>{group.docCode}</span>
-                <span
-                  className={`text-[10.5px] px-1.5 py-0.2 rounded-full font-mono font-semibold ${
-                    isDocMatch
-                      ? "bg-emerald-100/90 text-emerald-700 border border-emerald-200/70"
-                      : "bg-rose-100/90 text-rose-700 border border-rose-200/70"
-                  }`}
-                >
-                  {group.fields.length}
-                </span>
-              </button>
-            );
-          })}
+                {tab.count}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 

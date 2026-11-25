@@ -300,13 +300,9 @@ export default function MatchingDetailView({
 
   const [viewerTargetPage, setViewerTargetPage] = useState<{ page: number; timestamp: number } | null>(null);
 
-  // Document switcher click handler
+  // Document comparison tab switcher (filters right panel only; keeps left PDF viewer steady)
   const handleSelectDocCode = (code: string) => {
     setActiveTabCode(code);
-    if (code.toUpperCase() !== "ALL" && code.toUpperCase() !== "SEMUA") {
-      setCurrentDocCode(code);
-      setSelectedSupportingCode(code);
-    }
   };
 
   // Direct document & page navigator for line items and field clicks
