@@ -15,6 +15,7 @@ import MatchingTable, {
 } from "./_components/MatchingTable";
 import MatchingFooter from "./_components/MatchingFooter";
 import MatchingDetailView from "./_components/MatchingDetailView";
+import BatchDocumentsModal from "./_components/BatchDocumentsModal";
 import ConfirmDialog from "@/app/_components/ui/ConfirmDialog";
 
 import { evaluateBatchComparison } from "./_components/detailAdapter";
@@ -106,6 +107,7 @@ function MatchingPageContent() {
   // Detail View State (opened on row click or deep link)
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [selectedDocCode, setSelectedDocCode] = useState<string>("PIB");
+  const [manageFilesBatchId, setManageFilesBatchId] = useState<string | null>(null);
 
   // Deep-link auto-opening from URL query ?batchId=... with lock guard
   useEffect(() => {
@@ -806,6 +808,7 @@ function MatchingPageContent() {
             onLockedClick={(id) => {
               showToast(`Batch #${id} masih diproses oleh OCR Nanonets, mohon tunggu hingga selesai.`);
             }}
+            onManageFiles={(b) => setManageFilesBatchId(b.id)}
             onDownload={handleDownloadSingle}
             onDelete={handleDeleteClick}
             onAssign={handleAssign}
@@ -846,6 +849,17 @@ function MatchingPageContent() {
           onStatusUpdate={handleDetailStatusUpdate}
         />
       )}
+
+      {/* 5.5 Manage / Add / Replace Documents Modal */}
+      <BatchDocumentsModal
+        batchId={manageFilesBatchId}
+        isOpen={Boolean(manageFilesBatchId)}
+        onClose={() => setManageFilesBatchId(null)}
+        onDocumentsChanged={(_id, _newStatus, msg) => {
+          if (msg) showToast(msg);
+          fetchBatches(true);
+        }}
+      />
 
       {/* 6. Hapus Confirmation Dialog: "Hapus file ini?" with "Batal" and "Hapus" (only confirm danger style) */}
       <ConfirmDialog

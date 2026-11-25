@@ -21,6 +21,13 @@ export interface ManualNote {
   updatedAt?: string;
 }
 
+export interface DocumentUpdateRecord {
+  fileName: string;
+  previousFileName?: string;
+  updatedAt: string;
+  updatedBy?: string;
+}
+
 export interface DocumentFieldData {
   value: string;
   originalValue?: string;
@@ -40,6 +47,8 @@ export interface BatchDocumentModel {
   fields: Record<string, DocumentFieldData>;
   lineItems: Array<Record<string, unknown>>;
   manualNotes?: ManualNote[];
+  updateHistory?: DocumentUpdateRecord[];
+  ocrPending?: boolean;
   rawIsi?: unknown;
 }
 

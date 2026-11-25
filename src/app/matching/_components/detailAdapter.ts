@@ -2,6 +2,7 @@ import { isEquivalentMatch, type DbEquivalencyGroup } from "~/utils/valueEquival
 import type {
   NormalizedBbox,
   DocumentFieldData,
+  DocumentUpdateRecord,
   BatchDocumentModel,
   BatchComparisonModel,
   ComparisonFieldModel,
@@ -103,11 +104,25 @@ interface ParsedIsi {
   manualEdits: Record<string, { oldValue?: string; newValue?: string; editedAt?: string }>;
   manualNotes?: ManualNote[];
   manualMatches?: Record<string, { confirmed: boolean; confirmedAt?: string; confirmedBy?: string }>;
+  updateHistory?: DocumentUpdateRecord[];
+  originalFileName?: string;
+  fileUrl?: string;
+  ocrPending?: boolean;
 }
 
 export function parseDocumentIsi(isi?: unknown, docCode?: string): ParsedIsi {
   if (!isi) {
-    return { fields: {}, table: [], coordinates: {}, tableCoordinates: [], manualEdits: {}, manualNotes: [], manualMatches: {} };
+    return {
+      fields: {},
+      table: [],
+      coordinates: {},
+      tableCoordinates: [],
+      manualEdits: {},
+      manualNotes: [],
+      manualMatches: {},
+      updateHistory: [],
+      ocrPending: false,
+    };
   }
   try {
     const p = typeof isi === "string" ? JSON.parse(isi) : isi;
@@ -136,9 +151,23 @@ export function parseDocumentIsi(isi?: unknown, docCode?: string): ParsedIsi {
       manualEdits: p.manualEdits || {},
       manualNotes: Array.isArray(p.manualNotes) ? p.manualNotes : [],
       manualMatches: p.manualMatches || {},
+      updateHistory: Array.isArray(p.updateHistory) ? p.updateHistory : [],
+      originalFileName: typeof p.originalFileName === "string" ? p.originalFileName : undefined,
+      fileUrl: typeof p.fileUrl === "string" ? p.fileUrl : undefined,
+      ocrPending: p.ocrPending === true,
     };
   } catch {
-    return { fields: {}, table: [], coordinates: {}, tableCoordinates: [], manualEdits: {}, manualNotes: [], manualMatches: {} };
+    return {
+      fields: {},
+      table: [],
+      coordinates: {},
+      tableCoordinates: [],
+      manualEdits: {},
+      manualNotes: [],
+      manualMatches: {},
+      updateHistory: [],
+      ocrPending: false,
+    };
   }
 }
 
@@ -440,6 +469,41 @@ export function normalizeDocMeta(fileTypeRaw: string): { code: string; name: str
   return { code: fileTypeRaw, name: fileTypeRaw };
 }
 
+function resolveDocumentDisplayMeta(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rawDet: any,
+  parsedIsi: ParsedIsi,
+  batchId: string,
+  typeCode: string,
+  fallbackFileName: string
+): { fileName: string; fileUrl: string } {
+  const urlBaseName = parsedIsi.fileUrl
+    ? decodeURIComponent(parsedIsi.fileUrl.split("/").pop() || "")
+    : "";
+  const fileName =
+    parsedIsi.originalFileName ||
+    (urlBaseName.toLowerCase().endsWith(".pdf") ? urlBaseName : "") ||
+    (rawDet?.fileId && String(rawDet.fileId).toLowerCase().endsWith(".pdf")
+      ? String(rawDet.fileId)
+      : fallbackFileName);
+
+  const latestUpdateAt =
+    parsedIsi.updateHistory && parsedIsi.updateHistory.length > 0
+      ? parsedIsi.updateHistory[parsedIsi.updateHistory.length - 1]?.updatedAt
+      : undefined;
+  const versionToken = latestUpdateAt || (rawDet?.updatedAt ? String(rawDet.updatedAt) : "");
+  const versionQuery = versionToken ? `&v=${encodeURIComponent(versionToken)}` : "";
+
+  const baseUrl = rawDet?.id
+    ? `/api/batches/${batchId}/pdf?type=${encodeURIComponent(typeCode)}&detailId=${rawDet.id}`
+    : `/api/batches/${batchId}/pdf?type=${encodeURIComponent(typeCode)}`;
+
+  return {
+    fileName,
+    fileUrl: `${baseUrl}${versionQuery}`,
+  };
+}
+
 // Transform raw batch details from backend into Normalized Batch Model
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
@@ -521,17 +585,25 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
 
 
 
+  const pibDisplay = resolveDocumentDisplayMeta(
+    rawPib,
+    parsedPibIsi,
+    batchId,
+    "pib",
+    "PIB.pdf"
+  );
+
   const pibDoc: BatchDocumentModel = {
     id: rawPib?.id ?? 0,
     code: "PIB",
     name: "PIB (acuan)",
-    fileName: rawPib?.fileId && rawPib.fileId.toLowerCase().endsWith(".pdf") ? rawPib.fileId : "PIB.pdf",
-    fileUrl: rawPib?.id
-      ? `/api/batches/${batchId}/pdf?type=pib&detailId=${rawPib.id}`
-      : `/api/batches/${batchId}/pdf?type=pib`,
+    fileName: pibDisplay.fileName,
+    fileUrl: pibDisplay.fileUrl,
     fields: {},
     lineItems: parsedPibIsi.table,
     manualNotes: parsedPibIsi.manualNotes,
+    updateHistory: parsedPibIsi.updateHistory,
+    ocrPending: parsedPibIsi.ocrPending,
     rawIsi: parsedPibIsi,
   };
 
@@ -548,18 +620,25 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
       continue;
     }
     const parsedIsi = parseDocumentIsi(d.isi, meta.code);
+    const supDisplay = resolveDocumentDisplayMeta(
+      d,
+      parsedIsi,
+      batchId,
+      meta.code,
+      `${meta.code}.pdf`
+    );
 
     supportingDocs.push({
       id: d.id,
       code: meta.code,
       name: meta.name,
-      fileName: d.fileId && d.fileId.toLowerCase().endsWith(".pdf") ? d.fileId : `${meta.code}.pdf`,
-      fileUrl: d.id
-        ? `/api/batches/${batchId}/pdf?type=${encodeURIComponent(meta.code)}&detailId=${d.id}`
-        : `/api/batches/${batchId}/pdf?type=${encodeURIComponent(meta.code)}`,
+      fileName: supDisplay.fileName,
+      fileUrl: supDisplay.fileUrl,
       fields: {},
       lineItems: parsedIsi.table,
       manualNotes: parsedIsi.manualNotes,
+      updateHistory: parsedIsi.updateHistory,
+      ocrPending: parsedIsi.ocrPending,
       rawIsi: parsedIsi,
     });
   }
@@ -873,22 +952,33 @@ export function evaluateBatchComparison(
     return null;
   };
 
+  const isDetailWaitingOcr = (isi: unknown): boolean => {
+    if (!isi || (typeof isi === "string" && !isi.trim())) return true;
+    try {
+      const p = typeof isi === "string" ? JSON.parse(isi) : isi;
+      return p?.ocrPending === true;
+    } catch {
+      return false;
+    }
+  };
+
   let totalFields = 0;
   let matchedFields = 0;
   let mismatchedFields = 0;
   let hasAnySupporting = false;
   let hasAnyMismatch = false;
-  let hasAnyProses = false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let hasAnyProses = details.some((d: any) => isDetailWaitingOcr(d?.isi));
 
   for (const sup of model.supporting) {
     const colKey = docCodeToKey(sup.code);
     if (!colKey) continue;
     hasAnySupporting = true;
 
-    // Check if doc is still processing (empty isi)
+    // Check if doc is still processing (empty isi or ocrPending flag)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rawDet = details.find((d: any) => d.id === sup.id);
-    if (!rawDet?.isi || (typeof rawDet.isi === "string" && !rawDet.isi.trim())) {
+    if (isDetailWaitingOcr(rawDet?.isi)) {
       docStatuses[colKey] = { status: "Proses" };
       hasAnyProses = true;
       continue;

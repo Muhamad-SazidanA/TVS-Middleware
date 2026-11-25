@@ -1,4 +1,4 @@
-"use client";
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                "use client";
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
@@ -11,8 +11,10 @@ import {
   Check,
   CheckCheck,
   Lock,
+  FolderUp,
 } from "lucide-react";
 import ComparisonPanel from "./ComparisonPanel";
+import BatchDocumentsModal from "./BatchDocumentsModal";
 import {
   ComparisonPanelSkeleton,
   DocumentViewerSkeleton,
@@ -104,6 +106,7 @@ export default function MatchingDetailView({
   // Footer Actions state
   const [isApproving, setIsApproving] = useState<boolean>(false);
   const [isBulkApproving, setIsBulkApproving] = useState<boolean>(false);
+  const [docsModalOpen, setDocsModalOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -142,7 +145,17 @@ export default function MatchingDetailView({
     if (Array.isArray(rawBatch.details)) {
       return rawBatch.details.some(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (d: any) => !d.isi || typeof d.isi !== "string" || d.isi.trim().length === 0
+        (d: any) => {
+          if (!d.isi || typeof d.isi !== "string" || d.isi.trim().length === 0) {
+            return true;
+          }
+          try {
+            const p = JSON.parse(d.isi);
+            return p?.ocrPending === true;
+          } catch {
+            return false;
+          }
+        }
       );
     }
     return false;
@@ -616,7 +629,15 @@ export default function MatchingDetailView({
               <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600 shrink-0" />
               <span>Menunggu webhook Nanonets...</span>
             </div>
-            <div className="mt-6">
+            <div className="mt-6 flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => setDocsModalOpen(true)}
+                className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <FolderUp className="w-3.5 h-3.5 text-slate-500" />
+                <span>Kelola / Upload Ulang Dokumen</span>
+              </button>
               <button
                 type="button"
                 onClick={onClose}
@@ -627,6 +648,17 @@ export default function MatchingDetailView({
             </div>
           </div>
         </main>
+
+        <BatchDocumentsModal
+          batchId={batchId}
+          isOpen={docsModalOpen}
+          onClose={() => setDocsModalOpen(false)}
+          onDocumentsChanged={(_id, newStatus, msg) => {
+            if (msg) showToast(msg);
+            loadBatch(true);
+            onStatusUpdate?.(batchId, newStatus || "UPDATED");
+          }}
+        />
       </div>
     );
   }
@@ -678,6 +710,7 @@ export default function MatchingDetailView({
               onAddManualNote={handleAddManualNote}
               onEditManualNote={handleEditManualNote}
               onDeleteManualNote={handleDeleteManualNote}
+              onManageDocuments={() => setDocsModalOpen(true)}
               className="h-full"
               footer={
                 <div className="flex items-center justify-between w-full gap-3 flex-wrap">
@@ -763,6 +796,18 @@ export default function MatchingDetailView({
           </div>
         </div>
       </main>
+
+      {/* Manage / Add / Replace Documents Modal */}
+      <BatchDocumentsModal
+        batchId={batchId}
+        isOpen={docsModalOpen}
+        onClose={() => setDocsModalOpen(false)}
+        onDocumentsChanged={(_id, newStatus, msg) => {
+          if (msg) showToast(msg);
+          loadBatch(true);
+          onStatusUpdate?.(batchId, newStatus || "UPDATED");
+        }}
+      />
 
       {/* Toast Notification */}
       {toastMessage && (

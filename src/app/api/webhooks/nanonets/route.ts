@@ -86,7 +86,7 @@ export async function POST(req: Request) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       detail = await (db as any).detailBatch.findFirst({
         where: { fileId: { in: candidateIds } },
-        select: { id: true, batchId: true, fileId: true, fileType: true },
+        select: { id: true, batchId: true, fileId: true, fileType: true, isi: true },
       });
     }
 
@@ -95,9 +95,9 @@ export async function POST(req: Request) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pendingDetails = await (db as any).detailBatch.findMany({
         where: {
-          OR: [{ isi: null }, { isi: "" }],
+          OR: [{ isi: null }, { isi: "" }, { isi: { contains: '"ocrPending":true' } }],
         },
-        select: { id: true, batchId: true, fileId: true, fileType: true },
+        select: { id: true, batchId: true, fileId: true, fileType: true, isi: true },
         orderBy: { createdAt: "desc" },
       });
 
@@ -119,12 +119,12 @@ export async function POST(req: Request) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       detail = await (db as any).detailBatch.findFirst({
         where: {
-          OR: [{ isi: null }, { isi: "" }],
+          OR: [{ isi: null }, { isi: "" }, { isi: { contains: '"ocrPending":true' } }],
           batch: {
             status: "PROSES",
           },
         },
-        select: { id: true, batchId: true, fileId: true, fileType: true },
+        select: { id: true, batchId: true, fileId: true, fileType: true, isi: true },
         orderBy: { createdAt: "asc" },
       });
     }
@@ -172,6 +172,9 @@ export async function POST(req: Request) {
         const prev = JSON.parse(detail.isi);
         if (prev.fileUrl) existingMeta.fileUrl = prev.fileUrl;
         if (prev.originalFileName) existingMeta.originalFileName = prev.originalFileName;
+        if (Array.isArray(prev.updateHistory) && prev.updateHistory.length > 0) {
+          existingMeta.updateHistory = prev.updateHistory;
+        }
       }
     } catch {
       // ignore
@@ -180,6 +183,7 @@ export async function POST(req: Request) {
     const jsonContent = JSON.stringify({
       ...filtered,
       ...existingMeta,
+      ocrPending: false,
     });
 
     // 5. Update detailBatch.isi by ID!
@@ -220,7 +224,16 @@ export async function POST(req: Request) {
       if (batch && Array.isArray(batch.details)) {
         const filledDetails = batch.details.filter(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (d: any) => typeof d.isi === "string" && d.isi.trim().length > 0
+          (d: any) => {
+            if (typeof d.isi !== "string" || !d.isi.trim().length) return false;
+            try {
+              const p = JSON.parse(d.isi);
+              if (p?.ocrPending === true) return false;
+            } catch {
+              // keep non-JSON string as filled
+            }
+            return true;
+          }
         );
 
         const isComplete =

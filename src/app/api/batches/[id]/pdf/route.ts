@@ -253,6 +253,11 @@ export async function GET(
       );
     }
 
+    const reqUrlObj = new URL(req.url);
+    const cacheControlHeader = reqUrlObj.searchParams.has("v")
+      ? "no-store, must-revalidate"
+      : "public, max-age=3600";
+
     const stat = await fs.promises.stat(result.targetFilePath);
     const totalSize = stat.size;
     const rangeHeader = req.headers.get("range");
@@ -298,7 +303,7 @@ export async function GET(
           "Content-Type": "application/pdf",
           "Content-Disposition": `inline; filename="${encodeURIComponent(path.basename(result.targetFilePath))}"`,
           "X-Content-Type-Options": "nosniff",
-          "Cache-Control": "public, max-age=3600",
+          "Cache-Control": cacheControlHeader,
         },
       });
     }
@@ -314,7 +319,7 @@ export async function GET(
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename="${encodeURIComponent(path.basename(result.targetFilePath))}"`,
         "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "public, max-age=3600",
+        "Cache-Control": cacheControlHeader,
       },
     });
   } catch (err: unknown) {
@@ -352,6 +357,11 @@ export async function HEAD(
       });
     }
 
+    const reqUrlObj = new URL(req.url);
+    const cacheControlHeader = reqUrlObj.searchParams.has("v")
+      ? "no-store, must-revalidate"
+      : "public, max-age=3600";
+
     const stat = await fs.promises.stat(result.targetFilePath);
     return new NextResponse(null, {
       status: 200,
@@ -361,7 +371,7 @@ export async function HEAD(
         "Accept-Ranges": "bytes",
         "Content-Disposition": `inline; filename="${encodeURIComponent(path.basename(result.targetFilePath))}"`,
         "X-Content-Type-Options": "nosniff",
-        "Cache-Control": "public, max-age=3600",
+        "Cache-Control": cacheControlHeader,
       },
     });
   } catch {

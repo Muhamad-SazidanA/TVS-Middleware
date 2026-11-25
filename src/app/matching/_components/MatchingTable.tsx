@@ -12,6 +12,7 @@ import {
   FileText,
   RefreshCw,
   Lock,
+  FolderUp,
 } from "lucide-react";
 import type { ColumnVisibility } from "./MatchingTabsToolbar";
 
@@ -47,6 +48,7 @@ export interface MatchingTableProps {
   isAllSelected: boolean;
   onRowClick: (id: string, initialDocCode?: string) => void;
   onLockedClick?: (id: string) => void;
+  onManageFiles?: (batch: TableBatchItem) => void;
   onDownload: (batch: TableBatchItem) => void;
   onDelete: (batch: TableBatchItem) => void;
   onAssign: (batchId: string) => void;
@@ -111,6 +113,7 @@ export default function MatchingTable({
   isAllSelected,
   onRowClick,
   onLockedClick,
+  onManageFiles,
   onDownload,
   onDelete,
   onAssign,
@@ -227,7 +230,7 @@ export default function MatchingTable({
               ))}
 
               {/* 8. Frozen Action Column at the far right */}
-              <th className="sticky right-0 z-30 w-24 py-3.5 px-4 text-center bg-slate-50 border-b border-l border-slate-200 shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap">
+              <th className="sticky right-0 z-30 w-28 py-3.5 px-4 text-center bg-slate-50 border-b border-l border-slate-200 shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap">
                 <span>Aksi</span>
               </th>
             </tr>
@@ -505,12 +508,24 @@ export default function MatchingTable({
 
                     {/* 8. Freeze/Sticky Row actions Column at the far right */}
                     <td
-                      className={`sticky right-0 z-10 w-24 py-3.5 px-4 text-center ${
+                      className={`sticky right-0 z-10 w-28 py-3.5 px-4 text-center ${
                         isSelected ? "bg-blue-50 group-hover:bg-blue-100/80" : "bg-white group-hover:bg-slate-50"
                       } transition-colors border-l border-slate-200/80 shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap`}
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="flex items-center justify-center gap-1.5">
+                      <div className="flex items-center justify-center gap-1">
+                        {/* Action 0: Kelola / Upload Ulang File */}
+                        {onManageFiles && (
+                          <button
+                            type="button"
+                            onClick={() => onManageFiles(batch)}
+                            className="p-1.5 text-slate-400 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            title="Kelola / Upload Ulang Dokumen"
+                          >
+                            <FolderUp className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
                         {/* Action 1: Unduh */}
                         <button
                           type="button"

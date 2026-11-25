@@ -11,6 +11,8 @@ import {
   Plus,
   Trash2,
   Check,
+  FolderUp,
+  History,
 } from "lucide-react";
 import type {
   BatchDocumentModel,
@@ -56,13 +58,14 @@ export interface ComparisonPanelProps {
   ) => Promise<void>;
   onEditManualNote?: (noteId: string, text: string) => Promise<void>;
   onDeleteManualNote?: (noteId: string) => Promise<void>;
+  onManageDocuments?: () => void;
   footer?: React.ReactNode;
   className?: string;
 }
 
 export default function ComparisonPanel({
   batchId,
-  pibDoc: _pibDoc,
+  pibDoc,
   groups,
   currentLoadedDoc,
   activeDocCode,
@@ -77,6 +80,7 @@ export default function ComparisonPanel({
   onAddManualNote,
   onEditManualNote,
   onDeleteManualNote,
+  onManageDocuments,
   footer,
   className = "",
 }: ComparisonPanelProps) {
@@ -400,7 +404,7 @@ export default function ComparisonPanel({
       {/* 1. Header Row: Title + Search Input */}
       <div className="p-3.5 border-b border-slate-200/80 bg-white space-y-2.5 shrink-0">
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-bold text-sm text-slate-900">
               Data perbandingan {isAllSelected ? "(Semua)" : currentGroup ? `(${currentGroup.docCode})` : ""}
             </h3>
@@ -422,7 +426,33 @@ export default function ComparisonPanel({
               PIB (acuan) vs {isAllSelected ? "Semua Dokumen Pendukung" : currentGroup?.docName || currentGroup?.docCode || "Dokumen"}
             </span>
           </div>
+
+          {onManageDocuments && (
+            <button
+              type="button"
+              onClick={onManageDocuments}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer shrink-0"
+              title="Kelola, tambah, atau upload ulang dokumen batch"
+            >
+              <FolderUp className="w-3.5 h-3.5 text-slate-500" />
+              <span>Kelola File</span>
+            </button>
+          )}
         </div>
+
+        {/* PIB document replacement note if replaced */}
+        {pibDoc?.updateHistory && pibDoc.updateHistory.length > 0 && (() => {
+          const latestPibUpdate = pibDoc.updateHistory[pibDoc.updateHistory.length - 1];
+          if (!latestPibUpdate) return null;
+          return (
+            <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-900">
+              <History className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+              <span className="truncate">
+                PIB diperbarui: <strong className="font-semibold">{latestPibUpdate.fileName}</strong> • {formatNoteDate(latestPibUpdate.updatedAt)}
+              </span>
+            </div>
+          );
+        })()}
 
         {/* Search input */}
         <div className="relative">
@@ -515,6 +545,25 @@ export default function ComparisonPanel({
                     )}
                   </div>
                 </div>
+
+                {/* Supporting document replacement note if updated/replaced */}
+                {group.supportingDoc?.updateHistory && group.supportingDoc.updateHistory.length > 0 && (() => {
+                  const latestUpdate =
+                    group.supportingDoc.updateHistory[
+                      group.supportingDoc.updateHistory.length - 1
+                    ];
+                  if (!latestUpdate) return null;
+                  return (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50/80 border border-amber-200/80 text-[11px] text-amber-900">
+                      <History className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                      <span className="truncate">
+                        {group.docCode} diperbarui:{" "}
+                        <strong className="font-semibold">{latestUpdate.fileName}</strong> •{" "}
+                        {formatNoteDate(latestUpdate.updatedAt)}
+                      </span>
+                    </div>
+                  );
+                })()}
 
                 {/* Field Cards for this Group */}
                 <div className="space-y-2.5 pt-1">
