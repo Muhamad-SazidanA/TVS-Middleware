@@ -344,7 +344,7 @@ export default function EquivalencyManager() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
             <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <DatabaseIcon className="w-4 h-4 text-blue-950" />
+              <DatabaseIcon className="w-4 h-4 text-blue-600" />
               <span>Database Kamus Ekuivalensi Nilai</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -355,7 +355,7 @@ export default function EquivalencyManager() {
           <button
             type="button"
             onClick={handleOpenCreate}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-950 hover:bg-blue-900 text-white transition-colors cursor-pointer shrink-0 shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer shrink-0 shadow-2xs"
           >
             <PlusIcon className="w-3.5 h-3.5" />
             <span>Tambah Grup</span>
@@ -379,14 +379,14 @@ export default function EquivalencyManager() {
                   onClick={() => setSelectedCategory(cat.id)}
                   className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
                     isActive
-                      ? "bg-blue-950 text-white shadow-2xs"
+                      ? "bg-[#E2ECFE] text-[#1D4ED8] border border-blue-200 font-semibold"
                       : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"
                   }`}
                 >
                   <span>{cat.label}</span>
                   <span
                     className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full ${
-                      isActive ? "bg-white/20 text-white font-bold" : "bg-slate-200/80 text-slate-600"
+                      isActive ? "bg-white text-blue-700 font-bold" : "bg-slate-200/80 text-slate-600"
                     }`}
                   >
                     {count}
@@ -404,7 +404,7 @@ export default function EquivalencyManager() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cari grup, canonical, atau nilai..."
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-950 focus:bg-white transition-all"
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
             />
             {search && (
               <button
@@ -443,7 +443,7 @@ export default function EquivalencyManager() {
             <button
               type="button"
               onClick={handleOpenCreate}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-950 hover:bg-blue-900 text-white transition-colors cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer shadow-2xs"
             >
               <PlusIcon className="w-3.5 h-3.5" />
               <span>Tambah Grup Pertama</span>
@@ -506,7 +506,7 @@ export default function EquivalencyManager() {
                   {/* Canonical Value (Standard target banner) */}
                   <div className="p-2.5 rounded-lg bg-blue-50/70 border border-blue-200/90 space-y-1">
                     <div className="flex items-center justify-between gap-1">
-                      <span className="text-[10px] font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1.5">
                         <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                         <span>Nilai Standar Acuan (Canonical):</span>
                       </span>
@@ -514,7 +514,7 @@ export default function EquivalencyManager() {
                         Target Match
                       </span>
                     </div>
-                    <span className="block text-xs font-mono font-bold text-blue-950 break-words leading-relaxed">
+                    <span className="block text-xs font-mono font-bold text-blue-800 break-words leading-relaxed">
                       {group.canonical}
                     </span>
                   </div>
@@ -586,12 +586,12 @@ export default function EquivalencyManager() {
             </div>
 
             {/* Beginner-friendly explanation */}
-            <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-lg text-xs text-blue-950 space-y-0.5 shrink-0">
+            <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-lg text-xs text-blue-800 space-y-0.5 shrink-0">
               <span className="font-bold flex items-center gap-1.5">
-                <InfoIcon className="w-3.5 h-3.5 text-blue-900 shrink-0" />
+                <InfoIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                 <span>Petunjuk Penggunaan Kamus</span>
               </span>
-              <p className="text-[11px] text-blue-900/80 leading-relaxed">
+              <p className="text-[11px] text-blue-700/90 leading-relaxed">
                 Kamus ini bertindak sebagai jembatan kesetaraan: jika dokumen lain menulis teks dengan variasi nama atau alamat yang berbeda dari PIB, sistem otomatis menganggapnya <strong>MATCH</strong> dan tidak terjadi mismatch.
               </p>
             </div>
@@ -614,7 +614,7 @@ export default function EquivalencyManager() {
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     placeholder="misal: Identitas Pembeli USC, Pelabuhan Korea"
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-950 focus:bg-white transition-all"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
                     Nama konsep/topik untuk mengenali aturan ini di daftar.
@@ -628,7 +628,7 @@ export default function EquivalencyManager() {
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-blue-950 focus:bg-white transition-all cursor-pointer"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white transition-all cursor-pointer"
                   >
                     <option value="port">Pelabuhan (Port)</option>
                     <option value="company">Perusahaan (Company)</option>
@@ -648,7 +648,7 @@ export default function EquivalencyManager() {
                   value={formCanonical}
                   onChange={(e) => setFormCanonical(e.target.value)}
                   placeholder="misal: PT. UNITED STEEL CENTER INDONESIA"
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-blue-950 focus:outline-none focus:border-blue-950 focus:bg-white transition-all leading-relaxed"
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-blue-700 focus:outline-none focus:border-blue-600 focus:bg-white transition-all leading-relaxed"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">
                   Nilai standar resmi yang tertera di dokumen acuan (PIB) sebagai patokan matching.
@@ -672,7 +672,7 @@ export default function EquivalencyManager() {
                       }
                     }}
                     placeholder="Ketik atau paste variasi teks di sini (bisa satu alamat panjang, atau pisahkan dengan koma/baris baru)"
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:border-blue-950 focus:bg-white transition-all leading-relaxed"
+                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white transition-all leading-relaxed"
                   />
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] text-slate-400">
@@ -728,7 +728,7 @@ export default function EquivalencyManager() {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-950 hover:bg-blue-900 text-white transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
                 >
                   {isSaving ? "Menyimpan..." : editingGroup ? "Simpan Perubahan" : "Simpan ke Database"}
                 </button>

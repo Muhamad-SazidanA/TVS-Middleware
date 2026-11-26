@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import ToastNotification, {
+  useToastState,
+} from "@/app/_components/ui/ToastNotification";
 import WorkflowBuilder from "./_components/WorkflowBuilder";
 import EquivalencyManager from "./_components/EquivalencyManager";
 import AuditLogViewer from "./_components/AuditLogViewer";
@@ -19,9 +22,8 @@ export default function ManageSystemPage() {
   const [models, setModels] = useState<ModelConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<{ text: string; isError: boolean } | null>(null);
+  const { toast, showToast, dismissToast } = useToastState();
 
   // Load configuration from backend API
   const fetchSettings = useCallback(async () => {
@@ -35,10 +37,11 @@ export default function ManageSystemPage() {
       }
     } catch (err) {
       console.warn("Gagal memuat pengaturan sistem:", err);
+      showToast("Gagal memuat pengaturan sistem dari server.", "error");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     fetchSettings();
@@ -47,7 +50,6 @@ export default function ManageSystemPage() {
   const handleSaveSettings = async () => {
     try {
       setIsSaving(true);
-      setSaveSuccess(null);
       const res = await fetch("/api/system-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -59,19 +61,15 @@ export default function ManageSystemPage() {
 
       const json = await res.json();
       if (json.success) {
-        setSaveSuccess("Konfigurasi sistem berhasil disimpan ke server.");
-        setTimeout(() => setSaveSuccess(null), 4000);
+        showToast("Konfigurasi sistem berhasil disimpan ke server.", "success");
       } else {
-        setConnectionStatus({
-          text: `Gagal menyimpan: ${json.error || "Terjadi kesalahan"}`,
-          isError: true,
-        });
+        showToast(`Gagal menyimpan: ${json.error || "Terjadi kesalahan"}`, "error");
       }
     } catch (err) {
-      setConnectionStatus({
-        text: `Gagal menyimpan: ${err instanceof Error ? err.message : "Kesalahan koneksi"}`,
-        isError: true,
-      });
+      showToast(
+        `Gagal menyimpan: ${err instanceof Error ? err.message : "Kesalahan koneksi"}`,
+        "error"
+      );
     } finally {
       setIsSaving(false);
     }
@@ -80,7 +78,6 @@ export default function ManageSystemPage() {
   const handleTestConnection = async () => {
     try {
       setTestingConnection(true);
-      setConnectionStatus(null);
       const res = await fetch("/api/system-settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -92,21 +89,15 @@ export default function ManageSystemPage() {
 
       const json = await res.json();
       if (json.success) {
-        setConnectionStatus({
-          text: json.message || "Berhasil terhubung ke Nanonets API.",
-          isError: false,
-        });
+        showToast(json.message || "Berhasil terhubung ke Nanonets API.", "success");
       } else {
-        setConnectionStatus({
-          text: json.message || "Gagal terhubung ke Nanonets API.",
-          isError: true,
-        });
+        showToast(json.message || "Gagal terhubung ke Nanonets API.", "error");
       }
     } catch (err) {
-      setConnectionStatus({
-        text: `Error saat menguji koneksi: ${err instanceof Error ? err.message : "Network error"}`,
-        isError: true,
-      });
+      showToast(
+        `Error saat menguji koneksi: ${err instanceof Error ? err.message : "Network error"}`,
+        "error"
+      );
     } finally {
       setTestingConnection(false);
     }
@@ -120,51 +111,37 @@ export default function ManageSystemPage() {
   ];
 
   return (
-    <div className="h-full overflow-y-auto px-6 sm:px-8 py-8 max-w-7xl mx-auto w-full space-y-5">
-      {/* Header */}
-      <div className="pb-3 border-b border-slate-200">
-        <h1 className="text-base font-bold text-blue-950">Manage System</h1>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Konfigurasi integrasi OCR, aturan matching, dan model data PT. UNITED STEEL CENTER INDONESIA
-        </p>
-      </div>
+    <div className="h-full overflow-y-auto px-5 sm:px-8 py-5 sm:py-6 max-w-7xl mx-auto w-full space-y-4">
+      <ToastNotification toast={toast} onClose={dismissToast} />
 
-      {/* Inline feedback */}
-      {saveSuccess && (
-        <div className="px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs flex items-center justify-between">
-          <span>{saveSuccess}</span>
-          <button onClick={() => setSaveSuccess(null)} className="text-emerald-600 hover:text-emerald-900 font-bold ml-2">×</button>
+      {/* Header + Clean Single-Row Tab Bar (no overflow scrollbar glitch) */}
+      <div className="bg-white rounded-xl border border-slate-200/90 px-5 pt-4 shadow-2xs">
+        <div className="pb-3">
+          <h1 className="text-base font-bold text-slate-900">Manage System</h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Konfigurasi integrasi OCR, aturan matching, dan model data PT. UNITED STEEL CENTER INDONESIA
+          </p>
         </div>
-      )}
 
-      {connectionStatus && (
-        <div
-          className={`px-3.5 py-2.5 border rounded-lg text-xs flex items-center justify-between ${
-            connectionStatus.isError
-              ? "bg-rose-50 border-rose-200 text-rose-800"
-              : "bg-emerald-50 border-emerald-200 text-emerald-800"
-          }`}
-        >
-          <span>{connectionStatus.text}</span>
-          <button onClick={() => setConnectionStatus(null)} className="font-bold ml-2">×</button>
+        <div className="flex items-center gap-1 border-t border-slate-100 overflow-x-auto overflow-y-hidden no-scrollbar">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3.5 py-2.5 text-xs font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  isActive
+                    ? "border-blue-600 text-blue-700 font-semibold"
+                    : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
-      )}
-
-      {/* Tab Navigation */}
-      <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto scrollbar-none">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-3.5 py-2 text-xs font-medium border-b-2 transition-colors cursor-pointer -mb-px whitespace-nowrap ${
-              activeTab === tab.id
-                ? "border-blue-950 text-blue-950 font-bold"
-                : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
       </div>
 
       {/* Tab 1: Visual Workflow Builder (Data Actions) */}
@@ -193,7 +170,7 @@ export default function ManageSystemPage() {
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder="Masukkan API Key Nanonets..."
-                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:border-blue-950 focus:bg-white transition-all"
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
                 />
                 <button
                   type="button"
@@ -218,7 +195,7 @@ export default function ManageSystemPage() {
                   type="button"
                   onClick={handleSaveSettings}
                   disabled={isSaving || isLoading}
-                  className="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-blue-950 text-white hover:bg-blue-900 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
                 >
                   {isSaving ? "Menyimpan..." : "Simpan Konfigurasi"}
                 </button>
@@ -232,7 +209,7 @@ export default function ManageSystemPage() {
                 <h2 className="text-sm font-semibold text-slate-900">Model OCR Resmi PT. UNITED STEEL CENTER INDONESIA</h2>
                 <p className="text-xs text-slate-500 mt-0.5">Model ID Nanonets aktif untuk 7 jenis dokumen baja import</p>
               </div>
-              <span className="text-xs font-semibold text-blue-950 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+              <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
                 {models.length} Model Terdaftar
               </span>
             </div>
@@ -252,7 +229,7 @@ export default function ManageSystemPage() {
                     <tr key={m.key || idx} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-2.5 px-3 font-medium text-slate-800">{m.name}</td>
                       <td className="py-2.5 px-3 font-mono text-[11px] text-slate-500">{m.key}</td>
-                      <td className="py-2.5 px-3 font-mono text-[11px] text-blue-900 font-semibold">{m.modelId}</td>
+                      <td className="py-2.5 px-3 font-mono text-[11px] text-blue-700 font-semibold">{m.modelId}</td>
                       <td className="py-2.5 px-3 text-right">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>

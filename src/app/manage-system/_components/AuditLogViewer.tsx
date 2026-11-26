@@ -261,7 +261,7 @@ export default function AuditLogViewer() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
             <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <HistoryIcon className="w-4 h-4 text-blue-950" />
+              <HistoryIcon className="w-4 h-4 text-blue-600" />
               <span>Log Audit & Catatan Perubahan Sistem</span>
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -342,7 +342,7 @@ export default function AuditLogViewer() {
                   title={tab.desc}
                   className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
                     isActive
-                      ? "bg-blue-950 text-white shadow-2xs font-semibold"
+                      ? "bg-[#E2ECFE] text-[#1D4ED8] border border-blue-200 font-semibold"
                       : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"
                   }`}
                 >
@@ -357,7 +357,7 @@ export default function AuditLogViewer() {
             <select
               value={selectedAction}
               onChange={(e) => setSelectedAction(e.target.value)}
-              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-blue-950 transition-all cursor-pointer"
+              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 focus:outline-none focus:border-blue-600 transition-all cursor-pointer"
             >
               <option value="ALL">Semua Aksi</option>
               <option value="CREATE">Tambah</option>
@@ -376,7 +376,7 @@ export default function AuditLogViewer() {
                   setPage(1);
                 }}
                 placeholder="Cari user, judul, isi log..."
-                className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-950 focus:bg-white transition-all"
+                className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
               />
               {search && (
                 <button
@@ -431,7 +431,7 @@ export default function AuditLogViewer() {
                     {/* User Initials Avatar */}
                     <div
                       title={log.userEmail || log.userName || "Operator"}
-                      className="w-8 h-8 rounded-full bg-blue-950 text-white flex items-center justify-center text-[11px] font-bold shrink-0 shadow-2xs"
+                      className="w-8 h-8 rounded-full bg-[#E2ECFE] text-[#1D4ED8] border border-blue-200 flex items-center justify-center text-[11px] font-bold shrink-0"
                     >
                       {initials}
                     </div>
@@ -487,9 +487,9 @@ export default function AuditLogViewer() {
                       <button
                         type="button"
                         onClick={() => setSelectedLog(log)}
-                        className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-950 hover:text-blue-800 hover:underline pt-0.5 cursor-pointer"
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:underline pt-0.5 cursor-pointer"
                       >
-                        <CodeIcon className="w-3 h-3 text-blue-900" />
+                        <CodeIcon className="w-3 h-3 text-blue-600" />
                         <span>Detail</span>
                       </button>
                     )}

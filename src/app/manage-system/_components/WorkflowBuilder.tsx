@@ -905,7 +905,7 @@ function NumberFormattingEditor({
                 },
               });
             }}
-            className="rounded text-blue-950 focus:ring-0 w-3.5 h-3.5"
+            className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5"
           />
           <span>Hapus Satuan (kg, pcs, dll)</span>
         </label>
@@ -923,7 +923,7 @@ function NumberFormattingEditor({
                 },
               });
             }}
-            className="rounded text-blue-950 focus:ring-0 w-3.5 h-3.5"
+            className="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5"
           />
           <span>Hapus Simbol Mata Uang (USD, IDR, $, dll)</span>
         </label>
@@ -1400,7 +1400,7 @@ function ValueMappingEditor({
           type="button"
           onClick={handleAdd}
           disabled={!newKeyword.trim() || !newVal.trim()}
-          className="px-3 py-1 bg-blue-950 text-white rounded-lg text-xs font-semibold hover:bg-blue-900 disabled:opacity-40 cursor-pointer shadow-2xs transition-colors"
+          className="px-3 py-1 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-40 cursor-pointer shadow-2xs transition-colors"
         >
           Tambah
         </button>
@@ -1924,155 +1924,101 @@ export default function WorkflowBuilder() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3.5">
       {/* Top-Right Light Toast Notification */}
       <ToastNotification toast={toast} onClose={dismissToast} />
 
-      {/* Slim Workflow Stages Stepper Bar */}
-      <div className="bg-white rounded-xl border border-slate-200/90 px-3.5 py-2 shadow-2xs">
-        <div className="flex items-center justify-between text-xs overflow-x-auto no-scrollbar gap-2">
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="w-4 h-4 rounded-full bg-slate-100 text-slate-700 font-mono text-[10px] font-semibold flex items-center justify-center">
-              1
+      {/* Consolidated Data Actions Toolbar + Document Switcher Card */}
+      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+        <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xs font-semibold text-slate-900">Data Actions</h2>
+            <span className="px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-slate-100 text-slate-600 font-mono border border-slate-200/80">
+              {steps.length} aturan total
             </span>
-            <span className="text-slate-600 text-xs">Batch Upload</span>
-          </div>
-          <ArrowRightIcon className="w-3 h-3 text-slate-300 shrink-0" />
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="w-4 h-4 rounded-full bg-slate-100 text-slate-700 font-mono text-[10px] font-semibold flex items-center justify-center">
-              2
-            </span>
-            <span className="text-slate-600 text-xs">AI OCR</span>
-          </div>
-          <ArrowRightIcon className="w-3 h-3 text-slate-300 shrink-0" />
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="w-4 h-4 rounded-full bg-blue-950 text-white font-mono text-[10px] font-semibold flex items-center justify-center">
-              3
-            </span>
-            <span className="text-blue-950 text-xs font-semibold">Data Actions (Active)</span>
-          </div>
-          <ArrowRightIcon className="w-3 h-3 text-slate-300 shrink-0" />
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="w-4 h-4 rounded-full bg-slate-100 text-slate-700 font-mono text-[10px] font-semibold flex items-center justify-center">
-              4
-            </span>
-            <span className="text-slate-600 text-xs">Canonical Matching</span>
-          </div>
-          <ArrowRightIcon className="w-3 h-3 text-slate-300 shrink-0" />
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="w-4 h-4 rounded-full bg-slate-100 text-slate-700 font-mono text-[10px] font-semibold flex items-center justify-center">
-              5
-            </span>
-            <span className="text-slate-600 text-xs">Review & Export</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Workspace Bar (Clean & Slim) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-white px-3.5 py-2.5 rounded-xl border border-slate-200/90 shadow-2xs">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xs font-semibold text-slate-900">Data Actions</h2>
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 font-mono">
-            {steps.length} Rules Active
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Search Input */}
-          <div className="relative">
-            <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Cari aksi..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-7 pr-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-950 focus:bg-white w-36 transition-all"
-            />
-          </div>
-
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-blue-950 hover:bg-blue-900 text-white transition-colors cursor-pointer shadow-2xs"
-          >
-            <PlusIcon className="w-3 h-3" />
-            <span>Add step</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Slim Segmented Document Switcher Tabs (Strictly 1 File / Doc at a time, Zero Emojis) */}
-      <div className="border-b border-slate-200 pb-px">
-        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-          {USC_DOCUMENT_TABS.map((tab) => {
-            const isActive = activeDocTab === tab.id;
-            const count = docCounts[tab.id] || 0;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveDocTab(tab.id)}
-                className={`group px-3 py-2 text-xs font-medium border-b-2 transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
-                  isActive
-                    ? "border-blue-950 text-blue-950 font-bold"
-                    : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
-                }`}
-              >
-                {tab.isReference && (
-                  <StarIcon className={`w-3 h-3 ${isActive ? "text-blue-950" : "text-slate-400 group-hover:text-slate-600"}`} />
-                )}
-                <span>{tab.label}</span>
-                {count > 0 && (
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-medium ${
-                      isActive ? "bg-blue-950 text-white" : "bg-slate-100 text-slate-600"
-                    }`}
-                  >
-                    {count}
-                  </span>
-                )}
-                {tab.isReference && (
-                  <span className="text-[9px] font-semibold tracking-wider text-slate-400 uppercase">
-                    Ref
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* ACTIVE DOCUMENT DATA ACTIONS CONTAINER */}
-      <div className="space-y-3">
-        {/* Step List Controls Toolbar */}
-        <div className="flex items-center justify-between pb-1 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-800">Pipeline Urutan Aksi</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
-              {activeDocumentSteps.length} aturan aktif
+            <span className="text-[11px] text-slate-400">
+              • {activeDocumentSteps.length} aktif di {activeDocDef.label}
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Search Input */}
+            <div className="relative">
+              <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari aksi..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-7 pr-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white w-40 sm:w-44 transition-all"
+              />
+            </div>
+
             {activeDocumentSteps.length > 0 && (
               <button
                 type="button"
                 onClick={handleToggleAllExpand}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 transition-colors cursor-pointer"
               >
                 <span>{isAllExpanded ? "Tutup Semua" : "Buka Semua"}</span>
               </button>
             )}
+
             <button
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-950 hover:bg-blue-900 text-white rounded-lg text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer shadow-2xs"
             >
-              <PlusIcon className="w-3 h-3" />
+              <PlusIcon className="w-3.5 h-3.5" />
               <span>Tambah Aksi</span>
             </button>
           </div>
         </div>
 
+        {/* All 7 Document Switcher Tabs */}
+        <div className="px-3 border-t border-slate-100 bg-slate-50/40">
+          <div className="flex items-center gap-1 overflow-x-auto overflow-y-hidden no-scrollbar">
+            {USC_DOCUMENT_TABS.map((tab) => {
+              const isActive = activeDocTab === tab.id;
+              const count = docCounts[tab.id] || 0;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveDocTab(tab.id)}
+                  className={`group px-3 py-2 text-xs font-medium border-b-2 transition-colors cursor-pointer whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                    isActive
+                      ? "border-blue-600 text-blue-700 font-semibold"
+                      : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
+                  }`}
+                >
+                  {tab.isReference && (
+                    <StarIcon className={`w-3 h-3 ${isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"}`} />
+                  )}
+                  <span>{tab.label}</span>
+                  {count > 0 && (
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-semibold ${
+                        isActive ? "bg-[#E2ECFE] text-[#1D4ED8]" : "bg-slate-200/70 text-slate-600"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                  {tab.isReference && (
+                    <span className="text-[9px] font-semibold tracking-wider text-slate-400 uppercase">
+                      Ref
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ACTIVE DOCUMENT DATA ACTIONS LIST */}
+      <div className="space-y-3">
         {activeDocumentSteps.length === 0 ? (
           // Clean & Slim Empty State (Zero Emojis)
           <div className="bg-white rounded-xl border border-dashed border-slate-300 p-8 text-center space-y-2.5">
@@ -2090,9 +2036,9 @@ export default function WorkflowBuilder() {
             <button
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-950 hover:bg-blue-900 text-white rounded-lg text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors shadow-2xs cursor-pointer"
             >
-              <PlusIcon className="w-3 h-3" />
+              <PlusIcon className="w-3.5 h-3.5" />
               <span>Tambah Aksi Baru</span>
             </button>
           </div>
@@ -2128,7 +2074,7 @@ export default function WorkflowBuilder() {
                 <div
                   className={`bg-white rounded-xl border transition-all ${
                     isExpanded
-                      ? "border-blue-900/40 ring-1 ring-blue-900/10 shadow-xs"
+                      ? "border-blue-600/40 ring-1 ring-blue-600/10 shadow-xs"
                       : step.enabled
                       ? "border-slate-200/90 shadow-2xs hover:border-slate-300"
                       : "border-slate-200 opacity-60 bg-slate-50/50"
@@ -2154,7 +2100,7 @@ export default function WorkflowBuilder() {
                       </span>
 
                       {/* Action Icon in rounded container */}
-                      <div className="w-7 h-7 rounded-lg bg-blue-50/70 border border-blue-200/80 text-blue-900 flex items-center justify-center shrink-0 shadow-2xs">
+                      <div className="w-7 h-7 rounded-lg bg-blue-50/80 border border-blue-200/80 text-blue-600 flex items-center justify-center shrink-0 shadow-2xs">
                         <StepIcon className="w-3.5 h-3.5" />
                       </div>
 
@@ -2166,7 +2112,7 @@ export default function WorkflowBuilder() {
                             value={step.name}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => updateStep(step.id, { name: e.target.value })}
-                            className="text-xs font-semibold text-slate-900 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-950 px-1 py-0.5 rounded transition-all"
+                            className="text-xs font-semibold text-slate-900 bg-transparent hover:bg-slate-100/80 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-600 px-1 py-0.5 rounded transition-all"
                           />
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-medium text-slate-600 bg-slate-100 border border-slate-200/70">
                             {actionDef.badge}
@@ -2199,7 +2145,7 @@ export default function WorkflowBuilder() {
                           onChange={() => handleToggleStep(step.id)}
                           className="sr-only peer"
                         />
-                        <div className="w-7 h-3.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-950"></div>
+                        <div className="w-7 h-3.5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[1px] after:left-[1px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
                       </label>
 
                       {/* Move Up */}
@@ -2388,8 +2334,8 @@ export default function WorkflowBuilder() {
                             <div className="p-3.5 border-t border-slate-100 space-y-3 bg-slate-50/40 animate-in fade-in duration-100">
                               {/* Descriptive Guidance on Output Settings */}
                               <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-200/80 text-[11px] text-slate-600 leading-relaxed space-y-1.5">
-                                <div className="font-semibold text-blue-950 flex items-center gap-1.5">
-                                  <InfoIcon className="w-3.5 h-3.5 text-blue-900 shrink-0" />
+                                <div className="font-semibold text-blue-700 flex items-center gap-1.5">
+                                  <InfoIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                                   <span>Panduan Output Settings</span>
                                 </div>
                                 <p className="text-slate-600">
@@ -2397,7 +2343,7 @@ export default function WorkflowBuilder() {
                                 </p>
                                 <ul className="list-disc list-inside space-y-1 text-slate-600 pl-1">
                                   <li>
-                                    <strong className="text-slate-800">Create as new field:</strong> Menyimpan hasil ke field baru terpisah (misalnya <code className="text-blue-950 font-semibold px-1 py-0.5 bg-blue-100/70 rounded font-mono text-[10px]">{fallbackActionLabel}</code>) sehingga data asli dari Nanonets OCR tetap tersimpan utuh untuk kebutuhan audit.
+                                    <strong className="text-slate-800">Create as new field:</strong> Menyimpan hasil ke field baru terpisah (misalnya <code className="text-blue-700 font-semibold px-1 py-0.5 bg-blue-100/70 rounded font-mono text-[10px]">{fallbackActionLabel}</code>) sehingga data asli dari Nanonets OCR tetap tersimpan utuh untuk kebutuhan audit.
                                   </li>
                                   <li>
                                     <strong className="text-slate-800">Update existing field:</strong> Menimpa (overwrite) nilai field target secara langsung (in-place) pada dokumen untuk langsung digunakan oleh Canonical Matching Engine.
@@ -2414,7 +2360,7 @@ export default function WorkflowBuilder() {
                                 <label
                                   className={`flex-1 p-2.5 rounded-lg border cursor-pointer transition-colors ${
                                     step.outputMode !== "original_field"
-                                      ? "bg-blue-50/70 border-blue-950 text-blue-950 font-semibold ring-1 ring-blue-950/20"
+                                      ? "bg-blue-50/70 border-blue-600 text-blue-700 font-semibold ring-1 ring-blue-600/20"
                                       : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                                   }`}
                                 >
@@ -2434,7 +2380,7 @@ export default function WorkflowBuilder() {
                                 <label
                                   className={`flex-1 p-2.5 rounded-lg border cursor-pointer transition-colors ${
                                     step.outputMode === "original_field"
-                                      ? "bg-blue-50/70 border-blue-950 text-blue-950 font-semibold ring-1 ring-blue-950/20"
+                                      ? "bg-blue-50/70 border-blue-600 text-blue-700 font-semibold ring-1 ring-blue-600/20"
                                       : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                                   }`}
                                 >
@@ -2464,7 +2410,7 @@ export default function WorkflowBuilder() {
                                       value={step.outputFieldName || ""}
                                       onChange={(e) => updateStep(step.id, { outputFieldName: e.target.value })}
                                       placeholder={fallbackActionLabel}
-                                      className="flex-1 max-w-sm px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-950"
+                                      className="flex-1 max-w-sm px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
                                     />
                                     <span className="text-[11px] text-slate-400">
                                       Default: <code className="font-mono text-slate-600">{fallbackActionLabel}</code>
@@ -2574,7 +2520,7 @@ export default function WorkflowBuilder() {
                                         className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg font-semibold text-xs transition-colors shrink-0 shadow-2xs ${
                                           currentTargetFields.length === 0
                                             ? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed opacity-60"
-                                            : "bg-blue-950 hover:bg-blue-900 text-white cursor-pointer"
+                                            : "bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
                                         }`}
                                       >
                                         <RefreshIcon className="w-3.5 h-3.5" />
@@ -2623,7 +2569,7 @@ export default function WorkflowBuilder() {
                                               }}
                                               className={`flex items-center justify-between px-2.5 py-2 rounded-lg transition-colors cursor-pointer ${
                                                 activeFile.id === file.id
-                                                  ? "bg-blue-50/70 text-blue-950 font-medium"
+                                                  ? "bg-blue-50/80 text-blue-700 font-medium"
                                                   : "hover:bg-slate-50 text-slate-700"
                                               }`}
                                             >
@@ -2694,10 +2640,10 @@ export default function WorkflowBuilder() {
                                                 [step.id]: "input",
                                               }))
                                             }
-                                            className={`pb-2 text-xs font-semibold transition-colors cursor-pointer relative ${
+                                            className={`pb-2 text-xs font-semibold transition-colors cursor-pointer relative border-b-2 ${
                                               activeTab === "input"
-                                                ? "text-blue-950 border-b-2 border-blue-950 -mb-[1px]"
-                                                : "text-slate-500 hover:text-slate-800"
+                                                ? "text-blue-700 border-blue-600"
+                                                : "text-slate-500 border-transparent hover:text-slate-800"
                                             }`}
                                           >
                                             Input data
@@ -2710,10 +2656,10 @@ export default function WorkflowBuilder() {
                                                 [step.id]: "output",
                                               }))
                                             }
-                                            className={`pb-2 text-xs font-semibold transition-colors cursor-pointer relative ${
+                                            className={`pb-2 text-xs font-semibold transition-colors cursor-pointer relative border-b-2 ${
                                               activeTab === "output"
-                                                ? "text-blue-950 border-b-2 border-blue-950 -mb-[1px]"
-                                                : "text-slate-500 hover:text-slate-800"
+                                                ? "text-blue-700 border-blue-600"
+                                                : "text-slate-500 border-transparent hover:text-slate-800"
                                             }`}
                                           >
                                             Output results
@@ -2780,7 +2726,7 @@ export default function WorkflowBuilder() {
                           type="button"
                           disabled={savingStepId === step.id}
                           onClick={() => handleDoneStep(step)}
-                          className={`px-4 py-1.5 rounded-lg bg-blue-950 hover:bg-blue-900 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs ${
+                          className={`px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs ${
                             savingStepId === step.id ? "opacity-70 cursor-not-allowed" : ""
                           }`}
                         >
@@ -2800,10 +2746,10 @@ export default function WorkflowBuilder() {
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="w-full py-2 rounded-lg border border-dashed border-slate-300 hover:border-blue-950 bg-white hover:bg-slate-50 text-slate-600 hover:text-blue-950 font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            className="w-full py-2 rounded-lg border border-dashed border-slate-300 hover:border-blue-600 bg-white hover:bg-blue-50/40 text-slate-600 hover:text-blue-700 font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
-            <PlusIcon className="w-3 h-3 text-slate-500" />
-            <span>+ Add step to {activeDocDef.label}</span>
+            <PlusIcon className="w-3 h-3 text-current" />
+            <span>Tambah Aksi untuk {activeDocDef.label}</span>
           </button>
         )}
       </div>
@@ -2859,7 +2805,7 @@ export default function WorkflowBuilder() {
                     onClick={() => setModalCategory(cat.id)}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap transition-colors cursor-pointer ${
                       modalCategory === cat.id
-                        ? "bg-blue-950 text-white"
+                        ? "bg-blue-600 text-white"
                         : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                     }`}
                   >
