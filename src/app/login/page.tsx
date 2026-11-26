@@ -58,9 +58,9 @@ function LoginForm() {
     <div className="w-full max-w-[360px] bg-white rounded-xl border border-slate-200/90 shadow-xs overflow-hidden">
       {/* Slim Clean Header */}
       <div className="pt-7 pb-5 px-6 text-center border-b border-slate-100">
-        <h1 className="text-base font-bold text-slate-900 tracking-tight">Docmatch</h1>
+        <h1 className="text-base font-bold text-slate-900 tracking-tight">DocMatch</h1>
         <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">
-          PT. United Steel Center Indonesia
+          Automated Document Matching System
         </p>
       </div>
 

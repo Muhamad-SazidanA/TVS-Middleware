@@ -615,7 +615,7 @@ export default function EquivalencyManager() {
                     type="text"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder="misal: Identitas Pembeli USC, Pelabuhan Korea"
+                    placeholder="misal: Identitas Pembeli, Pelabuhan Korea"
                     className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
@@ -649,7 +649,7 @@ export default function EquivalencyManager() {
                   rows={2}
                   value={formCanonical}
                   onChange={(e) => setFormCanonical(e.target.value)}
-                  placeholder="misal: PT. UNITED STEEL CENTER INDONESIA"
+                  placeholder="misal: TANJUNG PRIOK"
                   className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-blue-700 focus:outline-none focus:border-blue-600 focus:bg-white transition-all leading-relaxed"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">

@@ -10,7 +10,7 @@
       "status": "Active"
     },
     {
-      "name": "Commercial Invoice (CI)",
+      "name": "Invoice",
       "key": "invoice",
       "modelId": "dab11666-7657-46e7-8efb-3fed630ee96e",
       "status": "Active"

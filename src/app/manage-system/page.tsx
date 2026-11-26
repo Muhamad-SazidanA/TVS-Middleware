@@ -119,7 +119,7 @@ export default function ManageSystemPage() {
         <div className="pb-3">
           <h1 className="text-base font-bold text-slate-900">Manage System</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Konfigurasi integrasi OCR, aturan matching, dan model data PT. UNITED STEEL CENTER INDONESIA
+            Konfigurasi integrasi OCR, aturan matching, dan model data DocMatch
           </p>
         </div>
 
@@ -158,7 +158,7 @@ export default function ManageSystemPage() {
             <div className="shrink-0 bg-white rounded-xl border border-slate-200 p-5 space-y-3 shadow-2xs">
               <div className="pb-3 border-b border-slate-100">
                 <h2 className="text-sm font-semibold text-slate-900">Kredensial API Nanonets OCR</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Kunci otentikasi engine Nanonets untuk ekstraksi 7 dokumen import USC</p>
+                <p className="text-xs text-slate-500 mt-0.5">Kunci otentikasi engine Nanonets untuk ekstraksi 7 dokumen import DocMatch</p>
               </div>
 
               <div className="max-w-xl space-y-1.5">
@@ -206,8 +206,8 @@ export default function ManageSystemPage() {
             <div className="flex-1 min-h-0 flex flex-col bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
               <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-slate-100">
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-900">Model OCR Resmi PT. UNITED STEEL CENTER INDONESIA</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Model ID Nanonets aktif untuk 7 jenis dokumen baja import</p>
+                  <h2 className="text-sm font-semibold text-slate-900">Model OCR Resmi DocMatch</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Model ID Nanonets aktif untuk 7 jenis dokumen impor</p>
                 </div>
                 <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
                   {models.length} Model Terdaftar
@@ -218,7 +218,7 @@ export default function ManageSystemPage() {
                 <table className="w-full text-left text-xs">
                   <thead className="sticky top-0 bg-white z-10">
                     <tr className="border-b border-slate-100 text-slate-500 text-[11px] uppercase tracking-wider bg-slate-50/70">
-                      <th className="py-2.5 px-3 font-semibold">Tipe Dokumen USC</th>
+                      <th className="py-2.5 px-3 font-semibold">Tipe Dokumen DocMatch</th>
                       <th className="py-2.5 px-3 font-semibold">Identifier Key</th>
                       <th className="py-2.5 px-3 font-semibold">Nanonets Model ID</th>
                       <th className="py-2.5 px-3 text-right font-semibold">Status Operasional</th>

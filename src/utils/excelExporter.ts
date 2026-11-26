@@ -119,8 +119,8 @@ export async function generateMatchingExcel({
   if (!batches || batches.length === 0) return;
 
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "USC-Middleware";
-  workbook.lastModifiedBy = "USC-Middleware";
+  workbook.creator = "DocMatch";
+  workbook.lastModifiedBy = "DocMatch";
   workbook.created = new Date();
   workbook.modified = new Date();
 

@@ -108,7 +108,7 @@ export default function MatchingHeader({ onOpenAuditLog, onRefresh }: MatchingHe
               <div className="my-1 border-t border-slate-100" />
               <div className="px-3 py-1.5 text-[11px] text-slate-400 flex items-center gap-1.5">
                 <HelpCircle className="w-3.5 h-3.5" />
-                <span>USC Middleware v1.2</span>
+                <span>DocMatch v1.2</span>
               </div>
             </div>
           </>

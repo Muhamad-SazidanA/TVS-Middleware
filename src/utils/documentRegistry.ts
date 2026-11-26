@@ -80,11 +80,11 @@ export const DOCUMENT_FIELD_REGISTRY: Record<UscDocumentType, UscDocumentDefinit
     fields: [
       // Headers
       { name: "Nomor_Pengajuan", label: "Nomor Pengajuan", type: "header", description: "Nomor Aju PIB 26 digit" },
-      { name: "No_Invoice", label: "Nomor Invoice", type: "header", description: "Nomor Commercial Invoice pada PIB" },
+      { name: "No_Invoice", label: "Nomor Invoice", type: "header", description: "Nomor Invoice pada PIB" },
       { name: "Tanggal_Invoice", label: "Tanggal Invoice", type: "header", description: "Tanggal Invoice pada PIB" },
       { name: "No_BL", label: "Nomor B/L", type: "header", description: "Nomor B/L atau Sea Waybill pada PIB" },
       { name: "Tanggal_BL", label: "Tanggal B/L", type: "header", description: "Tanggal penerbitan B/L pada PIB" },
-      { name: "Nama_Importir", label: "Nama Importir", type: "header", description: "PT. UNITED STEEL CENTER INDONESIA (Alias: Pemilik_Barang)" },
+      { name: "Nama_Importir", label: "Nama Importir", type: "header", description: "Identitas Importir (Alias: Pemilik_Barang)" },
       { name: "Pemilik_Barang", label: "Pemilik Barang", type: "header", description: "Identitas Importir / Pemilik Barang pada PIB" },
       { name: "Identitas_Penjual", label: "Identitas Penjual", type: "header", description: "Supplier / Shipper pihak penjual" },
       { name: "Nama_Penjual", label: "Nama Penjual", type: "header", description: "Pihak penjual pada PIB" },
@@ -124,7 +124,7 @@ export const DOCUMENT_FIELD_REGISTRY: Record<UscDocumentType, UscDocumentDefinit
 
   ci: {
     type: "ci",
-    title: "Commercial Invoice (CI)",
+    title: "Invoice",
     shortName: "CI",
     category: "Invoice",
     modelEnvKey: "MODEL_INVOICE",
@@ -484,7 +484,7 @@ export const USC_DOCUMENTS_LIST: Array<{
   category: string;
 }> = [
   { type: "pib", shortName: "PIB", title: "PIB (Pemberitahuan Impor Barang)", category: "PIB" },
-  { type: "ci", shortName: "CI", title: "Commercial Invoice (CI)", category: "Invoice" },
+  { type: "ci", shortName: "CI", title: "Invoice", category: "Invoice" },
   { type: "pl", shortName: "PL", title: "Packing List (PL)", category: "Packing List" },
   { type: "bl", shortName: "BL", title: "Bill of Lading (BL)", category: "Bill of Lading" },
   { type: "ak", shortName: "Form AK", title: "Form AK (Certificate of Origin)", category: "AK" },

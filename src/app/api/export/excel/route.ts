@@ -213,7 +213,7 @@ async function handleExcelExport(opts: ExportQueryOptions) {
 
     // 4. Initialize ExcelJS Workbook
     const workbook = new ExcelJS.Workbook();
-    workbook.creator = "Docmatch USC Middleware";
+    workbook.creator = "DocMatch";
     workbook.created = new Date();
     workbook.modified = new Date();
 
@@ -366,7 +366,7 @@ async function handleExcelExport(opts: ExportQueryOptions) {
 
       const row = sheet1.addRow([
         item.batch.id,
-        item.batch.nama || "PT. UNITED STEEL CENTER INDONESIA",
+        item.batch.nama || "DocMatch",
         sheetStatusLabel,
         `${item.batch.totalFile || 6} File`,
         item.matchCount,

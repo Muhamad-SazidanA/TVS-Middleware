@@ -316,7 +316,7 @@ export interface DocumentTabDef {
 
 const USC_DOCUMENT_TABS: DocumentTabDef[] = [
   { id: "pib", label: "PIB", fullName: "Pemberitahuan Impor Barang", badge: "Acuan", isReference: true },
-  { id: "ci", label: "Commercial Invoice", fullName: "Commercial Invoice (CI)", badge: "Pembanding" },
+  { id: "ci", label: "Invoice", fullName: "Invoice", badge: "Pembanding" },
   { id: "pl", label: "Packing List", fullName: "Packing List (PL)", badge: "Pembanding" },
   { id: "bl", label: "Bill of Lading", fullName: "Bill of Lading (BL)", badge: "Pembanding" },
   { id: "ak", label: "Form AK", fullName: "Certificate of Origin (Form AK)", badge: "Pembanding" },
@@ -326,7 +326,7 @@ const USC_DOCUMENT_TABS: DocumentTabDef[] = [
 
 const DOC_SCOPE_OPTIONS: { label: string; value: WorkflowDocScope }[] = [
   { label: "PIB (File Acuan)", value: "pib" },
-  { label: "Commercial Invoice (CI)", value: "ci" },
+  { label: "Invoice", value: "ci" },
   { label: "Packing List (PL)", value: "pl" },
   { label: "Bill of Lading (BL)", value: "bl" },
   { label: "Form AK (Certificate of Origin)", value: "ak" },

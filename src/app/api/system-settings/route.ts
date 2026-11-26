@@ -24,7 +24,7 @@ interface SystemSettings {
 function getDefaultSettings(): SystemSettings {
   const defaultModels: ModelConfig[] = [
     { name: "PIB (Pemberitahuan Impor Barang)", key: "pib", modelId: CATEGORY_MODEL_MAP["PIB"] || env.MODEL_PIB || "233e650f-2b0e-4c56-8d98-35f40e032a60", status: "Active" },
-    { name: "Commercial Invoice (CI)", key: "invoice", modelId: CATEGORY_MODEL_MAP["Commercial Invoice"] || env.MODEL_INVOICE || "dab11666-7657-46e7-8efb-3fed630ee96e", status: "Active" },
+    { name: "Invoice", key: "invoice", modelId: CATEGORY_MODEL_MAP["Commercial Invoice"] || env.MODEL_INVOICE || "dab11666-7657-46e7-8efb-3fed630ee96e", status: "Active" },
     { name: "Packing List (PL)", key: "packing_list", modelId: CATEGORY_MODEL_MAP["Packing List"] || env.MODEL_PACKING_LIST || "133a8cb8-762f-4002-9878-bbb333706775", status: "Active" },
     { name: "Bill of Lading (BL)", key: "bl", modelId: CATEGORY_MODEL_MAP["Bill of Lading"] || env.MODEL_BL || "53b28ee1-0693-4d6a-8e16-844e405874c9", status: "Active" },
     { name: "Form AK (Certificate of Origin)", key: "ak", modelId: CATEGORY_MODEL_MAP["Form AK"] || env.MODEL_AK || "12a16d1c-9b37-4a19-809f-84e594f541ea", status: "Active" },
@@ -40,14 +40,28 @@ function getDefaultSettings(): SystemSettings {
   };
 }
 
+function normalizeSettingsModels(models: ModelConfig[]): ModelConfig[] {
+  return models.map((m) =>
+    m.key === "invoice" || /commercial\s*invoice/i.test(m.name || "")
+      ? { ...m, name: "Invoice" }
+      : m
+  );
+}
+
 function loadSystemSettings(): SystemSettings {
   try {
     if (fs.existsSync(SETTINGS_FILE_PATH)) {
       const raw = fs.readFileSync(SETTINGS_FILE_PATH, "utf-8");
       const parsed = JSON.parse(raw);
-      return {
+      const merged: SystemSettings = {
         ...getDefaultSettings(),
         ...parsed,
+      };
+      return {
+        ...merged,
+        models: normalizeSettingsModels(
+          Array.isArray(merged.models) ? merged.models : getDefaultSettings().models
+        ),
       };
     }
   } catch (err) {

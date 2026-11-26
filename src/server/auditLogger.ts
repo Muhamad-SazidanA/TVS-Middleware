@@ -43,7 +43,7 @@ export async function logSystemAudit(params: LogAuditParams) {
         details: params.details || "",
         metadata: metaStr || null,
         userName: userName || "Operator",
-        userEmail: userEmail || "operator@usc.co.id",
+        userEmail: userEmail || "operator@docmatch.id",
         userId: userId || null,
         ipAddress: params.ipAddress || null,
       },
