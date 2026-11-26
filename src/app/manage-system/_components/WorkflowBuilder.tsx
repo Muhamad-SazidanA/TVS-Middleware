@@ -4,6 +4,9 @@ import React, { useState, useEffect, useMemo } from "react";
 import CustomSelect from "@/app/_components/ui/CustomSelect";
 import CustomMultiSelect from "@/app/_components/ui/CustomMultiSelect";
 import ConfirmDialog from "@/app/_components/ui/ConfirmDialog";
+import ToastNotification, {
+  useToastState,
+} from "@/app/_components/ui/ToastNotification";
 import type {
   WorkflowStep,
   WorkflowActionType,
@@ -1418,25 +1421,9 @@ export default function WorkflowBuilder() {
   const [modalCategory, setModalCategory] = useState<string>("all");
   const [showSandbox, setShowSandbox] = useState<boolean>(false);
   const [hasChanges, setHasChanges] = useState<boolean>(false);
-  const [toast, setToast] = useState<{
-    message: string;
-    type: "success" | "warning" | "info" | "error";
-  } | null>(null);
+  const { toast, showToast, dismissToast } = useToastState();
   const [stepErrors, setStepErrors] = useState<Record<string, string>>({});
   const [savingStepId, setSavingStepId] = useState<string | null>(null);
-
-  const showToast = (
-    message: string,
-    type: "success" | "warning" | "info" | "error" = "info",
-    duration = 3500
-  ) => {
-    setToast({ message, type });
-    if (duration > 0) {
-      setTimeout(() => {
-        setToast((current) => (current?.message === message ? null : current));
-      }, duration);
-    }
-  };
 
   // DB uploaded files for live testing
   const [uploadedDbFiles, setUploadedDbFiles] = useState<SampleDocument[]>([]);
@@ -1938,42 +1925,8 @@ export default function WorkflowBuilder() {
 
   return (
     <div className="space-y-4">
-      {/* Toast Alert (Clean & Slim, Zero Emojis) */}
-      {toast && (
-        <div
-          className={`px-3.5 py-2.5 rounded-lg text-xs flex items-center justify-between shadow-2xs transition-all ${
-            toast.type === "warning"
-              ? "bg-amber-50 border border-amber-200 text-amber-900"
-              : toast.type === "error"
-              ? "bg-rose-50 border border-rose-200 text-rose-900"
-              : toast.type === "info"
-              ? "bg-blue-50 border border-blue-200 text-blue-900"
-              : "bg-emerald-50 border border-emerald-200 text-emerald-900"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            {toast.type === "warning" && (
-              <AlertTriangleIcon className="w-4 h-4 text-amber-600 shrink-0" />
-            )}
-            {toast.type === "error" && (
-              <AlertCircleIcon className="w-4 h-4 text-rose-600 shrink-0" />
-            )}
-            {toast.type === "info" && (
-              <InfoIcon className="w-4 h-4 text-blue-900 shrink-0" />
-            )}
-            {toast.type === "success" && (
-              <CheckCircleIcon className="w-4 h-4 text-emerald-600 shrink-0" />
-            )}
-            <span className="font-medium">{toast.message}</span>
-          </div>
-          <button
-            onClick={() => setToast(null)}
-            className="text-slate-400 hover:text-slate-700 ml-3 cursor-pointer"
-          >
-            <XIcon className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
+      {/* Top-Right Light Toast Notification */}
+      <ToastNotification toast={toast} onClose={dismissToast} />
 
       {/* Slim Workflow Stages Stepper Bar */}
       <div className="bg-white rounded-xl border border-slate-200/90 px-3.5 py-2 shadow-2xs">

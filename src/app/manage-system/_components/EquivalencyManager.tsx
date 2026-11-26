@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import ToastNotification, {
+  useToastState,
+} from "@/app/_components/ui/ToastNotification";
 
 export interface EquivalencyValueItem {
   id?: number;
@@ -125,15 +128,8 @@ export default function EquivalencyManager() {
   const [deleteTarget, setDeleteTarget] = useState<EquivalencyGroupItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Toast State
-  const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
-
-  const showToast = (message: string, type: "success" | "error" | "info" = "info") => {
-    setToast({ message, type });
-    setTimeout(() => {
-      setToast((curr) => (curr?.message === message ? null : curr));
-    }, 3500);
-  };
+  // Toast State (top-right light popup)
+  const { toast, showToast, dismissToast } = useToastState();
 
   // Fetch groups from API
   const fetchGroups = useCallback(async () => {
@@ -150,7 +146,7 @@ export default function EquivalencyManager() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     fetchGroups();
@@ -340,27 +336,8 @@ export default function EquivalencyManager() {
 
   return (
     <div className="space-y-4">
-      {/* Toast Notification */}
-      {toast && (
-        <div
-          className={`px-3.5 py-2.5 rounded-lg text-xs font-medium border flex items-center justify-between transition-all ${
-            toast.type === "success"
-              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-              : toast.type === "error"
-              ? "bg-rose-50 border-rose-200 text-rose-800"
-              : "bg-slate-50 border-slate-200 text-slate-800"
-          }`}
-        >
-          <span>{toast.message}</span>
-          <button
-            type="button"
-            onClick={() => setToast(null)}
-            className="text-slate-400 hover:text-slate-700 ml-3 font-bold cursor-pointer"
-          >
-            ×
-          </button>
-        </div>
-      )}
+      {/* Top-Right Light Toast Notification */}
+      <ToastNotification toast={toast} onClose={dismissToast} />
 
       {/* Header Card & Actions */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">

@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check } from "lucide-react";
+import ToastNotification, {
+  useToastState,
+} from "@/app/_components/ui/ToastNotification";
 
 import MatchingTabsToolbar, {
   type MatchingTabId,
@@ -90,44 +92,24 @@ function MatchingPageContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(50); // Default per spec: "Baris per halaman: 50"
 
-  // Toast notification
-  const [toast, setToast] = useState<{ show: boolean; message: string }>({
-    show: false,
-    message: "",
-  });
-
-  const showToast = useCallback((message: string) => {
-    setToast({ show: true, message });
-    setTimeout(() => {
-      setToast({ show: false, message: "" });
-    }, 3000);
-  }, []);
+  // Toast notification (top-right light popup)
+  const { toast, showToast, dismissToast } = useToastState();
 
   // Detail View State (opened on row click or deep link)
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [selectedDocCode, setSelectedDocCode] = useState<string>("PIB");
   const [manageFilesBatchId, setManageFilesBatchId] = useState<string | null>(null);
 
-  // Deep-link auto-opening from URL query ?batchId=... with lock guard
+  // Deep-link auto-opening from URL query ?batchId=...
   useEffect(() => {
     if (urlBatchId && initialBatchHandledRef.current !== urlBatchId) {
       const target = batches.find((b) => b.id === urlBatchId);
-      if (target) {
-        initialBatchHandledRef.current = urlBatchId;
-        const st = (target.status || "").toLowerCase();
-        const isProcessing = st === "proses" || st === "pending";
-        if (isProcessing) {
-          showToast(`Dokumen batch #${urlBatchId} masih diproses oleh OCR Nanonets, mohon tunggu hingga selesai.`);
-          router.replace("/matching", { scroll: false });
-          return;
-        }
-        setSelectedBatchId(urlBatchId);
-      } else if (!loading) {
+      if (target || !loading) {
         initialBatchHandledRef.current = urlBatchId;
         setSelectedBatchId(urlBatchId);
       }
     }
-  }, [urlBatchId, batches, loading, router, showToast]);
+  }, [urlBatchId, batches, loading]);
 
   // Dialogs & Modals
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -629,11 +611,11 @@ function MatchingPageContent() {
         setSelectedBatchIds((prev) => prev.filter((id) => id !== batchToDelete.id));
         setDeleteConfirm({ isOpen: false, batch: null });
       } else {
-        alert(data.error || "Gagal menghapus file batch.");
+        showToast(data.error || "Gagal menghapus file batch.", "error");
       }
     } catch (err) {
       console.error("Hapus batch error:", err);
-      alert("Terjadi kesalahan jaringan saat menghapus file.");
+      showToast("Terjadi kesalahan jaringan saat menghapus file.", "error");
     } finally {
       setIsDeleting(false);
     }
@@ -767,17 +749,11 @@ function MatchingPageContent() {
             onToggleSelectRow={handleToggleSelectRow}
             isAllSelected={isAllSelected}
             onRowClick={(id, docCode) => {
-              const target = batches.find((b) => b.id === id);
-              const st = (target?.status || "").toLowerCase();
-              if (st === "proses" || st === "pending") {
-                showToast("Dokumen masih diproses oleh OCR Nanonets, mohon tunggu hingga selesai.");
-                return;
-              }
               setSelectedBatchId(id);
               setSelectedDocCode(docCode || "PIB");
             }}
             onLockedClick={(id) => {
-              showToast(`Batch #${id} masih diproses oleh OCR Nanonets, mohon tunggu hingga selesai.`);
+              showToast(`Batch #${id} masih memproses OCR di latar belakang.`, "info");
             }}
             onManageFiles={(b) => setManageFilesBatchId(b.id)}
             onDownload={handleDownloadSingle}
@@ -862,13 +838,8 @@ function MatchingPageContent() {
         isLoading={isDeleting}
       />
 
-      {/* 7. Toast Notification */}
-      {toast.show && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-2.5 bg-slate-900 text-white text-xs font-medium rounded-xl shadow-xl border border-slate-800 animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>{toast.message}</span>
-        </div>
-      )}
+      {/* 7. Non-blocking Top-Right Light Toast Notification */}
+      <ToastNotification toast={toast} onClose={dismissToast} />
     </div>
   );
 }

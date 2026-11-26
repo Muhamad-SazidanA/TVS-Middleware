@@ -2,6 +2,9 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import ToastNotification, {
+  useToastState,
+} from "@/app/_components/ui/ToastNotification";
 
 // Inline Icons
 const UploadIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
@@ -62,6 +65,7 @@ interface UploadCategory {
 export default function UploadPage() {
   const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
+  const { toast, showToast, dismissToast } = useToastState();
 
   // 7 Categories in exact order: PIB (File Acuan) & File Pembanding (AK, WL, MS, Bill of Lading, Packing List, Invoice)
   const [categories, setCategories] = useState<UploadCategory[]>([
@@ -153,11 +157,11 @@ export default function UploadPage() {
       if (res.ok && data.success) {
         router.push("/matching");
       } else {
-        alert(data.error || "Gagal memproses batch ke Nanonets OCR.");
+        showToast(data.error || "Gagal memproses batch ke Nanonets OCR.", "error");
       }
     } catch (err: unknown) {
       console.error("Batch submit error:", err);
-      alert("Terjadi kesalahan saat mengirim file ke Nanonets server.");
+      showToast("Terjadi kesalahan saat mengirim file ke Nanonets server.", "error");
     } finally {
       setIsProcessing(false);
     }
@@ -370,6 +374,9 @@ export default function UploadPage() {
           </div>
         </div>
       </div>
+
+      {/* Top-Right Light Toast Notification */}
+      <ToastNotification toast={toast} onClose={dismissToast} />
     </div>
   );
 }

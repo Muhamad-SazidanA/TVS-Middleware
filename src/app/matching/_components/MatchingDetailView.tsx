@@ -1,4 +1,4 @@
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                "use client";
+"use client";
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
@@ -10,9 +10,11 @@ import {
   RefreshCw,
   Check,
   CheckCheck,
-  Lock,
-  FolderUp,
 } from "lucide-react";
+import ToastNotification, {
+  useToastState,
+  type ToastItem,
+} from "@/app/_components/ui/ToastNotification";
 import ComparisonPanel from "./ComparisonPanel";
 import BatchDocumentsModal from "./BatchDocumentsModal";
 import {
@@ -76,6 +78,35 @@ class ViewerErrorBoundary extends React.Component<
   }
 }
 
+// Helpers for detecting OCR processing state without locking the workspace
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isDetailRecordOcrPending(d: any): boolean {
+  if (!d?.isi || typeof d.isi !== "string" || d.isi.trim().length === 0) {
+    return true;
+  }
+  try {
+    const p = JSON.parse(d.isi);
+    return p?.ocrPending === true;
+  } catch {
+    return false;
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getDetailDisplayName(d: any): string {
+  try {
+    const p = typeof d?.isi === "string" ? JSON.parse(d.isi) : null;
+    if (typeof p?.originalFileName === "string" && p.originalFileName.trim()) {
+      return p.originalFileName.trim();
+    }
+  } catch {
+    // ignore invalid JSON metadata
+  }
+  return String(d?.fileId || d?.fileType || "Dokumen");
+}
+
+const OCR_NOTICE_TOAST_ID = "detail-ocr-refresh-notice";
+
 export interface MatchingDetailViewProps {
   batchId: string;
   initialDocCode?: string;
@@ -108,15 +139,20 @@ export default function MatchingDetailView({
   const [isApproving, setIsApproving] = useState<boolean>(false);
   const [isBulkApproving, setIsBulkApproving] = useState<boolean>(false);
   const [docsModalOpen, setDocsModalOpen] = useState<boolean>(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { toast, showToast, dismissToast } = useToastState();
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
+  // Non-blocking background OCR tracking state
+  const trackedPendingIdsRef = useRef<Set<number>>(new Set());
+  const [readyOcrUpdate, setReadyOcrUpdate] = useState<{
+    names: string[];
+    stillPendingCount: number;
+  } | null>(null);
+  const [dismissedPendingSig, setDismissedPendingSig] = useState<string | null>(null);
+  const [isRefreshingInPlace, setIsRefreshingInPlace] = useState<boolean>(false);
 
   // 1. Fetch Batch Data
-  const loadBatch = useCallback(async (isSilent = false) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const loadBatch = useCallback(async (isSilent = false): Promise<any | null> => {
     try {
       if (!isSilent && !rawBatchRef.current) setLoading(true);
       setError(null);
@@ -127,50 +163,94 @@ export default function MatchingDetailView({
       const data = await res.json();
       if (data.batch) {
         setRawBatch(data.batch);
+        return data.batch;
       } else {
         throw new Error("Data batch tidak ditemukan");
       }
     } catch (err) {
       console.error("Load detail batch error:", err);
       if (!isSilent) setError(err instanceof Error ? err.message : "Gagal memuat data batch.");
+      return null;
     } finally {
       setLoading(false);
     }
   }, [batchId]);
 
-  // Auto-polling when batch is in processing state
-  const isDetailBatchProcessing = useMemo(() => {
-    if (!rawBatch) return false;
-    const st = (rawBatch.status || "").toLowerCase();
-    if (st === "proses" || st === "pending") return true;
-    if (Array.isArray(rawBatch.details)) {
-      return rawBatch.details.some(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (d: any) => {
-          if (!d.isi || typeof d.isi !== "string" || d.isi.trim().length === 0) {
-            return true;
-          }
-          try {
-            const p = JSON.parse(d.isi);
-            return p?.ocrPending === true;
-          } catch {
-            return false;
-          }
-        }
-      );
-    }
-    return false;
+  // Identify documents still waiting on Nanonets OCR without locking Detail View
+  const pendingOcrDocs = useMemo(() => {
+    if (!rawBatch || !Array.isArray(rawBatch.details)) return [];
+    return rawBatch.details
+      .filter(isDetailRecordOcrPending)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((d: any) => ({
+        id: Number(d.id),
+        name: getDetailDisplayName(d),
+      }));
   }, [rawBatch]);
 
+  const pendingSignature = useMemo(
+    () => pendingOcrDocs.map((d: { id: number; name: string }) => `${d.id}:${d.name}`).join("|"),
+    [pendingOcrDocs]
+  );
+
+  // Register any currently pending document IDs for silent completion detection
   useEffect(() => {
-    if (!isDetailBatchProcessing) return;
+    for (const d of pendingOcrDocs) {
+      if (d.id) trackedPendingIdsRef.current.add(d.id);
+    }
+  }, [pendingOcrDocs]);
 
-    const timer = setInterval(() => {
-      loadBatch(true);
-    }, 2500);
+  const hasPendingOcr = pendingOcrDocs.length > 0;
 
-    return () => clearInterval(timer);
-  }, [isDetailBatchProcessing, loadBatch]);
+  // Poll quietly in background without overwriting live workspace until user clicks Refresh
+  useEffect(() => {
+    if (!hasPendingOcr || readyOcrUpdate) return;
+
+    let cancelled = false;
+    const pollOcrCompletion = async () => {
+      try {
+        const res = await fetch(`/api/batches/${batchId}`, { cache: "no-store" });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const latest = data?.batch;
+        if (!latest || !Array.isArray(latest.details) || cancelled) return;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const currentIds = new Set((rawBatchRef.current?.details || []).map((d: any) => Number(d.id)));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const completedDocs = latest.details.filter((d: any) => {
+          if (isDetailRecordOcrPending(d)) return false;
+          const idNum = Number(d.id);
+          return trackedPendingIdsRef.current.has(idNum) || !currentIds.has(idNum);
+        });
+
+        if (completedDocs.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const stillPendingCount = latest.details.filter((d: any) => isDetailRecordOcrPending(d)).length;
+          const names: string[] = Array.from(
+            new Set(completedDocs.map(getDetailDisplayName))
+          );
+          setReadyOcrUpdate({ names, stillPendingCount });
+          onStatusUpdate?.(batchId, latest.status || "UPDATED");
+        } else {
+          // Batch status flipped out of pending even without per-doc tracking match
+          const st = String(latest.status || "").toLowerCase();
+          if (st !== "proses" && st !== "pending") {
+            setReadyOcrUpdate({ names: [], stillPendingCount: 0 });
+            onStatusUpdate?.(batchId, latest.status || "UPDATED");
+          }
+        }
+      } catch (err) {
+        console.warn("Background OCR check error:", err);
+      }
+    };
+
+    const timer = setInterval(pollOcrCompletion, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [batchId, hasPendingOcr, readyOcrUpdate, onStatusUpdate]);
 
   // 2. Fetch Equivalency Groups
   const loadEquivalencies = useCallback(async () => {
@@ -196,6 +276,68 @@ export default function MatchingDetailView({
       console.warn("Equivalencies fetch error:", err);
     }
   }, []);
+
+  const handleRefreshInPlace = useCallback(async () => {
+    if (isRefreshingInPlace) return;
+    setIsRefreshingInPlace(true);
+    try {
+      trackedPendingIdsRef.current.clear();
+      const updated = await loadBatch(true);
+      await loadEquivalencies();
+      setReadyOcrUpdate(null);
+      setDismissedPendingSig(null);
+      if (updated) {
+        onStatusUpdate?.(batchId, updated.status || "UPDATED");
+        showToast("Data detail berhasil diperbarui.", "success");
+      } else {
+        showToast("Gagal memuat ulang data detail.", "error");
+      }
+    } finally {
+      setIsRefreshingInPlace(false);
+    }
+  }, [isRefreshingInPlace, loadBatch, loadEquivalencies, onStatusUpdate, batchId, showToast]);
+
+  const ocrBannerItem: ToastItem | null = useMemo(() => {
+    if (readyOcrUpdate) {
+      const label =
+        readyOcrUpdate.names.length > 0
+          ? readyOcrUpdate.names.join(", ")
+          : `Batch #${batchId}`;
+      return {
+        id: OCR_NOTICE_TOAST_ID,
+        type: "success",
+        message: `Data baru (${label}) sudah di-upload & siap dimuat.`,
+        actionLabel: "Refresh",
+        actionLoading: isRefreshingInPlace,
+        onAction: handleRefreshInPlace,
+        duration: 0,
+      };
+    }
+
+    if (pendingOcrDocs.length > 0 && dismissedPendingSig !== pendingSignature) {
+      const label =
+        pendingOcrDocs.length === 1
+          ? pendingOcrDocs[0]!.name
+          : `${pendingOcrDocs.length} dokumen`;
+      return {
+        id: OCR_NOTICE_TOAST_ID,
+        type: "info",
+        isLoading: true,
+        message: `Memproses OCR (${label}) di latar belakang...`,
+        duration: 0,
+      };
+    }
+
+    return null;
+  }, [
+    readyOcrUpdate,
+    pendingOcrDocs,
+    dismissedPendingSig,
+    pendingSignature,
+    batchId,
+    isRefreshingInPlace,
+    handleRefreshInPlace,
+  ]);
 
   useEffect(() => {
     if (initialLoadDoneRef.current !== batchId) {
@@ -412,7 +554,7 @@ export default function MatchingDetailView({
       await loadBatch(true);
     } catch (err) {
       console.error("Add manual note error:", err);
-      showToast(err instanceof Error ? err.message : "Gagal menyimpan catatan.");
+      showToast(err instanceof Error ? err.message : "Gagal menyimpan catatan.", "error");
       throw err;
     }
   };
@@ -431,7 +573,7 @@ export default function MatchingDetailView({
       await loadBatch(true);
     } catch (err) {
       console.error("Edit manual note error:", err);
-      showToast(err instanceof Error ? err.message : "Gagal memperbarui catatan.");
+      showToast(err instanceof Error ? err.message : "Gagal memperbarui catatan.", "error");
       throw err;
     }
   };
@@ -450,7 +592,7 @@ export default function MatchingDetailView({
       await loadBatch(true);
     } catch (err) {
       console.error("Delete manual note error:", err);
-      showToast(err instanceof Error ? err.message : "Gagal menghapus catatan.");
+      showToast(err instanceof Error ? err.message : "Gagal menghapus catatan.", "error");
       throw err;
     }
   };
@@ -461,7 +603,7 @@ export default function MatchingDetailView({
     try {
       setIsBulkApproving(true);
       if (fieldsToApprove.length === 0) {
-        showToast("Tidak ada field mismatch yang perlu disetujui.");
+        showToast("Tidak ada field mismatch yang perlu disetujui.", "info");
         return;
       }
 
@@ -490,7 +632,7 @@ export default function MatchingDetailView({
       await loadBatch(true);
     } catch (err) {
       console.error("Approve active doc error:", err);
-      showToast(err instanceof Error ? err.message : "Gagal menyetujui dokumen.");
+      showToast(err instanceof Error ? err.message : "Gagal menyetujui dokumen.", "error");
     } finally {
       setIsBulkApproving(false);
     }
@@ -515,7 +657,7 @@ export default function MatchingDetailView({
       await loadBatch(true);
     } catch (err) {
       console.error("Approve batch error:", err);
-      showToast(err instanceof Error ? err.message : "Gagal menyetujui berkas.");
+      showToast(err instanceof Error ? err.message : "Gagal menyetujui berkas.", "error");
     } finally {
       setIsApproving(false);
     }
@@ -592,84 +734,6 @@ export default function MatchingDetailView({
     );
   }
 
-  // Locked processing state: waiting for all Nanonets OCR webhooks to arrive
-  if (isDetailBatchProcessing) {
-    return (
-      <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col overflow-hidden animate-in fade-in duration-150">
-        <header className="h-14 bg-white border-b border-slate-200/90 px-4 sm:px-6 flex items-center justify-between shrink-0 z-20">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-              title="Kembali ke daftar file"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm text-slate-800">Dokumen Sedang Diproses</span>
-              <span className="text-xs text-slate-400 font-mono">#{batchId}</span>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-            title="Tutup (Esc)"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </header>
-
-        <main className="flex-1 overflow-hidden p-4 bg-slate-100/70 flex items-center justify-center">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center shadow-lg border border-slate-200 animate-in zoom-in-95 duration-150">
-            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-2xs">
-              <Lock className="w-7 h-7" />
-            </div>
-            <h3 className="font-bold text-slate-900 text-base">
-              Dokumen Terkunci & Sedang Diproses
-            </h3>
-            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-              Batch <span className="font-mono font-semibold text-slate-700">#{batchId}</span> masih menunggu seluruh webhook hasil ekstraksi OCR dari Nanonets. Dokumen akan terbuka otomatis begitu seluruh data selesai diterima.
-            </p>
-            <div className="mt-5 flex items-center justify-center gap-2 text-xs font-semibold text-blue-700 bg-blue-50/80 border border-blue-200/80 py-2.5 px-4 rounded-xl">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-blue-600 shrink-0" />
-              <span>Menunggu webhook Nanonets...</span>
-            </div>
-            <div className="mt-6 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => setDocsModalOpen(true)}
-                className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <FolderUp className="w-3.5 h-3.5 text-slate-500" />
-                <span>Kelola / Upload Ulang Dokumen</span>
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-xs"
-              >
-                Kembali ke daftar file
-              </button>
-            </div>
-          </div>
-        </main>
-
-        <BatchDocumentsModal
-          batchId={batchId}
-          isOpen={docsModalOpen}
-          onClose={() => setDocsModalOpen(false)}
-          onDocumentsChanged={(_id, newStatus, msg) => {
-            if (msg) showToast(msg);
-            loadBatch(true);
-            onStatusUpdate?.(batchId, newStatus || "UPDATED");
-          }}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col overflow-hidden animate-in fade-in duration-150">
       {/* Main Areas (Split / Responsive Layout) */}
@@ -718,6 +782,7 @@ export default function MatchingDetailView({
               onEditManualNote={handleEditManualNote}
               onDeleteManualNote={handleDeleteManualNote}
               onManageDocuments={() => setDocsModalOpen(true)}
+              onNotify={(msg, type) => showToast(msg, type || "info")}
               batchChangeLogs={batchChangeLogs}
               className="h-full"
               footer={
@@ -810,20 +875,35 @@ export default function MatchingDetailView({
         batchId={batchId}
         isOpen={docsModalOpen}
         onClose={() => setDocsModalOpen(false)}
-        onDocumentsChanged={(_id, newStatus, msg) => {
-          if (msg) showToast(msg);
-          loadBatch(true);
+        onDocumentsChanged={async (_id, newStatus, msg) => {
+          setDismissedPendingSig(null);
+          setReadyOcrUpdate(null);
+          const refreshed = await loadBatch(true);
+          const stillPending = Array.isArray(refreshed?.details)
+            ? refreshed.details.some(isDetailRecordOcrPending)
+            : false;
+          if (!stillPending && msg) {
+            showToast(msg, "success");
+          }
           onStatusUpdate?.(batchId, newStatus || "UPDATED");
         }}
       />
 
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-slate-900/95 backdrop-blur-xs text-white border border-slate-800 text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
+      {/* Non-blocking Top-Right Light Toast & OCR Refresh Notifications */}
+      <ToastNotification
+        items={[ocrBannerItem, toast]}
+        onClose={(id) => {
+          if (id === OCR_NOTICE_TOAST_ID) {
+            if (readyOcrUpdate) {
+              setReadyOcrUpdate(null);
+            } else {
+              setDismissedPendingSig(pendingSignature);
+            }
+            return;
+          }
+          dismissToast();
+        }}
+      />
     </div>
   );
 }

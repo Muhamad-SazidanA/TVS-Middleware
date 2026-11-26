@@ -99,6 +99,7 @@ export interface ComparisonPanelProps {
   onEditManualNote?: (noteId: string, text: string) => Promise<void>;
   onDeleteManualNote?: (noteId: string) => Promise<void>;
   onManageDocuments?: () => void;
+  onNotify?: (message: string, type?: "success" | "info" | "warning" | "error") => void;
   batchChangeLogs?: FieldChangeEvent[];
   footer?: React.ReactNode;
   className?: string;
@@ -122,6 +123,7 @@ export default function ComparisonPanel({
   onEditManualNote,
   onDeleteManualNote,
   onManageDocuments,
+  onNotify,
   batchChangeLogs = [],
   footer,
   className = "",
@@ -180,7 +182,10 @@ export default function ComparisonPanel({
       }
     } catch (err) {
       console.error("Toggle manual match error:", err);
-      alert(err instanceof Error ? err.message : "Gagal memperbarui status konfirmasi.");
+      onNotify?.(
+        err instanceof Error ? err.message : "Gagal memperbarui status konfirmasi.",
+        "error"
+      );
     } finally {
       setTogglingManualMatchId(null);
     }

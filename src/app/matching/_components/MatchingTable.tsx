@@ -112,7 +112,7 @@ export default function MatchingTable({
   onToggleSelectRow,
   isAllSelected,
   onRowClick,
-  onLockedClick,
+  onLockedClick: _onLockedClick,
   onManageFiles,
   onDownload,
   onDelete,
@@ -311,22 +311,18 @@ export default function MatchingTable({
                   <tr
                     key={batch.id}
                     onClick={() => {
-                      if (isBatchProcessing) {
-                        onLockedClick?.(batch.id);
-                        return;
-                      }
                       onRowClick(batch.id, "PIB");
                     }}
                     className={`group transition-colors select-none ${
-                      isBatchProcessing
-                        ? "cursor-not-allowed bg-slate-50/50 hover:bg-slate-100/60 opacity-90"
-                        : isSelected
+                      isSelected
                         ? "cursor-pointer bg-blue-50/50 hover:bg-blue-50/70"
+                        : isBatchProcessing
+                        ? "cursor-pointer bg-blue-50/20 hover:bg-blue-50/40"
                         : "cursor-pointer hover:bg-slate-50/70"
                     }`}
                     title={
                       isBatchProcessing
-                        ? "Dokumen masih diproses oleh OCR Nanonets, mohon tunggu hingga selesai."
+                        ? "Klik untuk membuka detail (OCR masih berjalan di latar belakang)"
                         : undefined
                     }
                   >
@@ -464,23 +460,17 @@ export default function MatchingTable({
                           onClick={(e) => {
                             if (st !== "-") {
                               e.stopPropagation();
-                              if (isBatchProcessing) {
-                                onLockedClick?.(batch.id);
-                                return;
-                              }
                               onRowClick(batch.id, col.key);
                             }
                           }}
                           className={`py-3.5 px-4 text-center whitespace-nowrap ${
-                            isBatchProcessing
-                              ? "cursor-not-allowed opacity-75"
-                              : st !== "-"
+                            st !== "-"
                               ? "cursor-pointer hover:bg-blue-50/70"
                               : ""
                           }`}
                           title={
-                            isBatchProcessing
-                              ? "Dokumen masih diproses oleh OCR Nanonets, mohon tunggu hingga selesai."
+                            st === "Proses"
+                              ? `Buka ${col.key} di viewer (OCR masih memproses di latar belakang)`
                               : st !== "-"
                               ? `Buka berkas ${col.key} di viewer`
                               : undefined
