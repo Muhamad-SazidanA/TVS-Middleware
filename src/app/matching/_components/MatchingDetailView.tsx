@@ -19,6 +19,7 @@ import ToastNotification, {
 } from "@/app/_components/ui/ToastNotification";
 import ComparisonPanel from "./ComparisonPanel";
 import BatchDocumentsModal from "./BatchDocumentsModal";
+import ConfirmDialog from "@/app/_components/ui/ConfirmDialog";
 import {
   ComparisonPanelSkeleton,
   DocumentViewerSkeleton,
@@ -140,6 +141,7 @@ export default function MatchingDetailView({
   // Footer Actions state
   const [isApproving, setIsApproving] = useState<boolean>(false);
   const [isBulkApproving, setIsBulkApproving] = useState<boolean>(false);
+  const [approveConfirmOpen, setApproveConfirmOpen] = useState<boolean>(false);
   const [docsModalOpen, setDocsModalOpen] = useState<boolean>(false);
   const { toast, showToast, dismissToast } = useToastState();
 
@@ -692,8 +694,8 @@ export default function MatchingDetailView({
     }
   };
 
-  // Approve Batch Handler ("Approve")
-  const handleApproveBatch = async () => {
+  // Execute batch approval PUT after validation or user confirmation
+  const executeApproveBatch = async () => {
     if (!canApproveBatch || isApproving || isBulkApproving) return;
     try {
       setIsApproving(true);
@@ -706,6 +708,7 @@ export default function MatchingDetailView({
         const errJson = await res.json().catch(() => ({}));
         throw new Error(errJson.error || "Gagal menyetujui berkas");
       }
+      setApproveConfirmOpen(false);
       showToast("Dokumen berhasil di-Approve dan dipindahkan ke All Data.");
       if (onStatusUpdate) {
         onStatusUpdate(batchId, "APPROVED");
@@ -717,6 +720,16 @@ export default function MatchingDetailView({
     } finally {
       setIsApproving(false);
     }
+  };
+
+  // Approve Batch Handler ("Approve"): confirm briefly if source mismatches remain
+  const handleApproveBatch = () => {
+    if (!canApproveBatch || isApproving || isBulkApproving) return;
+    if (totalBatchMismatchRemaining > 0) {
+      setApproveConfirmOpen(true);
+      return;
+    }
+    void executeApproveBatch();
   };
 
   // Loading state matching exact post-load split layout (7/5 viewer + comparison skeleton)
@@ -938,8 +951,9 @@ export default function MatchingDetailView({
                         </span>
                       </span>
                     ) : totalBatchMismatchRemaining > 0 ? (
-                      <span className="text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-lg">
-                        Validasi {totalBatchMismatchRemaining} mismatch tersisa untuk Approve
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-lg">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>{totalBatchMismatchRemaining} field mismatch (siap Approve)</span>
                       </span>
                     ) : totalBatchFields > 0 ? (
                       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
@@ -1009,11 +1023,11 @@ export default function MatchingDetailView({
                             : "bg-slate-200 text-slate-400 border border-slate-200 cursor-not-allowed"
                         }`}
                         title={
-                          canApproveBatch
-                            ? "Approve seluruh dokumen dan pindahkan ke tabel All Data"
+                          !canApproveBatch
+                            ? "Belum ada komponen pencocokan yang siap di-Approve"
                             : totalBatchMismatchRemaining > 0
-                            ? `Tombol Approve aktif setelah ${totalBatchMismatchRemaining} field mismatch tersisa divalidasi`
-                            : "Belum ada komponen pencocokan yang siap di-Approve"
+                            ? `Approve dokumen (${totalBatchMismatchRemaining} field mismatch akan tetap tercatat apa adanya)`
+                            : "Approve seluruh dokumen dan pindahkan ke tabel All Data"
                         }
                       >
                         {isApproving ? (
@@ -1054,6 +1068,32 @@ export default function MatchingDetailView({
           }
           onStatusUpdate?.(batchId, newStatus || "UPDATED");
         }}
+      />
+
+      {/* Confirm Approve with Remaining Source Mismatches */}
+      <ConfirmDialog
+        isOpen={approveConfirmOpen}
+        onClose={() => {
+          if (!isApproving) setApproveConfirmOpen(false);
+        }}
+        onConfirm={() => {
+          void executeApproveBatch();
+        }}
+        title="Approve Dokumen dengan Mismatch?"
+        description={
+          <>
+            Masih terdapat{" "}
+            <strong className="text-slate-900">
+              {totalBatchMismatchRemaining} field mismatch
+            </strong>{" "}
+            yang belum disamakan. Status field tersebut akan tetap tercatat sebagai{" "}
+            <strong>Mismatch</strong> di All Data dan Excel. Yakin tetap Approve?
+          </>
+        }
+        confirmText="Tetap Approve"
+        cancelText="Batal"
+        variant="warning"
+        isLoading={isApproving}
       />
 
       {/* Non-blocking Top-Right Light Toast & OCR Refresh Notifications */}

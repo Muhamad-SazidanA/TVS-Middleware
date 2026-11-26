@@ -314,14 +314,17 @@ export default function MatchingTable({
                 const subInfo = isPendingLocked
                   ? { label: pendingProgressLabel, className: "text-slate-400" }
                   : isExported
-                  ? { label: "Archived • Match", className: "text-slate-500" }
+                  ? {
+                      label: isMatching ? "Archived • Match" : "Archived • Ada Mismatch",
+                      className: "text-slate-500",
+                    }
                   : isApproved
                   ? { label: "Siap Export (All Data)", className: "text-emerald-600" }
                   : isFailed
                   ? { label: "Proses gagal", className: "text-rose-600" }
                   : isMatching
                   ? { label: "Match (Siap Approve)", className: "text-emerald-600" }
-                  : { label: "Mismatch (Perlu Validasi)", className: "text-rose-600" };
+                  : { label: "Mismatch (Siap Approve)", className: "text-amber-700" };
 
                 return (
                   <tr

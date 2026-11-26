@@ -230,14 +230,14 @@ test("deriveDocumentWorkflowStatus maps raw states, incomplete details, and Appr
     "Failed"
   );
 
-  // Approve is blocked when mismatches remain, pending, or already approved/exported
+  // Approve is allowed when mismatches remain once OCR completes, but blocked when pending, empty, or already approved/exported
   assert.equal(
     canApproveBatchEvaluation({
       totalFields: 12,
-      mismatchedFields: 2,
+      mismatchedFields: 4,
       workflowStatus: "Pending Validation",
     }),
-    false
+    true
   );
   assert.equal(
     canApproveBatchEvaluation({

@@ -178,16 +178,13 @@ export function deriveDocumentWorkflowStatus(params: {
 }
 
 /**
- * Enforces the UI/API rule that Approve is only allowed once OCR is finished and 0 mismatches remain.
+ * Enforces the UI/API rule that Approve is allowed once OCR is finished and fields exist,
+ * even when source documents contain unchangeable mismatches.
  */
 export function canApproveBatchEvaluation(params: {
   totalFields: number;
-  mismatchedFields: number;
+  mismatchedFields?: number;
   workflowStatus: DocumentWorkflowStatus;
 }): boolean {
-  return (
-    params.workflowStatus === "Pending Validation" &&
-    params.totalFields > 0 &&
-    params.mismatchedFields === 0
-  );
+  return params.workflowStatus === "Pending Validation" && params.totalFields > 0;
 }

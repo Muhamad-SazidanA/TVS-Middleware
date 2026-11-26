@@ -161,6 +161,8 @@ export async function PUT(
       );
     }
 
+    let approvedMismatchCount = 0;
+
     if (isApprovingBatch) {
       const lockCheck = getLockErrorForBatchRecord(prevBatch);
       if (lockCheck.blocked) {
@@ -175,17 +177,14 @@ export async function PUT(
         loadServerWorkflowSteps(),
       ]);
       const evalResult = evaluateBatchComparison(prevBatch, serverGroups, serverDataActions);
-      if (evalResult.totalFields === 0 || evalResult.mismatchedFields > 0) {
+      if (evalResult.totalFields === 0) {
         return NextResponse.json(
-          {
-            error:
-              evalResult.totalFields === 0
-                ? "Belum ada komponen pencocokan yang siap untuk di-Approve."
-                : `Masih terdapat ${evalResult.mismatchedFields} field mismatch yang belum divalidasi sebelum Approve.`,
-          },
+          { error: "Belum ada komponen pencocokan yang siap untuk di-Approve." },
           { status: 400 }
         );
       }
+
+      approvedMismatchCount = evalResult.mismatchedFields;
     }
 
     if (status === "EXPORTED" || status === "Exported") {
@@ -204,7 +203,10 @@ export async function PUT(
             fieldName: "Status Batch",
             oldValue: prevBatch.status || "MISMATCHING",
             newValue: "APPROVED",
-            notes: `[Approve] Dokumen disetujui & dipindahkan ke antrean All Data oleh ${approvalActorName}`,
+            notes:
+              approvedMismatchCount > 0
+                ? `[Approve] Dokumen disetujui (${approvedMismatchCount} field mismatch tercatat) & dipindahkan ke antrean All Data oleh ${approvalActorName}`
+                : `[Approve] Dokumen disetujui & dipindahkan ke antrean All Data oleh ${approvalActorName}`,
             actionBy: approvalActorName,
           },
         });
