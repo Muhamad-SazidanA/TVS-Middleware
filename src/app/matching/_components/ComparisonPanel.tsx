@@ -21,6 +21,7 @@ import type {
   DocumentComparisonGroup,
   FieldChangeEvent,
 } from "./detailTypes";
+import { getNextMismatchTarget } from "~/utils/mismatchCycle";
 
 const CHANGE_CATEGORY_STYLES: Record<
   ChangeEventCategory,
@@ -283,6 +284,8 @@ export default function ComparisonPanel({
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const groupRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const lastCycledFieldIdRef = useRef<string | null>(null);
+  const pendingScrollBlockRef = useRef<"nearest" | "center">("nearest");
 
   const isAllSelected =
     (selectedDocFilter || "").toUpperCase() === "ALL" ||
@@ -371,14 +374,62 @@ export default function ComparisonPanel({
   useEffect(() => {
     if (activeFieldId) {
       const el = cardRefs.current[activeFieldId];
+      const block = pendingScrollBlockRef.current;
+      pendingScrollBlockRef.current = "nearest";
       if (el) {
         el.scrollIntoView({
           behavior: "smooth",
-          block: "nearest",
+          block,
         });
       }
     }
   }, [activeFieldId]);
+
+  const allVisibleMismatchTargets = useMemo(() => {
+    return filteredGroups.flatMap((group) =>
+      group.fields
+        .filter((f) => f.status === "MISMATCH")
+        .map((field) => ({
+          fieldId: field.id,
+          docCode: group.docCode,
+          field,
+        }))
+    );
+  }, [filteredGroups]);
+
+  const handleCycleMismatchTargets = (
+    targets: Array<{ fieldId: string; docCode: string; field: ComparisonFieldModel }>
+  ) => {
+    const next = getNextMismatchTarget(
+      targets,
+      activeFieldId,
+      lastCycledFieldIdRef.current
+    );
+    if (!next) return;
+
+    const { field, docCode } = next;
+    const hasSupportingLoc =
+      field.supportingValue !== "Tidak ada di dokumen ini" &&
+      Boolean(field.supportingBbox || field.supportingPage);
+    const targetDoc = hasSupportingLoc ? docCode : "PIB";
+    const targetPage = hasSupportingLoc
+      ? field.supportingBbox?.page || field.supportingPage || 1
+      : field.pibBbox?.page || field.pibPage || 1;
+
+    lastCycledFieldIdRef.current = field.id;
+    pendingScrollBlockRef.current = "center";
+    onSelectField(field.id, targetDoc);
+    onNavigateToDoc?.(targetDoc, targetPage);
+
+    // Explicitly center card even when re-selecting the only mismatch
+    const el = cardRefs.current[field.id];
+    if (el) {
+      el.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  };
 
   // Quick jump to group section
 
@@ -460,14 +511,32 @@ export default function ComparisonPanel({
               const hasMismatch = isAllSelected
                 ? groups.some((g) => g.mismatchedCount > 0)
                 : (currentGroup?.mismatchedCount ?? 0) > 0;
-              return hasMismatch ? (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+              if (!hasMismatch) {
+                return (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Match
+                  </span>
+                );
+              }
+              const canCycleAll = allVisibleMismatchTargets.length > 0;
+              return (
+                <button
+                  type="button"
+                  onClick={() => handleCycleMismatchTargets(allVisibleMismatchTargets)}
+                  disabled={!canCycleAll}
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 transition-all ${
+                    canCycleAll
+                      ? "cursor-pointer hover:bg-rose-100 hover:border-rose-300 active:scale-95"
+                      : "opacity-60 cursor-default"
+                  }`}
+                  title={
+                    canCycleAll
+                      ? "Klik untuk melompati field mismatch secara berurutan"
+                      : "Tidak ada field mismatch yang tampil"
+                  }
+                >
                   Mismatch
-                </span>
-              ) : (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Match
-                </span>
+                </button>
               );
             })()}
             <span className="text-[11px] font-medium text-slate-500">
@@ -599,11 +668,35 @@ export default function ComparisonPanel({
                     <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full">
                       {group.matchedCount} Match
                     </span>
-                    {group.mismatchedCount > 0 && (
-                      <span className="text-[10px] font-semibold text-rose-800 bg-rose-50 border border-rose-200/80 px-2 py-0.5 rounded-full">
-                        {group.mismatchedCount} Mismatch
-                      </span>
-                    )}
+                    {group.mismatchedCount > 0 && (() => {
+                      const groupMismatchTargets = group.fields
+                        .filter((f) => f.status === "MISMATCH")
+                        .map((field) => ({
+                          fieldId: field.id,
+                          docCode: group.docCode,
+                          field,
+                        }));
+                      const canCycleGroup = groupMismatchTargets.length > 0;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => handleCycleMismatchTargets(groupMismatchTargets)}
+                          disabled={!canCycleGroup}
+                          className={`text-[10px] font-semibold text-rose-800 bg-rose-50 border border-rose-200/80 px-2 py-0.5 rounded-full transition-all ${
+                            canCycleGroup
+                              ? "cursor-pointer hover:bg-rose-100 hover:border-rose-300 active:scale-95"
+                              : "opacity-60 cursor-default"
+                          }`}
+                          title={
+                            canCycleGroup
+                              ? `Klik untuk mengarahkan ke field mismatch ${group.docCode} secara berurutan`
+                              : `Field mismatch ${group.docCode} sedang tersembunyi oleh pencarian`
+                          }
+                        >
+                          {group.mismatchedCount} Mismatch
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -708,7 +801,7 @@ export default function ComparisonPanel({
                             }
                           }
                         }}
-                        className={`rounded-xl border p-3 transition-all cursor-pointer ${cardBgBorder}`}
+                        className={`scroll-mt-14 rounded-xl border p-3 transition-all cursor-pointer ${cardBgBorder}`}
                       >
                         {/* Card Title & Status Badge + Confirm Button */}
                         <div className="flex items-center justify-between gap-2">
