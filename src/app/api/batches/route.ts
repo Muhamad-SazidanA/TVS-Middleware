@@ -3,6 +3,7 @@ import { db } from "~/server/db";
 import { auth } from "~/server/auth";
 import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
+import { deriveDocumentWorkflowStatus } from "~/utils/workflowStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +77,14 @@ export async function GET(req: Request) {
     const whereClause: any = {};
 
     if (scope === "all_data") {
-      whereClause.status = "APPROVED";
+      const requestedArchive = statusFilter.toUpperCase();
+      if (requestedArchive === "EXPORTED" || requestedArchive === "ARCHIVED") {
+        whereClause.status = { in: ["EXPORTED", "ARCHIVED"] };
+      } else if (requestedArchive === "ALL_DATA_ALL") {
+        whereClause.status = { in: ["APPROVED", "EXPORTED", "ARCHIVED"] };
+      } else {
+        whereClause.status = "APPROVED";
+      }
     } else if (scope === "personal") {
       if (userRole === "STAFF" && currentUserId) {
         whereClause.createdById = currentUserId;
@@ -207,6 +215,12 @@ export async function GET(req: Request) {
       const evaluatedStatus = evalResult.status;
       const docStatuses = evalResult.docStatuses;
 
+      const workflowStatus = deriveDocumentWorkflowStatus({
+        rawStatus: batch.status,
+        evaluatedStatus,
+        errorMessage: batch.errorMessage,
+      });
+
       return {
         id: batch.id,
         no: index + 1,
@@ -215,11 +229,13 @@ export async function GET(req: Request) {
         subtext: batchSubtext,
         totalFile: batch.totalFile || (batch.details || []).length || 0,
         status: evaluatedStatus,
+        workflowStatus,
         rawStatus: batch.status || "PENDING",
         errorMessage: batch.errorMessage || null,
         createdAt: batch.createdAt,
         updatedAt: batch.updatedAt,
         approvedAt: batch.approvedAt,
+        exportedAt: batch.exportedAt || null,
         createdBy: batch.createdBy ? { id: batch.createdBy.id, name: batch.createdBy.name, email: batch.createdBy.email } : null,
         approvedBy: batch.approvedBy ? { id: batch.approvedBy.id, name: batch.approvedBy.name, email: batch.approvedBy.email } : null,
         crossCheckSummary: {

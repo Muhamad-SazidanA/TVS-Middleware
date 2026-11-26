@@ -10,6 +10,8 @@ import {
   RefreshCw,
   Check,
   CheckCheck,
+  Lock,
+  Archive,
 } from "lucide-react";
 import ToastNotification, {
   useToastState,
@@ -33,6 +35,11 @@ import type {
 } from "./detailTypes";
 import { buildBatchChangeLogs } from "~/utils/changeLogBuilder";
 import type { DbEquivalencyGroup } from "~/utils/valueEquivalency";
+import {
+  isDetailPendingOcr,
+  deriveDocumentWorkflowStatus,
+  canApproveBatchEvaluation,
+} from "~/utils/workflowStatus";
 
 const DocumentViewer = dynamic(() => import("./DocumentViewer"), {
   ssr: false,
@@ -81,15 +88,7 @@ class ViewerErrorBoundary extends React.Component<
 // Helpers for detecting OCR processing state without locking the workspace
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isDetailRecordOcrPending(d: any): boolean {
-  if (!d?.isi || typeof d.isi !== "string" || d.isi.trim().length === 0) {
-    return true;
-  }
-  try {
-    const p = JSON.parse(d.isi);
-    return p?.ocrPending === true;
-  } catch {
-    return false;
-  }
+  return isDetailPendingOcr(d);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -449,6 +448,30 @@ export default function MatchingDetailView({
   const pendingCount = fieldsToApprove.length;
   const isAllDocMatched = pendingCount === 0;
 
+  const workflowStatus = deriveDocumentWorkflowStatus({
+    rawStatus: rawBatch?.status,
+    errorMessage: rawBatch?.errorMessage,
+    hasPendingDetail: hasPendingOcr,
+  });
+  const isBatchExported = workflowStatus === "Exported";
+  const isBatchApproved = workflowStatus === "Approved";
+  const isBatchPendingLocked = workflowStatus === "Pending";
+
+  const isDetailReadOnly = isBatchApproved || isBatchExported || isBatchPendingLocked;
+
+  const totalBatchFields = allFields.length;
+  const totalBatchMismatchRemaining = useMemo(
+    () =>
+      allFields.filter((f) => f.status === "MISMATCH" && !f.isManualConfirmed)
+        .length,
+    [allFields]
+  );
+  const canApproveBatch = canApproveBatchEvaluation({
+    totalFields: totalBatchFields,
+    mismatchedFields: totalBatchMismatchRemaining,
+    workflowStatus,
+  });
+
   // Default active field selection
   useEffect(() => {
     if (allFields.length > 0) {
@@ -599,7 +622,7 @@ export default function MatchingDetailView({
 
   // Bulk approve handler for currently open tab (images 2)
   const handleApproveActiveDoc = async () => {
-    if (isBulkApproving) return;
+    if (isDetailReadOnly || isBulkApproving) return;
     try {
       setIsBulkApproving(true);
       if (fieldsToApprove.length === 0) {
@@ -638,8 +661,9 @@ export default function MatchingDetailView({
     }
   };
 
-  // Approve Batch Handler ("Selesaikan & Pindahkan File")
+  // Approve Batch Handler ("Approve")
   const handleApproveBatch = async () => {
+    if (!canApproveBatch || isApproving || isBulkApproving) return;
     try {
       setIsApproving(true);
       const res = await fetch(`/api/batches/${batchId}`, {
@@ -648,9 +672,10 @@ export default function MatchingDetailView({
         body: JSON.stringify({ status: "APPROVED" }),
       });
       if (!res.ok) {
-        throw new Error("Gagal menyetujui berkas");
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || "Gagal menyetujui berkas");
       }
-      showToast("Berkas berhasil disetujui & dipindahkan ke file cross check.");
+      showToast("Dokumen berhasil di-Approve dan dipindahkan ke All Data.");
       if (onStatusUpdate) {
         onStatusUpdate(batchId, "APPROVED");
       }
@@ -734,6 +759,81 @@ export default function MatchingDetailView({
     );
   }
 
+  // Pending Lock state (cannot be opened or manipulated while OCR is still processing)
+  if (isBatchPendingLocked) {
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col overflow-hidden animate-in fade-in duration-150">
+        <header className="h-14 bg-white border-b border-slate-200/90 px-4 sm:px-6 flex items-center justify-between shrink-0 z-20">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              title="Kembali ke daftar file"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <span className="font-bold text-sm text-slate-800">
+              Detail Dokumen #{batchId}
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+              <Lock className="w-3 h-3 text-amber-600" />
+              <span>Pending (Terkunci)</span>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+            title="Tutup (Esc)"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </header>
+        <main className="flex-1 overflow-hidden p-4 bg-slate-100/70 flex items-center justify-center">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full text-center shadow-sm border border-slate-200/80 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto">
+              <Lock className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 text-base">
+                Akses Detail Terkunci (Status: Pending)
+              </p>
+              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                Dokumen pada batch{" "}
+                <span className="font-mono font-semibold text-slate-700">#{batchId}</span>{" "}
+                masih dalam proses ekstraksi OCR
+                {pendingOcrDocs.length > 0
+                  ? ` (${pendingOcrDocs.map((d: { name: string }) => d.name).join(", ")})`
+                  : ""}
+                . Akses detail pencocokan dan manipulasi data dikunci hingga seluruh dokumen selesai diproses menjadi{" "}
+                <strong className="text-slate-700">Pending Validation</strong>.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl cursor-pointer transition-colors"
+              >
+                Kembali ke Daftar File
+              </button>
+              <button
+                type="button"
+                onClick={handleRefreshInPlace}
+                disabled={isRefreshingInPlace}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold rounded-xl cursor-pointer transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingInPlace ? "animate-spin" : ""}`} />
+                <span>Cek Status OCR</span>
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col overflow-hidden animate-in fade-in duration-150">
       {/* Main Areas (Split / Responsive Layout) */}
@@ -781,87 +881,123 @@ export default function MatchingDetailView({
               onAddManualNote={handleAddManualNote}
               onEditManualNote={handleEditManualNote}
               onDeleteManualNote={handleDeleteManualNote}
-              onManageDocuments={() => setDocsModalOpen(true)}
+              onManageDocuments={isDetailReadOnly ? undefined : () => setDocsModalOpen(true)}
               onNotify={(msg, type) => showToast(msg, type || "info")}
               batchChangeLogs={batchChangeLogs}
+              workflowStatus={workflowStatus}
+              isReadOnly={isDetailReadOnly}
               className="h-full"
               footer={
                 <div className="flex items-center justify-between w-full gap-3 flex-wrap">
                   <div className="flex items-center gap-2 min-w-0">
-                    {rawBatch?.status === "APPROVED" && (
+                    {isBatchExported ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-sky-800 bg-sky-50 border border-sky-200">
+                        <Archive className="w-3.5 h-3.5 text-sky-600" />
+                        <span>
+                          Status: Exported (Arsip Read-only)
+                          {rawBatch?.approvedBy?.name ? ` • ${rawBatch.approvedBy.name}` : ""}
+                        </span>
+                      </span>
+                    ) : isBatchApproved ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-200">
                         <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
                         <span>
-                          File Telah Disetujui
-                          {rawBatch.approvedBy?.name ? ` (${rawBatch.approvedBy.name})` : ""}
+                          Status: Approved
+                          {rawBatch?.approvedBy?.name ? ` (${rawBatch.approvedBy.name})` : ""}
                         </span>
                       </span>
-                    )}
+                    ) : totalBatchMismatchRemaining > 0 ? (
+                      <span className="text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-lg">
+                        Validasi {totalBatchMismatchRemaining} mismatch tersisa untuk Approve
+                      </span>
+                    ) : totalBatchFields > 0 ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
+                        <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
+                        <span>Semua {totalBatchFields} komponen tervalidasi</span>
+                      </span>
+                    ) : null}
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0 ml-auto">
-                    {/* BUTTON 1: Setujui Field Mismatch pada Tab yang Sedang Dibuka */}
-                    <button
-                      type="button"
-                      onClick={handleApproveActiveDoc}
-                      disabled={isBulkApproving || isApproving || isAllDocMatched}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                        isAllDocMatched
-                          ? "bg-slate-50 text-slate-400 border border-slate-200 opacity-60 cursor-not-allowed"
-                          : "bg-emerald-50 hover:bg-emerald-100/90 active:bg-emerald-200 text-emerald-800 border border-emerald-300 hover:border-emerald-400 cursor-pointer shadow-2xs"
-                      }`}
-                      title={
-                        isAllDocMatched
-                          ? `Tidak ada field mismatch pada tab ${activeDocTitle}`
-                          : `Menyetujui ${pendingCount} field mismatch pada tab ${activeDocTitle}`
-                      }
-                    >
-                      {isBulkApproving ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-700" />
-                          <span>Menyetujui...</span>
-                        </>
-                      ) : isAllDocMatched ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 stroke-[2] text-slate-400" />
-                          <span>{activeDocTitle} Cocok</span>
-                        </>
-                      ) : (
-                        <>
-                          <CheckCheck className="w-3.5 h-3.5 stroke-[2.2] text-emerald-600" />
-                          <span>Setujui {activeDocTitle}</span>
-                          <span className="ml-0.5 px-1.5 py-0.2 text-[10.5px] font-mono font-bold rounded-full bg-emerald-200/70 text-emerald-900 border border-emerald-300/60">
-                            {pendingCount}
-                          </span>
-                        </>
-                      )}
-                    </button>
+                    {!isDetailReadOnly && (
+                      <button
+                        type="button"
+                        onClick={handleApproveActiveDoc}
+                        disabled={isBulkApproving || isApproving || isAllDocMatched}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                          isAllDocMatched
+                            ? "bg-slate-50 text-slate-400 border border-slate-200 opacity-60 cursor-not-allowed"
+                            : "bg-emerald-50 hover:bg-emerald-100/90 active:bg-emerald-200 text-emerald-800 border border-emerald-300 hover:border-emerald-400 cursor-pointer shadow-2xs"
+                        }`}
+                        title={
+                          isAllDocMatched
+                            ? `Tidak ada field mismatch pada tab ${activeDocTitle}`
+                            : `Menyetujui ${pendingCount} field mismatch pada tab ${activeDocTitle}`
+                        }
+                      >
+                        {isBulkApproving ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-700" />
+                            <span>Menyetujui...</span>
+                          </>
+                        ) : isAllDocMatched ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 stroke-[2] text-slate-400" />
+                            <span>{activeDocTitle} Cocok</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCheck className="w-3.5 h-3.5 stroke-[2.2] text-emerald-600" />
+                            <span>Setujui {activeDocTitle}</span>
+                            <span className="ml-0.5 px-1.5 py-0.2 text-[10.5px] font-mono font-bold rounded-full bg-emerald-200/70 text-emerald-900 border border-emerald-300/60">
+                              {pendingCount}
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    )}
 
-                    {/* BUTTON 2: Selesaikan & Pindahkan File ke Approved / Cross Check */}
-                    <button
-                      type="button"
-                      onClick={handleApproveBatch}
-                      disabled={isApproving || isBulkApproving}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 transition-all cursor-pointer shadow-2xs hover:shadow-xs disabled:opacity-50 shadow-emerald-600/20"
-                      title="Setujui seluruh berkas dan pindahkan ke daftar file yang sudah diapprove"
-                    >
-                      {isApproving ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
-                          <span>Menyimpan...</span>
-                        </>
-                      ) : rawBatch?.status === "APPROVED" ? (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
-                          <span>File Telah Disetujui</span>
-                        </>
-                      ) : (
-                        <>
-                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                          <span>Selesaikan & Pindahkan File</span>
-                        </>
-                      )}
-                    </button>
+                    {isBatchExported ? (
+                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg text-sky-800 bg-sky-50 border border-sky-200">
+                        <Archive className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Exported (Read-only)</span>
+                      </span>
+                    ) : isBatchApproved ? (
+                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg text-emerald-800 bg-emerald-50 border border-emerald-200">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Approved (Read-only)</span>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleApproveBatch}
+                        disabled={!canApproveBatch || isApproving || isBulkApproving}
+                        className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold rounded-lg transition-all shadow-2xs ${
+                          canApproveBatch
+                            ? "text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 cursor-pointer hover:shadow-xs shadow-emerald-600/20"
+                            : "bg-slate-200 text-slate-400 border border-slate-200 cursor-not-allowed"
+                        }`}
+                        title={
+                          canApproveBatch
+                            ? "Approve seluruh dokumen dan pindahkan ke tabel All Data"
+                            : totalBatchMismatchRemaining > 0
+                            ? `Tombol Approve aktif setelah ${totalBatchMismatchRemaining} field mismatch tersisa divalidasi`
+                            : "Belum ada komponen pencocokan yang siap di-Approve"
+                        }
+                      >
+                        {isApproving ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                            <span>Menyimpan...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>Approve</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               }

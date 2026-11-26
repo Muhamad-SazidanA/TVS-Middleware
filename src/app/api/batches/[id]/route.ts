@@ -3,6 +3,8 @@ import { db } from "~/server/db";
 import { auth } from "~/server/auth";
 import { evaluateDbBatchStatus } from "~/server/matchingEngine";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
+import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
+import { getLockErrorForBatchRecord } from "~/server/batchGuards";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +30,14 @@ export async function GET(
       return NextResponse.json({ error: "Batch tidak ditemukan" }, { status: 404 });
     }
 
-    // Evaluate live status from DB details unless explicitly approved or rejected
+    // Evaluate live status from DB details unless explicitly approved, exported, or rejected
     const url = new URL(req.url);
     const shouldRevalidate = url.searchParams.get("revalidate") === "true";
-    const isLocked = batch.status === "APPROVED" || batch.status === "DITOLAK";
+    const isLocked =
+      batch.status === "APPROVED" ||
+      batch.status === "EXPORTED" ||
+      batch.status === "ARCHIVED" ||
+      batch.status === "DITOLAK";
 
     if (!isLocked || shouldRevalidate) {
       const serverGroups = await loadServerEquivalencyGroups();
@@ -100,11 +106,67 @@ export async function PUT(
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const prevBatch = isApprovingBatch
-      ? await (db as any).batch.findUnique({ where: { id }, select: { status: true } })
-      : null;
+    const prevBatch = await (db as any).batch.findUnique({
+      where: { id },
+      include: { details: true },
+    });
 
-    if (isApprovingBatch && prevBatch && prevBatch.status !== "APPROVED") {
+    if (!prevBatch) {
+      return NextResponse.json({ error: "Batch tidak ditemukan." }, { status: 404 });
+    }
+
+    const prevUpper = String(prevBatch.status || "").toUpperCase();
+    const isRequestedExported =
+      String(status || "").toUpperCase() === "EXPORTED" ||
+      String(status || "").toUpperCase() === "ARCHIVED";
+
+    if (prevUpper === "EXPORTED" || prevUpper === "ARCHIVED") {
+      return NextResponse.json(
+        { error: "Dokumen sudah berstatus Exported (arsip read-only) dan tidak dapat diubah." },
+        { status: 403 }
+      );
+    }
+
+    if (prevUpper === "APPROVED" && status && !isRequestedExported) {
+      return NextResponse.json(
+        {
+          error:
+            "Dokumen sudah berstatus Approved (read-only) dan tidak dapat dimanipulasi.",
+        },
+        { status: 403 }
+      );
+    }
+
+    if (isApprovingBatch) {
+      const lockCheck = getLockErrorForBatchRecord(prevBatch);
+      if (lockCheck.blocked) {
+        return NextResponse.json(
+          { error: lockCheck.error },
+          { status: lockCheck.httpStatus }
+        );
+      }
+
+      const serverGroups = await loadServerEquivalencyGroups();
+      const evalResult = evaluateBatchComparison(prevBatch, serverGroups);
+      if (evalResult.totalFields === 0 || evalResult.mismatchedFields > 0) {
+        return NextResponse.json(
+          {
+            error:
+              evalResult.totalFields === 0
+                ? "Belum ada komponen pencocokan yang siap untuk di-Approve."
+                : `Masih terdapat ${evalResult.mismatchedFields} field mismatch yang belum divalidasi sebelum Approve.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (status === "EXPORTED" || status === "Exported") {
+      updateData.status = "EXPORTED";
+      updateData.exportedAt = new Date();
+    }
+
+    if (isApprovingBatch && prevBatch.status !== "APPROVED") {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (db as any).actionLog.create({
@@ -115,7 +177,7 @@ export async function PUT(
             fieldName: "Status Batch",
             oldValue: prevBatch.status || "MISMATCHING",
             newValue: "APPROVED",
-            notes: `[Setujui Berkas] Selesaikan & Pindahkan File ke All Data oleh ${approvalActorName}`,
+            notes: `[Approve] Dokumen disetujui & dipindahkan ke antrean All Data oleh ${approvalActorName}`,
             actionBy: approvalActorName,
           },
         });

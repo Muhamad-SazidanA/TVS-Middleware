@@ -9,6 +9,7 @@ import {
   extractManualNotesFromBatch,
   formatDocDisplayName,
 } from "~/utils/changeLogBuilder";
+import { logSystemAudit } from "~/server/auditLogger";
 
 export const dynamic = "force-dynamic";
 
@@ -104,22 +105,33 @@ function formatDocName(type: string): string {
   return type;
 }
 
-export async function GET(req: Request) {
+interface ExportQueryOptions {
+  mode: string;
+  scope: string;
+  archiveStatus?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  search: string;
+  batchIdsFilter: string[];
+  markExported: boolean;
+}
+
+async function handleExcelExport(opts: ExportQueryOptions) {
   try {
     const session = await auth();
     const userRole = (session?.user as { role?: string })?.role || "STAFF";
     const currentUserId = session?.user?.id;
 
-    const { searchParams } = new URL(req.url);
-    const mode = (searchParams.get("mode") || "clean").toLowerCase(); // "clean" or "with_action_log"
-    const scope = (searchParams.get("scope") || "personal").toLowerCase(); // "personal" or "all_data"
-    const startDate = searchParams.get("startDate");
-    const endDate = searchParams.get("endDate");
-    const search = searchParams.get("search")?.toLowerCase().trim() || "";
-    const batchIdsParam = searchParams.get("batchIds")?.trim() || "";
-    const batchIdsFilter = batchIdsParam
-      ? batchIdsParam.split(",").map((s) => s.trim()).filter(Boolean)
-      : [];
+    const {
+      mode,
+      scope,
+      archiveStatus = "APPROVED",
+      startDate,
+      endDate,
+      search,
+      batchIdsFilter,
+      markExported,
+    } = opts;
 
     // 1. RBAC & Scope constraints
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,7 +142,12 @@ export async function GET(req: Request) {
     }
 
     if (scope === "all_data") {
-      whereClause.status = "APPROVED";
+      const st = archiveStatus.toUpperCase();
+      if (st === "EXPORTED" || st === "ARCHIVED") {
+        whereClause.status = { in: ["EXPORTED", "ARCHIVED"] };
+      } else {
+        whereClause.status = "APPROVED";
+      }
     } else {
       if (userRole === "STAFF" && currentUserId) {
         whereClause.createdById = currentUserId;
@@ -166,15 +183,33 @@ export async function GET(req: Request) {
 
     const serverGroups = await loadServerEquivalencyGroups();
 
-    // 3. Filter by search query if passed
+    // 3. Filter by search query if passed (matching ID, no pengajuan, creator, approver, status)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const matchingBatches = batches.filter((batch: any) => {
       if (!search) return true;
       const idMatch = (batch.id || "").toLowerCase().includes(search);
-      const creatorMatch = (batch.createdBy?.name || "").toLowerCase().includes(search);
+      const creatorMatch =
+        (batch.createdBy?.name || "").toLowerCase().includes(search) ||
+        (batch.createdBy?.email || "").toLowerCase().includes(search);
+      const approverMatch =
+        (batch.approvedBy?.name || "").toLowerCase().includes(search) ||
+        (batch.approvedBy?.email || "").toLowerCase().includes(search);
       const statusMatch = (batch.status || "").toLowerCase().includes(search);
-      return idMatch || creatorMatch || statusMatch;
+      const detailMatch = Array.isArray(batch.details)
+        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          batch.details.some((d: any) =>
+            String(d?.nomorAju || "").toLowerCase().includes(search)
+          )
+        : false;
+      return idMatch || creatorMatch || approverMatch || statusMatch || detailMatch;
     });
+
+    if (scope === "all_data" && matchingBatches.length === 0) {
+      return NextResponse.json(
+        { error: "Tidak ada dokumen Approved yang sesuai untuk diexport." },
+        { status: 400 }
+      );
+    }
 
     // 4. Initialize ExcelJS Workbook
     const workbook = new ExcelJS.Workbook();
@@ -318,10 +353,21 @@ export async function GET(req: Request) {
 
     // Populate Sheet 1 Data Rows
     batchDataList.forEach((item) => {
+      const rawBatchSt = String(item.batch.status || "").toUpperCase();
+      const willBecomeExported =
+        (markExported && scope === "all_data" && rawBatchSt === "APPROVED") ||
+        rawBatchSt === "EXPORTED" ||
+        rawBatchSt === "ARCHIVED";
+      const sheetStatusLabel = willBecomeExported
+        ? "Exported"
+        : rawBatchSt === "APPROVED"
+        ? "Approved"
+        : item.evalResult.status;
+
       const row = sheet1.addRow([
         item.batch.id,
         item.batch.nama || "PT. UNITED STEEL CENTER INDONESIA",
-        item.evalResult.status,
+        sheetStatusLabel,
         `${item.batch.totalFile || 6} File`,
         item.matchCount,
         item.mismatchCount,
@@ -844,10 +890,66 @@ export async function GET(req: Request) {
       });
     }
 
-    // 5. Generate Excel Buffer
+    // 5. Generate Excel Buffer BEFORE mutating status
     const buffer = await workbook.xlsx.writeBuffer();
+
+    // 6. When exported from All Data, transition Approved batches -> Exported cleanly
+    let exportedCount = 0;
+    if (markExported && scope === "all_data" && matchingBatches.length > 0) {
+      const idsToExport: string[] = matchingBatches
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((b: any) => String(b.status || "").toUpperCase() === "APPROVED")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((b: any) => String(b.id));
+
+      if (idsToExport.length > 0) {
+        const actorName = session?.user?.name || session?.user?.email || "Operator";
+        const exportedAt = new Date();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (db as any).batch.updateMany({
+          where: { id: { in: idsToExport }, status: "APPROVED" },
+          data: { status: "EXPORTED", exportedAt },
+        });
+        exportedCount = idsToExport.length;
+
+        await Promise.allSettled(
+          idsToExport.map((bId: string) =>
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (db as any).actionLog.create({
+              data: {
+                batchId: bId,
+                docType: "Batch",
+                docNumber: bId,
+                fieldName: "Status Batch",
+                oldValue: "APPROVED",
+                newValue: "EXPORTED",
+                notes: `[Export to Excel] Dokumen berhasil diexport ke Excel & diarsipkan oleh ${actorName}`,
+                actionBy: actorName,
+              },
+            })
+          )
+        );
+
+        await logSystemAudit({
+          userId: session?.user?.id,
+          userName: session?.user?.name,
+          userEmail: session?.user?.email,
+          action: "UPDATE",
+          category: "BATCH_DATA",
+          title: `Export to Excel (${idsToExport.length} batch) -> Exported`,
+          details: `Batch IDs: ${idsToExport.join(", ")}`,
+          metadata: { batchIds: idsToExport, exportedAt: exportedAt.toISOString(), mode },
+        });
+      }
+    }
+
     const timestampStr = new Date().toISOString().slice(0, 10);
-    const scopeLabel = scope === "all_data" ? "AllData_Approved" : "Personal";
+    const scopeLabel =
+      scope === "all_data"
+        ? markExported
+          ? "AllData_Exported"
+          : "AllData_Approved"
+        : "Personal";
     const modeLabel = mode === "with_action_log" ? "With_ActionLogs" : "Clean";
     const batchSuffix =
       batchIdsFilter.length === 1
@@ -863,6 +965,7 @@ export async function GET(req: Request) {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "no-store, max-age=0",
+        "X-Exported-Count": String(exportedCount),
       },
     });
   } catch (error) {
@@ -872,4 +975,56 @@ export async function GET(req: Request) {
       { status: 500 }
     );
   }
+}
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const mode = (searchParams.get("mode") || "clean").toLowerCase();
+  const scope = (searchParams.get("scope") || "personal").toLowerCase();
+  const archiveStatus = searchParams.get("status") || "APPROVED";
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+  const search = searchParams.get("search")?.toLowerCase().trim() || "";
+  const batchIdsParam = searchParams.get("batchIds")?.trim() || "";
+  const batchIdsFilter = batchIdsParam
+    ? batchIdsParam.split(",").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const markExported =
+    searchParams.get("markExported") === "true" && scope === "all_data";
+
+  return handleExcelExport({
+    mode,
+    scope,
+    archiveStatus,
+    startDate,
+    endDate,
+    search,
+    batchIdsFilter,
+    markExported,
+  });
+}
+
+export async function POST(req: Request) {
+  const body = await req.json().catch(() => ({}));
+  const mode = String(body.mode || "clean").toLowerCase();
+  const scope = String(body.scope || "all_data").toLowerCase();
+  const archiveStatus = String(body.status || "APPROVED");
+  const startDate = body.startDate ? String(body.startDate) : null;
+  const endDate = body.endDate ? String(body.endDate) : null;
+  const search = body.search ? String(body.search).toLowerCase().trim() : "";
+  const batchIdsFilter = Array.isArray(body.batchIds)
+    ? body.batchIds.map((s: unknown) => String(s).trim()).filter(Boolean)
+    : [];
+  const markExported = body.markExported !== false && scope === "all_data";
+
+  return handleExcelExport({
+    mode,
+    scope,
+    archiveStatus,
+    startDate,
+    endDate,
+    search,
+    batchIdsFilter,
+    markExported,
+  });
 }

@@ -6,6 +6,7 @@ import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapte
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
 import { logSystemAudit } from "~/server/auditLogger";
 import { FIELD_SYNONYMS } from "~/utils/documentRegistry";
+import { getBatchMutationLock } from "~/server/batchGuards";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,11 @@ export async function POST(
         { error: "Parameter batchId, detailId, dan fieldName wajib diisi." },
         { status: 400 }
       );
+    }
+
+    const lockCheck = await getBatchMutationLock(batchId);
+    if (lockCheck.blocked) {
+      return NextResponse.json({ error: lockCheck.error }, { status: lockCheck.httpStatus });
     }
 
     // 1. Fetch detailBatch

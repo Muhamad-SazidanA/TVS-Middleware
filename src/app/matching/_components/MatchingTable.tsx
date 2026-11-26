@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Lock,
   FolderUp,
+  CheckCircle2,
 } from "lucide-react";
 import type { ColumnVisibility } from "./MatchingTabsToolbar";
 
@@ -20,6 +21,13 @@ export interface DocumentStatusCell {
   status: "Match" | "Mismatch" | "Proses" | "-";
   detailsCount?: number;
 }
+
+export type DocumentWorkflowStatus =
+  | "Pending"
+  | "Pending Validation"
+  | "Approved"
+  | "Exported"
+  | "Failed";
 
 export interface TableBatchItem {
   id: string;
@@ -29,9 +37,11 @@ export interface TableBatchItem {
   subtext: string;
   totalFile: number;
   status: "Matching" | "Mismatching" | "Proses" | "Ditolak" | "Failed";
+  workflowStatus?: DocumentWorkflowStatus;
   assignedTo?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  exportedAt?: string | null;
   // Parsed PIB dynamic fields
   pibFileName: string;
   fields: Record<string, string>;
@@ -112,7 +122,7 @@ export default function MatchingTable({
   onToggleSelectRow,
   isAllSelected,
   onRowClick,
-  onLockedClick: _onLockedClick,
+  onLockedClick,
   onManageFiles,
   onDownload,
   onDelete,
@@ -188,13 +198,13 @@ export default function MatchingTable({
                 </div>
               </th>
 
-              {/* 4. Status review Column */}
+              {/* 4. Status Dokumen Column */}
               <th
                 onClick={() => onSortChange("status")}
-                className="py-3.5 px-4 text-center cursor-pointer group/col hover:text-slate-900 transition-colors min-w-[150px] whitespace-nowrap"
+                className="py-3.5 px-4 text-center cursor-pointer group/col hover:text-slate-900 transition-colors min-w-[175px] whitespace-nowrap"
               >
                 <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                  <span>Status review</span>
+                  <span>Status Dokumen</span>
                   {renderSortIcon("status")}
                 </div>
               </th>
@@ -270,59 +280,54 @@ export default function MatchingTable({
                 const isSelected = selectedBatchIds.includes(batch.id);
                 const uploadDate = formatDateDDMMYYYY(batch.createdAt);
 
-                // Status review mapping
-                // "Validasi lolos" (neutral soft pill)
-                // "Perlu review manual" (warning soft pill)
-                // "Ditolak" (danger soft pill)
-                const isBatchProcessing =
-                  batch.status === "Proses" ||
-                  (batch.status as string).toLowerCase() === "pending";
+                const workflowStatus: DocumentWorkflowStatus =
+                  batch.workflowStatus ||
+                  (batch.status === "Failed" || batch.status === "Ditolak"
+                    ? "Failed"
+                    : batch.status === "Proses"
+                    ? "Pending"
+                    : "Pending Validation");
 
+                const isPendingLocked = workflowStatus === "Pending";
+                const isApproved = workflowStatus === "Approved";
+                const isExported = workflowStatus === "Exported";
+                const isFailed = workflowStatus === "Failed";
                 const isMatching =
                   batch.status === "Matching" ||
                   (batch.status as string) === "MATCHING";
 
-                let reviewBadge: {
-                  label: string;
-                  className: string;
-                } = {
-                  label: "Mismatch",
-                  className: "bg-rose-50 text-rose-700 border border-rose-200",
-                };
-
-                if (isBatchProcessing) {
-                  reviewBadge = {
-                    label: "Sedang memproses OCR...",
-                    className: "bg-blue-50 text-blue-800 border-blue-200",
-                  };
-                } else if (isMatching) {
-                  reviewBadge = {
-                    label: "Match",
-                    className: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-                  };
-                } else if (batch.status === "Failed" || batch.status === "Ditolak") {
-                  reviewBadge = {
-                    label: "Failed",
-                    className: "bg-red-100/80 text-red-800 border border-red-200",
-                  };
-                }
+                const subInfo = isPendingLocked
+                  ? { label: "OCR diproses • Terkunci", className: "text-slate-400" }
+                  : isExported
+                  ? { label: "Archived • Match", className: "text-slate-500" }
+                  : isApproved
+                  ? { label: "Siap Export (All Data)", className: "text-emerald-600" }
+                  : isFailed
+                  ? { label: "Proses gagal", className: "text-rose-600" }
+                  : isMatching
+                  ? { label: "Match (Siap Approve)", className: "text-emerald-600" }
+                  : { label: "Mismatch (Perlu Validasi)", className: "text-rose-600" };
 
                 return (
                   <tr
                     key={batch.id}
                     onClick={() => {
+                      if (isPendingLocked) {
+                        onLockedClick?.(batch.id);
+                        return;
+                      }
                       onRowClick(batch.id, "PIB");
                     }}
                     className={`group transition-colors select-none ${
-                      isSelected
+                      isPendingLocked
+                        ? "cursor-not-allowed bg-slate-50/70 opacity-85 hover:bg-slate-100/70"
+                        : isSelected
                         ? "cursor-pointer bg-blue-50/50 hover:bg-blue-50/70"
-                        : isBatchProcessing
-                        ? "cursor-pointer bg-blue-50/20 hover:bg-blue-50/40"
                         : "cursor-pointer hover:bg-slate-50/70"
                     }`}
                     title={
-                      isBatchProcessing
-                        ? "Klik untuk membuka detail (OCR masih berjalan di latar belakang)"
+                      isPendingLocked
+                        ? "Status Pending: akses detail file dikunci sampai proses OCR selesai."
                         : undefined
                     }
                   >
@@ -377,7 +382,7 @@ export default function MatchingTable({
                         const displayTitle = ajuNo || `Batch #${batch.id}`;
                         const displaySubtitle = ajuNo
                           ? `#${batch.id}`
-                          : isBatchProcessing
+                          : isPendingLocked
                           ? "Memproses OCR..."
                           : `#${batch.id}`;
 
@@ -406,22 +411,37 @@ export default function MatchingTable({
                       })()}
                     </td>
 
-                    {/* 4. Status review pill (strictly 1 line) */}
-                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap ${reviewBadge.className}`}
-                      >
-                        {isBatchProcessing && (
-                          <>
-                            <Lock className="w-3 h-3 text-blue-600 shrink-0" />
-                            <span className="relative flex h-2 w-2 shrink-0">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-600" />
-                            </span>
-                          </>
+                    {/* 4. Status Dokumen (Pending / Pending Validation / Approved / Exported + Sub-Info) */}
+                    <td className="py-3 px-4 text-center whitespace-nowrap">
+                      <div className="inline-flex flex-col items-center gap-0.5">
+                        {isPendingLocked ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">
+                            <Lock className="w-3 h-3 text-amber-600 shrink-0" />
+                            <span>Pending</span>
+                          </span>
+                        ) : isExported ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-300 whitespace-nowrap">
+                            <CheckCircle2 className="w-3 h-3 text-slate-600 shrink-0" />
+                            <span>Exported</span>
+                          </span>
+                        ) : isApproved ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 whitespace-nowrap">
+                            <Check className="w-3 h-3 text-emerald-600 stroke-[2.5] shrink-0" />
+                            <span>Approved</span>
+                          </span>
+                        ) : isFailed ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-red-100/80 text-red-800 border border-red-200 whitespace-nowrap">
+                            Failed
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+                            Pending Validation
+                          </span>
                         )}
-                        <span>{reviewBadge.label}</span>
-                      </span>
+                        <span className={`text-[10px] font-medium ${subInfo.className}`}>
+                          {subInfo.label}
+                        </span>
+                      </div>
                     </td>
 
                     {/* 5. Ditugaskan ke (strictly 1 line) */}
@@ -460,17 +480,23 @@ export default function MatchingTable({
                           onClick={(e) => {
                             if (st !== "-") {
                               e.stopPropagation();
+                              if (isPendingLocked) {
+                                onLockedClick?.(batch.id);
+                                return;
+                              }
                               onRowClick(batch.id, col.key);
                             }
                           }}
                           className={`py-3.5 px-4 text-center whitespace-nowrap ${
-                            st !== "-"
+                            isPendingLocked
+                              ? "cursor-not-allowed opacity-70"
+                              : st !== "-"
                               ? "cursor-pointer hover:bg-blue-50/70"
                               : ""
                           }`}
                           title={
-                            st === "Proses"
-                              ? `Buka ${col.key} di viewer (OCR masih memproses di latar belakang)`
+                            isPendingLocked
+                              ? "Status Pending: akses detail dikunci hingga proses OCR selesai."
                               : st !== "-"
                               ? `Buka berkas ${col.key} di viewer`
                               : undefined
@@ -508,9 +534,26 @@ export default function MatchingTable({
                         {onManageFiles && (
                           <button
                             type="button"
-                            onClick={() => onManageFiles(batch)}
-                            className="p-1.5 text-slate-400 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                            title="Kelola / Upload Ulang Dokumen"
+                            disabled={isPendingLocked || isApproved || isExported}
+                            onClick={() => {
+                              if (isPendingLocked) {
+                                onLockedClick?.(batch.id);
+                                return;
+                              }
+                              onManageFiles(batch);
+                            }}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              isPendingLocked || isApproved || isExported
+                                ? "text-slate-300 cursor-not-allowed"
+                                : "text-slate-400 hover:text-blue-700 hover:bg-blue-50 cursor-pointer"
+                            }`}
+                            title={
+                              isPendingLocked
+                                ? "Terkunci selama berstatus Pending"
+                                : isApproved || isExported
+                                ? "Dokumen Approved/Exported bersifat read-only"
+                                : "Kelola / Upload Ulang Dokumen"
+                            }
                           >
                             <FolderUp className="w-3.5 h-3.5" />
                           </button>
@@ -529,9 +572,24 @@ export default function MatchingTable({
                         {/* Action 2: Hapus */}
                         <button
                           type="button"
-                          onClick={() => onDelete(batch)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                          title="Hapus"
+                          disabled={isPendingLocked}
+                          onClick={() => {
+                            if (isPendingLocked) {
+                              onLockedClick?.(batch.id);
+                              return;
+                            }
+                            onDelete(batch);
+                          }}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            isPendingLocked
+                              ? "text-slate-300 cursor-not-allowed"
+                              : "text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                          }`}
+                          title={
+                            isPendingLocked
+                              ? "Terkunci selama berstatus Pending"
+                              : "Hapus"
+                          }
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

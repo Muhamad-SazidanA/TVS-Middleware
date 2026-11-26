@@ -81,13 +81,14 @@ model VerificationToken {
 model Batch {
   id           String        @id
   totalFile    Int           @default(0)
-  status       String        @default("PENDING") // "DRAFT" | "PENDING" | "MATCHING" | "MISMATCHING" | "APPROVED" | "DITOLAK"
+  status       String        @default("PENDING") // "PENDING" | "PROSES" | "MATCHING" | "MISMATCHING" | "APPROVED" | "EXPORTED" | "DITOLAK"
   errorMessage String?       @db.Text
   createdById  String?
   createdBy    User?         @relation("CreatedBatches", fields: [createdById], references: [id], onDelete: SetNull)
   approvedById String?
   approvedBy   User?         @relation("ApprovedBatches", fields: [approvedById], references: [id], onDelete: SetNull)
   approvedAt   DateTime?
+  exportedAt   DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   details      DetailBatch[]

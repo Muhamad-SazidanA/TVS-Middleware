@@ -5,6 +5,7 @@ import { createBatchLog } from "~/server/logger";
 import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
 import { logSystemAudit } from "~/server/auditLogger";
+import { getBatchMutationLock } from "~/server/batchGuards";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,11 @@ export async function POST(
 ) {
   try {
     const { id: batchId } = await params;
+    const lockCheck = await getBatchMutationLock(batchId);
+    if (lockCheck.blocked) {
+      return NextResponse.json({ error: lockCheck.error }, { status: lockCheck.httpStatus });
+    }
+
     const body = await req.json();
     const {
       detailId,

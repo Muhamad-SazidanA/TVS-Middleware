@@ -11,6 +11,9 @@ import {
   Plus,
   Trash2,
   Check,
+  CheckCircle2,
+  Archive,
+  Lock,
   FolderUp,
   History,
 } from "lucide-react";
@@ -102,6 +105,8 @@ export interface ComparisonPanelProps {
   onManageDocuments?: () => void;
   onNotify?: (message: string, type?: "success" | "info" | "warning" | "error") => void;
   batchChangeLogs?: FieldChangeEvent[];
+  workflowStatus?: "Pending" | "Pending Validation" | "Approved" | "Exported" | "Failed";
+  isReadOnly?: boolean;
   footer?: React.ReactNode;
   className?: string;
 }
@@ -126,6 +131,8 @@ export default function ComparisonPanel({
   onManageDocuments,
   onNotify,
   batchChangeLogs = [],
+  workflowStatus = "Pending Validation",
+  isReadOnly = false,
   footer,
   className = "",
 }: ComparisonPanelProps) {
@@ -150,7 +157,7 @@ export default function ComparisonPanel({
     field: ComparisonFieldModel,
     docCode: string
   ) => {
-    if (togglingManualMatchId) return;
+    if (isReadOnly || togglingManualMatchId) return;
     setTogglingManualMatchId(field.id);
     try {
       const newConfirmed = !field.isManualConfirmed;
@@ -230,6 +237,7 @@ export default function ComparisonPanel({
     noteId?: string,
     label: string = ""
   ) => {
+    if (isReadOnly) return;
     setNoteError(null);
     setNoteDialog({
       mode,
@@ -272,7 +280,7 @@ export default function ComparisonPanel({
   };
 
   const handleDeleteNote = async (noteId: string) => {
-    if (!onDeleteManualNote) return;
+    if (isReadOnly || !onDeleteManualNote) return;
     try {
       await onDeleteManualNote(noteId);
     } catch (err) {
@@ -328,6 +336,14 @@ export default function ComparisonPanel({
 
   const totalAllFieldsCount = useMemo(() => {
     return groups.reduce((acc, g) => acc + g.fields.length, 0);
+  }, [groups]);
+
+  const totalAllMatchedCount = useMemo(() => {
+    return groups.reduce((acc, g) => acc + g.matchedCount, 0);
+  }, [groups]);
+
+  const totalAllMismatchedCount = useMemo(() => {
+    return groups.reduce((acc, g) => acc + g.mismatchedCount, 0);
   }, [groups]);
 
   const handleTabClick = (docCode: string) => {
@@ -442,6 +458,7 @@ export default function ComparisonPanel({
     target: "left" | "right"
   ) => {
     e.stopPropagation();
+    if (isReadOnly) return;
     const isLeft = target === "left";
     const detailId = isLeft ? field.pibDetailId : field.supportingDetailId;
     if (!detailId) return;
@@ -500,13 +517,33 @@ export default function ComparisonPanel({
     <div
       className={`flex flex-col h-full bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden ${className}`}
     >
-      {/* 1. Header Row: Title + Search Input */}
+      {/* 1. Header Row: Title + Workflow Status + Component Summary + Search Input */}
       <div className="p-3.5 border-b border-slate-200/80 bg-white space-y-2.5 shrink-0">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-bold text-sm text-slate-900">
               Data perbandingan {isAllSelected ? "(Semua)" : currentGroup ? `(${currentGroup.docCode})` : ""}
             </h3>
+            {workflowStatus === "Exported" ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-sky-50 text-sky-800 border border-sky-200">
+                <Archive className="w-3 h-3 text-sky-600" />
+                <span>Exported</span>
+              </span>
+            ) : workflowStatus === "Approved" ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                <span>Approved</span>
+              </span>
+            ) : workflowStatus === "Pending" ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                <Lock className="w-3 h-3 text-amber-600" />
+                <span>Pending</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                Pending Validation
+              </span>
+            )}
             {(() => {
               const hasMismatch = isAllSelected
                 ? groups.some((g) => g.mismatchedCount > 0)
@@ -539,9 +576,6 @@ export default function ComparisonPanel({
                 </button>
               );
             })()}
-            <span className="text-[11px] font-medium text-slate-500">
-              PIB (acuan) vs {isAllSelected ? "Semua Dokumen Pendukung" : currentGroup?.docName || currentGroup?.docCode || "Dokumen"}
-            </span>
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
@@ -556,7 +590,7 @@ export default function ComparisonPanel({
                 <span>Log ({batchChangeLogs.length})</span>
               </button>
             )}
-            {onManageDocuments && (
+            {onManageDocuments && !isReadOnly && (
               <button
                 type="button"
                 onClick={onManageDocuments}
@@ -569,6 +603,48 @@ export default function ComparisonPanel({
             )}
           </div>
         </div>
+
+        {/* Matched vs Mismatched Component Summary */}
+        <div className="flex items-center justify-between gap-2 flex-wrap px-2.5 py-1.5 rounded-xl bg-slate-50/90 border border-slate-200/80 text-[11px]">
+          <span className="text-slate-600 font-medium truncate">
+            Komponen:{" "}
+            <strong className="text-slate-900 font-semibold">
+              PIB (acuan)
+            </strong>{" "}
+            vs{" "}
+            <span className="text-slate-700 font-medium">
+              {isAllSelected
+                ? groups.length > 0
+                  ? groups.map((g) => g.docCode).join(", ")
+                  : "Dokumen Pendukung"
+                : currentGroup?.docName || currentGroup?.docCode || "Dokumen"}
+            </span>
+          </span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80 font-mono text-[10.5px]">
+              {totalAllMatchedCount}/{totalAllFieldsCount} cocok
+            </span>
+            {totalAllMismatchedCount > 0 ? (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 font-mono text-[10.5px]">
+                {totalAllMismatchedCount} mismatch
+              </span>
+            ) : totalAllFieldsCount > 0 ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80 text-[10.5px]">
+                <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                Semua tervalidasi
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        {isReadOnly && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600">
+            <Lock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            <span>
+              Mode <strong className="font-semibold text-slate-800">Read-only ({workflowStatus})</strong>: edit nilai, konfirmasi manual, dan catatan dikunci.
+            </span>
+          </div>
+        )}
 
         {/* PIB document replacement note if replaced */}
         {pibDoc?.updateHistory && pibDoc.updateHistory.length > 0 && (() => {
@@ -810,44 +886,46 @@ export default function ComparisonPanel({
                           </span>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {statusBadge}
-                            {isMatch && !field.isManualConfirmed ? (
-                              <div
-                                className="w-7 h-7 rounded-full border border-slate-200/70 bg-slate-50/70 text-slate-300 flex items-center justify-center shrink-0 cursor-not-allowed opacity-40 shadow-2xs"
-                                title="Field ini sudah cocok (Match) secara otomatis"
-                              >
-                                <Check className="w-3.5 h-3.5 stroke-2" />
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleToggleManualMatch(field, group.docCode);
-                                }}
-                                disabled={togglingManualMatchId === field.id}
-                                className={`w-7 h-7 rounded-full border transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-2xs ${
-                                  field.isManualConfirmed
-                                    ? "bg-emerald-50 text-emerald-600 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400 ring-2 ring-emerald-400/20"
-                                    : "bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/60"
-                                }`}
-                                title={
-                                  field.isManualConfirmed
-                                    ? "Dikonfirmasi manual Match. Klik untuk membatalkan konfirmasi"
-                                    : "Konfirmasi manual sebagai Match (hanya untuk batch ini)"
-                                }
-                              >
-                                {togglingManualMatchId === field.id ? (
-                                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
-                                ) : (
-                                  <Check
-                                    className={`w-3.5 h-3.5 ${
-                                      field.isManualConfirmed
-                                        ? "stroke-[2.5]"
-                                        : "stroke-2"
-                                    }`}
-                                  />
-                                )}
-                              </button>
+                            {!isReadOnly && (
+                              isMatch && !field.isManualConfirmed ? (
+                                <div
+                                  className="w-7 h-7 rounded-full border border-slate-200/70 bg-slate-50/70 text-slate-300 flex items-center justify-center shrink-0 cursor-not-allowed opacity-40 shadow-2xs"
+                                  title="Field ini sudah cocok (Match) secara otomatis"
+                                >
+                                  <Check className="w-3.5 h-3.5 stroke-2" />
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleManualMatch(field, group.docCode);
+                                  }}
+                                  disabled={togglingManualMatchId === field.id}
+                                  className={`w-7 h-7 rounded-full border transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-2xs ${
+                                    field.isManualConfirmed
+                                      ? "bg-emerald-50 text-emerald-600 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400 ring-2 ring-emerald-400/20"
+                                      : "bg-white text-slate-400 border-slate-200 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50/60"
+                                  }`}
+                                  title={
+                                    field.isManualConfirmed
+                                      ? "Dikonfirmasi manual Match. Klik untuk membatalkan konfirmasi"
+                                      : "Konfirmasi manual sebagai Match (hanya untuk batch ini)"
+                                  }
+                                >
+                                  {togglingManualMatchId === field.id ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400" />
+                                  ) : (
+                                    <Check
+                                      className={`w-3.5 h-3.5 ${
+                                        field.isManualConfirmed
+                                          ? "stroke-[2.5]"
+                                          : "stroke-2"
+                                      }`}
+                                    />
+                                  )}
+                                </button>
+                              )
                             )}
                           </div>
                         </div>
@@ -913,18 +991,20 @@ export default function ComparisonPanel({
                               )}
                             </div>
 
-                            <div className="flex items-center justify-end mt-1.5 pt-1 border-t border-slate-100">
-                              <button
-                                type="button"
-                                onClick={(e) =>
-                                  handleOpenEdit(e, field, group, "left")
-                                }
-                                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                                title="Edit nilai PIB"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                            {!isReadOnly && (
+                              <div className="flex items-center justify-end mt-1.5 pt-1 border-t border-slate-100">
+                                <button
+                                  type="button"
+                                  onClick={(e) =>
+                                    handleOpenEdit(e, field, group, "left")
+                                  }
+                                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                  title="Edit nilai PIB"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
                           </div>
 
                           {/* Right Inner Card: Supporting Document */}
@@ -990,18 +1070,20 @@ export default function ComparisonPanel({
                                 )}
                             </div>
 
-                            <div className="flex items-center justify-end mt-1.5 pt-1 border-t border-slate-100">
-                              <button
-                                type="button"
-                                onClick={(e) =>
-                                  handleOpenEdit(e, field, group, "right")
-                                }
-                                className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                                title={`Edit nilai ${group.docCode}`}
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                            {!isReadOnly && (
+                              <div className="flex items-center justify-end mt-1.5 pt-1 border-t border-slate-100">
+                                <button
+                                  type="button"
+                                  onClick={(e) =>
+                                    handleOpenEdit(e, field, group, "right")
+                                  }
+                                  className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                  title={`Edit nilai ${group.docCode}`}
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -1064,63 +1146,70 @@ export default function ComparisonPanel({
                         )}
 
                         {/* Manual Notes on Header Field */}
-                        <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1.5" onClick={(e) => e.stopPropagation()}>
-                          {field.manualNotes && field.manualNotes.length > 0 && (
-                            <div className="space-y-1">
-                              {field.manualNotes.map((note) => (
-                                <div key={note.id} className="flex items-start justify-between gap-2 px-2 py-1.5 bg-slate-50 border border-slate-200/80 rounded-md text-[11px] text-slate-700">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5 text-[9.5px] text-slate-400 mb-0.5">
-                                      <span className="font-medium text-slate-600">{note.author || "Operator"}</span>
-                                      {note.docCode && <span className="text-slate-500">[{note.docCode}]</span>}
-                                      <span>•</span>
-                                      <span>{formatNoteDate(note.createdAt)}</span>
+                        {(!isReadOnly ||
+                          Boolean(field.manualNotes && field.manualNotes.length > 0)) && (
+                          <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                            {field.manualNotes && field.manualNotes.length > 0 && (
+                              <div className="space-y-1">
+                                {field.manualNotes.map((note) => (
+                                  <div key={note.id} className="flex items-start justify-between gap-2 px-2 py-1.5 bg-slate-50 border border-slate-200/80 rounded-md text-[11px] text-slate-700">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5 text-[9.5px] text-slate-400 mb-0.5">
+                                        <span className="font-medium text-slate-600">{note.author || "Operator"}</span>
+                                        {note.docCode && <span className="text-slate-500">[{note.docCode}]</span>}
+                                        <span>•</span>
+                                        <span>{formatNoteDate(note.createdAt)}</span>
+                                      </div>
+                                      <p className="text-slate-800 font-normal leading-relaxed break-words">{note.text}</p>
                                     </div>
-                                    <p className="text-slate-800 font-normal leading-relaxed break-words">{note.text}</p>
+                                    {!isReadOnly && (
+                                      <div className="flex items-center gap-0.5 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleOpenNoteModal("edit", note.targetType, note.targetKey, note.docCode, note.detailId, note.text, note.id, `${field.number}. ${field.label}`);
+                                          }}
+                                          className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                                          title="Edit catatan"
+                                        >
+                                          <Pencil className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteNote(note.id);
+                                          }}
+                                          className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                          title="Hapus catatan"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
-                                  <div className="flex items-center gap-0.5 shrink-0">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleOpenNoteModal("edit", note.targetType, note.targetKey, note.docCode, note.detailId, note.text, note.id, `${field.number}. ${field.label}`);
-                                      }}
-                                      className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
-                                      title="Edit catatan"
-                                    >
-                                      <Pencil className="w-3 h-3" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteNote(note.id);
-                                      }}
-                                      className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                      title="Hapus catatan"
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                                ))}
+                              </div>
+                            )}
 
-                          <div className="flex items-center justify-between">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenNoteModal("add", "field", field.fieldName, group.docCode, field.supportingDetailId || field.pibDetailId, "", undefined, `${field.number}. ${field.label}`);
-                              }}
-                              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
-                            >
-                              <Plus className="w-3.5 h-3.5 text-slate-500" />
-                              <span>Catatan</span>
-                            </button>
+                            {!isReadOnly && (
+                              <div className="flex items-center justify-between">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpenNoteModal("add", "field", field.fieldName, group.docCode, field.supportingDetailId || field.pibDetailId, "", undefined, `${field.number}. ${field.label}`);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5 text-slate-500" />
+                                  <span>Catatan</span>
+                                </button>
+                              </div>
+                            )}
                           </div>
-                        </div>
+                        )}
                       </div>
                     );
                   })}

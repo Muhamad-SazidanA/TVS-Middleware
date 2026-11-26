@@ -15,6 +15,7 @@ import {
   dispatchSingleDocumentToNanonets,
 } from "~/server/batchDocumentProcessor";
 import type { DocumentUpdateRecord } from "~/app/matching/_components/detailTypes";
+import { getLockErrorForBatchRecord } from "~/server/batchGuards";
 
 export const dynamic = "force-dynamic";
 
@@ -62,20 +63,11 @@ export async function POST(
       include: { details: true },
     });
 
-    if (!batch) {
+    const lockCheck = getLockErrorForBatchRecord(batch);
+    if (lockCheck.blocked) {
       return NextResponse.json(
-        { error: "Batch tidak ditemukan." },
-        { status: 404 }
-      );
-    }
-
-    if (batch.status === "APPROVED") {
-      return NextResponse.json(
-        {
-          error:
-            "Batch sudah disetujui (APPROVED) dan dikunci dari perubahan dokumen.",
-        },
-        { status: 403 }
+        { error: lockCheck.error },
+        { status: lockCheck.httpStatus }
       );
     }
 

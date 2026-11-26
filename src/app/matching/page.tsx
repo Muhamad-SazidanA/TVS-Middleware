@@ -14,6 +14,7 @@ import MatchingTabsToolbar, {
 import MatchingTable, {
   type TableBatchItem,
   type DocumentStatusCell,
+  type DocumentWorkflowStatus,
 } from "./_components/MatchingTable";
 import MatchingFooter from "./_components/MatchingFooter";
 import MatchingDetailView from "./_components/MatchingDetailView";
@@ -42,10 +43,12 @@ interface RawBatchItem {
   subtext: string;
   totalFile: number;
   status: "Matching" | "Mismatching" | "Proses" | "Ditolak" | "Failed";
+  workflowStatus?: DocumentWorkflowStatus;
   rawStatus?: string;
   errorMessage?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  exportedAt?: string | null;
   details?: DetailBatch[];
   docStatuses?: Record<string, DocumentStatusCell>;
 }
@@ -100,16 +103,33 @@ function MatchingPageContent() {
   const [selectedDocCode, setSelectedDocCode] = useState<string>("PIB");
   const [manageFilesBatchId, setManageFilesBatchId] = useState<string | null>(null);
 
-  // Deep-link auto-opening from URL query ?batchId=...
+  // Deep-link auto-opening from URL query ?batchId=... with Pending access lock
   useEffect(() => {
     if (urlBatchId && initialBatchHandledRef.current !== urlBatchId) {
       const target = batches.find((b) => b.id === urlBatchId);
-      if (target || !loading) {
+      if (target) {
+        initialBatchHandledRef.current = urlBatchId;
+        const rawSt = (target.rawStatus || "").toUpperCase();
+        const isPending =
+          target.workflowStatus === "Pending" ||
+          target.status === "Proses" ||
+          rawSt === "PENDING" ||
+          rawSt === "PROSES";
+        if (isPending) {
+          showToast(
+            `Batch #${urlBatchId} masih berstatus Pending — akses detail dikunci hingga proses OCR selesai.`,
+            "warning"
+          );
+          router.replace("/matching", { scroll: false });
+          return;
+        }
+        setSelectedBatchId(urlBatchId);
+      } else if (!loading) {
         initialBatchHandledRef.current = urlBatchId;
         setSelectedBatchId(urlBatchId);
       }
     }
-  }, [urlBatchId, batches, loading]);
+  }, [urlBatchId, batches, loading, router, showToast]);
 
   // Dialogs & Modals
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -286,17 +306,32 @@ function MatchingPageContent() {
       const isAnyDocProses =
         docStatusList.some((s) => s === "Proses") ||
         evalSt === "PROSES" ||
-        evalSt === "PENDING";
+        evalSt === "PENDING" ||
+        rawSt === "PENDING" ||
+        rawSt === "PROSES";
 
       let effectiveStatus: "Matching" | "Mismatching" | "Proses" | "Ditolak" | "Failed" = "Matching";
       if (isFailed) {
         effectiveStatus = "Failed";
-      } else if (isAnyDocProses) {
+      } else if (isAnyDocProses && rawSt !== "APPROVED" && rawSt !== "EXPORTED" && rawSt !== "ARCHIVED") {
         effectiveStatus = "Proses";
       } else if (isAnyDocMismatch || evalSt === "MISMATCHING") {
         effectiveStatus = "Mismatching";
       } else {
         effectiveStatus = "Matching";
+      }
+
+      let workflowStatus: DocumentWorkflowStatus = "Pending Validation";
+      if (isFailed) {
+        workflowStatus = "Failed";
+      } else if (rawSt === "EXPORTED" || rawSt === "ARCHIVED" || batch.workflowStatus === "Exported") {
+        workflowStatus = "Exported";
+      } else if (rawSt === "APPROVED" || batch.workflowStatus === "Approved") {
+        workflowStatus = "Approved";
+      } else if (effectiveStatus === "Proses" || batch.workflowStatus === "Pending") {
+        workflowStatus = "Pending";
+      } else {
+        workflowStatus = "Pending Validation";
       }
 
       return {
@@ -307,6 +342,8 @@ function MatchingPageContent() {
         subtext: batch.subtext || "",
         totalFile: batch.totalFile || (batch.details || []).length || 1,
         status: effectiveStatus,
+        workflowStatus,
+        exportedAt: batch.exportedAt || null,
         assignedTo: assignedMap[batch.id] || (batch as { createdBy?: { name?: string } }).createdBy?.name || null,
         createdAt: batch.createdAt,
         updatedAt: batch.updatedAt,
@@ -430,13 +467,18 @@ function MatchingPageContent() {
   }, [tableBatches, showToast]);
 
   const matchesTabFilter = useCallback((batch: TableBatchItem, tab: MatchingTabId): boolean => {
+    const wf = batch.workflowStatus || (batch.status === "Proses" ? "Pending" : "Pending Validation");
     switch (tab) {
-      case "match":
-        return batch.status === "Matching";
-      case "mismatch":
-        return batch.status === "Mismatching";
+      case "pending":
+        return wf === "Pending";
+      case "pending_validation":
+        return wf === "Pending Validation";
+      case "approved":
+        return wf === "Approved";
+      case "exported":
+        return wf === "Exported";
       case "failed":
-        return batch.status === "Failed" || batch.status === "Ditolak";
+        return wf === "Failed" || batch.status === "Failed" || batch.status === "Ditolak";
       case "all":
       default:
         return true;
@@ -447,8 +489,10 @@ function MatchingPageContent() {
   const tabCounts = useMemo<TabCounts>(() => {
     return {
       all: tableBatches.length,
-      match: tableBatches.filter((b) => matchesTabFilter(b, "match")).length,
-      mismatch: tableBatches.filter((b) => matchesTabFilter(b, "mismatch")).length,
+      pending: tableBatches.filter((b) => matchesTabFilter(b, "pending")).length,
+      pendingValidation: tableBatches.filter((b) => matchesTabFilter(b, "pending_validation")).length,
+      approved: tableBatches.filter((b) => matchesTabFilter(b, "approved")).length,
+      exported: tableBatches.filter((b) => matchesTabFilter(b, "exported")).length,
       failed: tableBatches.filter((b) => matchesTabFilter(b, "failed")).length,
     };
   }, [tableBatches, matchesTabFilter]);
@@ -490,8 +534,8 @@ function MatchingPageContent() {
         valA = a.nama;
         valB = b.nama;
       } else if (sortColumn === "status") {
-        valA = a.status;
-        valB = b.status;
+        valA = `${a.workflowStatus || ""} ${a.status}`;
+        valB = `${b.workflowStatus || ""} ${b.status}`;
       } else {
         // Document status column or field lookup
         valA = a.docStatuses?.[sortColumn]?.status || a.fields[sortColumn] || "";
@@ -722,11 +766,13 @@ function MatchingPageContent() {
             onOpenFilterDialog={() => {
               const tabLabels: Record<MatchingTabId, string> = {
                 all: "All",
-                match: "Match",
-                mismatch: "Mismatch",
+                pending: "Pending",
+                pending_validation: "Pending Validation",
+                approved: "Approved",
+                exported: "Exported",
                 failed: "Failed",
               };
-              showToast(`Filter aktif: ${tabLabels[activeTab]}`);
+              showToast(`Filter aktif: ${tabLabels[activeTab]}`, "info");
             }}
             onExportPersonal={(mode) => {
               const params = new URLSearchParams();
@@ -749,11 +795,22 @@ function MatchingPageContent() {
             onToggleSelectRow={handleToggleSelectRow}
             isAllSelected={isAllSelected}
             onRowClick={(id, docCode) => {
+              const target = tableBatches.find((b) => b.id === id);
+              if (target?.workflowStatus === "Pending" || target?.status === "Proses") {
+                showToast(
+                  `Batch #${id} masih berstatus Pending — akses detail file dikunci sampai proses OCR selesai.`,
+                  "warning"
+                );
+                return;
+              }
               setSelectedBatchId(id);
               setSelectedDocCode(docCode || "PIB");
             }}
             onLockedClick={(id) => {
-              showToast(`Batch #${id} masih memproses OCR di latar belakang.`, "info");
+              showToast(
+                `Batch #${id} masih berstatus Pending — akses detail file dikunci sampai proses OCR selesai.`,
+                "warning"
+              );
             }}
             onManageFiles={(b) => setManageFilesBatchId(b.id)}
             onDownload={handleDownloadSingle}

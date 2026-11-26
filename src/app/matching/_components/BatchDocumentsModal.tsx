@@ -214,10 +214,14 @@ export default function BatchDocumentsModal({
 
   if (!isOpen || !batchId) return null;
 
-  const isApproved = (batch?.status || "").toUpperCase() === "APPROVED";
+  const rawUpper = (batch?.status || "").toUpperCase();
+  const isApproved = rawUpper === "APPROVED";
+  const isExported = rawUpper === "EXPORTED" || rawUpper === "ARCHIVED";
+  const isReadOnly = isApproved || isExported;
+  const isLockedForMutation = isReadOnly || hasPendingOcr;
 
   const handleConfirmReplace = async () => {
-    if (!pendingReplace || submittingDetailId !== null) return;
+    if (isLockedForMutation || !pendingReplace || submittingDetailId !== null) return;
     setSubmittingDetailId(pendingReplace.detailId);
     setErrorMsg(null);
     try {
@@ -251,7 +255,7 @@ export default function BatchDocumentsModal({
   };
 
   const handleConfirmAdd = async () => {
-    if (!addFile || !selectedAddCategory || isSubmittingAdd) return;
+    if (isLockedForMutation || !addFile || !selectedAddCategory || isSubmittingAdd) return;
     setIsSubmittingAdd(true);
     setErrorMsg(null);
     try {
@@ -304,12 +308,22 @@ export default function BatchDocumentsModal({
               <span className="text-[11px] font-mono font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200/80">
                 #{batchId}
               </span>
-              {isApproved && (
+              {isExported ? (
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
+                  <Lock className="w-3 h-3 text-sky-600" />
+                  <span>Exported (Terkunci)</span>
+                </span>
+              ) : isApproved ? (
                 <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
                   <Lock className="w-3 h-3 text-emerald-600" />
                   <span>Approved (Terkunci)</span>
                 </span>
-              )}
+              ) : hasPendingOcr ? (
+                <span className="inline-flex items-center gap-1 text-[10.5px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                  <Lock className="w-3 h-3 text-amber-600" />
+                  <span>Pending OCR (Terkunci)</span>
+                </span>
+              ) : null}
             </div>
             <p className="text-[11px] text-slate-500 mt-0.5">
               Hanya dokumen yang sudah terunggah yang ditampilkan. Upload ulang otomatis mencatat nama file & tanggal pembaruan.
@@ -406,7 +420,7 @@ export default function BatchDocumentsModal({
                         </div>
                       </div>
 
-                      {!isApproved && (
+                      {!isLockedForMutation && (
                         <div className="shrink-0 ml-auto">
                           <input
                             ref={(el) => {
@@ -525,7 +539,7 @@ export default function BatchDocumentsModal({
           )}
 
           {/* Section 2: Tambah Dokumen (only available categories out of the 7, collapsed until clicked) */}
-          {!isApproved && !loading && addableCategories.length > 0 && (
+          {!isLockedForMutation && !loading && addableCategories.length > 0 && (
             <div className="pt-1">
               {!showAddForm ? (
                 <button

@@ -11,12 +11,20 @@ import {
   ChevronDown,
 } from "lucide-react";
 
-export type MatchingTabId = "all" | "match" | "mismatch" | "failed";
+export type MatchingTabId =
+  | "all"
+  | "pending"
+  | "pending_validation"
+  | "approved"
+  | "exported"
+  | "failed";
 
 export interface TabCounts {
   all: number;
-  match: number;
-  mismatch: number;
+  pending: number;
+  pendingValidation: number;
+  approved: number;
+  exported: number;
   failed: number;
 }
 
@@ -76,23 +84,39 @@ export default function MatchingTabsToolbar({
       badgeClass: "bg-slate-200/80 text-slate-700 border-slate-300/60",
     },
     {
-      id: "match",
-      label: "Match",
-      count: counts.match,
+      id: "pending_validation",
+      label: "Pending Validation",
+      count: counts.pendingValidation,
+      badgeClass: "bg-blue-50 text-blue-700 border-blue-200/70",
+    },
+    {
+      id: "pending",
+      label: "Pending",
+      count: counts.pending,
+      badgeClass: "bg-amber-50 text-amber-800 border-amber-200/70",
+    },
+    {
+      id: "approved",
+      label: "Approved",
+      count: counts.approved,
       badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200/70",
     },
     {
-      id: "mismatch",
-      label: "Mismatch",
-      count: counts.mismatch,
-      badgeClass: "bg-rose-50 text-rose-700 border-rose-200/70",
+      id: "exported",
+      label: "Exported",
+      count: counts.exported,
+      badgeClass: "bg-slate-100 text-slate-700 border-slate-300/70",
     },
-    {
-      id: "failed",
-      label: "Failed",
-      count: counts.failed,
-      badgeClass: "bg-red-100/80 text-red-800 border-red-200/80",
-    },
+    ...(counts.failed > 0
+      ? [
+          {
+            id: "failed" as const,
+            label: "Failed",
+            count: counts.failed,
+            badgeClass: "bg-red-100/80 text-red-800 border-red-200/80",
+          },
+        ]
+      : []),
   ];
 
   const columnKeys: Array<{ key: keyof ColumnVisibility; label: string }> = [

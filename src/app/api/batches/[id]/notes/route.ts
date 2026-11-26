@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "~/server/db";
 import { createBatchLog } from "~/server/logger";
 import type { ManualNote } from "~/app/matching/_components/detailTypes";
+import { getBatchMutationLock } from "~/server/batchGuards";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +98,11 @@ export async function POST(
         { error: "batchId, targetKey, dan text wajib diisi." },
         { status: 400 }
       );
+    }
+
+    const lockCheck = await getBatchMutationLock(batchId);
+    if (lockCheck.blocked) {
+      return NextResponse.json({ error: lockCheck.error }, { status: lockCheck.httpStatus });
     }
 
     // Find target DetailBatch
@@ -210,6 +216,11 @@ export async function PUT(
       );
     }
 
+    const lockCheck = await getBatchMutationLock(batchId);
+    if (lockCheck.blocked) {
+      return NextResponse.json({ error: lockCheck.error }, { status: lockCheck.httpStatus });
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allDetails = await (db as any).detailBatch.findMany({
       where: { batchId },
@@ -300,6 +311,11 @@ export async function DELETE(
         { error: "batchId dan noteId wajib diisi." },
         { status: 400 }
       );
+    }
+
+    const lockCheck = await getBatchMutationLock(batchId);
+    if (lockCheck.blocked) {
+      return NextResponse.json({ error: lockCheck.error }, { status: lockCheck.httpStatus });
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
