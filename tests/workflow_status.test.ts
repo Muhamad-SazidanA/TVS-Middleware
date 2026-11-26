@@ -6,6 +6,7 @@ import {
   getLockErrorForBatchRecord,
   deriveDocumentWorkflowStatus,
   canApproveBatchEvaluation,
+  getRollbackEligibility,
 } from "../src/utils/workflowStatus";
 import { evaluateBatchComparison } from "../src/app/matching/_components/detailAdapter";
 
@@ -279,4 +280,27 @@ test("deriveDocumentWorkflowStatus maps raw states, incomplete details, and Appr
     }),
     true
   );
+});
+
+test("getRollbackEligibility enforces Exported -> Approved/User and Approved -> User transitions", () => {
+  assert.deepEqual(getRollbackEligibility("EXPORTED"), {
+    canRevertToApproved: true,
+    canRevertToUser: true,
+  });
+  assert.deepEqual(getRollbackEligibility("ARCHIVED"), {
+    canRevertToApproved: true,
+    canRevertToUser: true,
+  });
+  assert.deepEqual(getRollbackEligibility("APPROVED"), {
+    canRevertToApproved: false,
+    canRevertToUser: true,
+  });
+  assert.deepEqual(getRollbackEligibility("MATCHING"), {
+    canRevertToApproved: false,
+    canRevertToUser: false,
+  });
+  assert.deepEqual(getRollbackEligibility("PENDING"), {
+    canRevertToApproved: false,
+    canRevertToUser: false,
+  });
 });

@@ -97,11 +97,18 @@ function classifyDbActionLog(log: {
       cleanNotes: rawNotes.replace(/^\[Setujui Massal[^\]]*\]\s*/i, ""),
     };
   }
-  if (rawNotes.startsWith("[Batal Setujui") || rawNotes.toLowerCase().includes("batal konfirmasi")) {
+  if (
+    rawNotes.startsWith("[Batal Setujui") ||
+    rawNotes.startsWith("[Rollback") ||
+    rawNotes.startsWith("[Kembalikan") ||
+    rawNotes.toLowerCase().includes("batal konfirmasi")
+  ) {
+    const isRollback =
+      rawNotes.startsWith("[Rollback") || rawNotes.startsWith("[Kembalikan");
     return {
       category: "BATAL_SETUJUI",
-      categoryLabel: "Batal Setujui",
-      cleanNotes: rawNotes.replace(/^\[Batal Setujui[^\]]*\]\s*/i, ""),
+      categoryLabel: isRollback ? "Kembalikan Status" : "Batal Setujui",
+      cleanNotes: rawNotes.replace(/^\[(Batal Setujui|Rollback|Kembalikan[^\]]*)\]\s*/i, ""),
     };
   }
   if (

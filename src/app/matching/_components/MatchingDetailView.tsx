@@ -12,6 +12,8 @@ import {
   CheckCheck,
   Lock,
   Archive,
+  RotateCcw,
+  Undo2,
 } from "lucide-react";
 import ToastNotification, {
   useToastState,
@@ -40,6 +42,8 @@ import {
   isDetailPendingOcr,
   deriveDocumentWorkflowStatus,
   canApproveBatchEvaluation,
+  getRollbackEligibility,
+  type BatchRollbackTarget,
 } from "~/utils/workflowStatus";
 import type { WorkflowStep } from "~/types/workflow";
 
@@ -142,6 +146,9 @@ export default function MatchingDetailView({
   const [isApproving, setIsApproving] = useState<boolean>(false);
   const [isBulkApproving, setIsBulkApproving] = useState<boolean>(false);
   const [approveConfirmOpen, setApproveConfirmOpen] = useState<boolean>(false);
+  const [rollbackModalTarget, setRollbackModalTarget] = useState<BatchRollbackTarget | null>(null);
+  const [rollbackNote, setRollbackNote] = useState<string>("");
+  const [isRollingBack, setIsRollingBack] = useState<boolean>(false);
   const [docsModalOpen, setDocsModalOpen] = useState<boolean>(false);
   const { toast, showToast, dismissToast } = useToastState();
 
@@ -732,6 +739,46 @@ export default function MatchingDetailView({
     void executeApproveBatch();
   };
 
+  // Rollback Handler: revert Exported -> Approved or Approved/Exported -> User Workspace
+  const batchOwnerLabel =
+    rawBatch?.createdBy?.name || rawBatch?.createdBy?.email || "User Pembuat";
+  const rollbackEligibility = getRollbackEligibility(rawBatch?.status);
+
+  const executeRollbackBatch = async () => {
+    if (!rollbackModalTarget || isRollingBack || isApproving || isBulkApproving) return;
+    try {
+      setIsRollingBack(true);
+      const res = await fetch(`/api/batches/${batchId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "rollback",
+          target: rollbackModalTarget,
+          note: rollbackNote.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Gagal mengembalikan status batch");
+      }
+      setRollbackModalTarget(null);
+      setRollbackNote("");
+      showToast(data.message || "Status batch berhasil dikembalikan.", "success");
+      if (onStatusUpdate) {
+        onStatusUpdate(batchId, data.nextStatus || "UPDATED");
+      }
+      await loadBatch(true);
+    } catch (err) {
+      console.error("Rollback batch error:", err);
+      showToast(
+        err instanceof Error ? err.message : "Gagal mengembalikan status batch.",
+        "error"
+      );
+    } finally {
+      setIsRollingBack(false);
+    }
+  };
+
   // Loading state matching exact post-load split layout (7/5 viewer + comparison skeleton)
   if (loading || !dataActionsLoaded) {
     return (
@@ -1003,15 +1050,64 @@ export default function MatchingDetailView({
                     )}
 
                     {isBatchExported ? (
-                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg text-sky-800 bg-sky-50 border border-sky-200">
-                        <Archive className="w-3.5 h-3.5 text-sky-600" />
-                        <span>Exported (Read-only)</span>
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-sky-800 bg-sky-50 border border-sky-200">
+                          <Archive className="w-3.5 h-3.5 text-sky-600" />
+                          <span>Exported</span>
+                        </span>
+                        {rollbackEligibility.canRevertToApproved && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRollbackNote("");
+                              setRollbackModalTarget("APPROVED");
+                            }}
+                            disabled={isRollingBack}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                            title="Kembalikan ke antrean Approved untuk export ulang"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Ke Approved</span>
+                          </button>
+                        )}
+                        {rollbackEligibility.canRevertToUser && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRollbackNote("");
+                              setRollbackModalTarget("USER");
+                            }}
+                            disabled={isRollingBack}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                            title={`Kembalikan ke workspace ${batchOwnerLabel} (Pending Validation)`}
+                          >
+                            <Undo2 className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Ke User</span>
+                          </button>
+                        )}
+                      </div>
                     ) : isBatchApproved ? (
-                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg text-emerald-800 bg-emerald-50 border border-emerald-200">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Approved (Read-only)</span>
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-emerald-800 bg-emerald-50 border border-emerald-200">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Approved</span>
+                        </span>
+                        {rollbackEligibility.canRevertToUser && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRollbackNote("");
+                              setRollbackModalTarget("USER");
+                            }}
+                            disabled={isRollingBack}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                            title={`Kembalikan ke workspace ${batchOwnerLabel} (Pending Validation)`}
+                          >
+                            <Undo2 className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Kembalikan ke User</span>
+                          </button>
+                        )}
+                      </div>
                     ) : (
                       <button
                         type="button"
@@ -1094,6 +1190,60 @@ export default function MatchingDetailView({
         cancelText="Batal"
         variant="warning"
         isLoading={isApproving}
+      />
+
+      {/* Confirm Rollback Status (Exported -> Approved / Approved -> User Pending Validation) */}
+      <ConfirmDialog
+        isOpen={Boolean(rollbackModalTarget)}
+        onClose={() => {
+          if (!isRollingBack) {
+            setRollbackModalTarget(null);
+            setRollbackNote("");
+          }
+        }}
+        onConfirm={() => {
+          void executeRollbackBatch();
+        }}
+        title={
+          rollbackModalTarget === "APPROVED"
+            ? "Kembalikan ke Status Approved?"
+            : "Kembalikan ke Workspace User?"
+        }
+        description={
+          <div className="space-y-2.5">
+            <p>
+              {rollbackModalTarget === "APPROVED" ? (
+                <>
+                  Batch <strong className="text-slate-900">#{batchId}</strong> akan
+                  dikembalikan dari arsip <strong>Exported</strong> ke antrean{" "}
+                  <strong>Approved</strong> untuk di-export ulang.
+                </>
+              ) : (
+                <>
+                  Batch <strong className="text-slate-900">#{batchId}</strong> akan
+                  dikembalikan ke status <strong>Pending Validation</strong> pada workspace{" "}
+                  <strong className="text-slate-900">{batchOwnerLabel}</strong> agar dapat
+                  diedit atau divalidasi ulang.
+                </>
+              )}
+            </p>
+            <input
+              type="text"
+              value={rollbackNote}
+              onChange={(e) => setRollbackNote(e.target.value)}
+              placeholder="Alasan / catatan pengembalian (opsional)"
+              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:bg-white"
+            />
+          </div>
+        }
+        confirmText={
+          rollbackModalTarget === "APPROVED"
+            ? "Kembalikan ke Approved"
+            : "Kembalikan ke User"
+        }
+        cancelText="Batal"
+        variant="info"
+        isLoading={isRollingBack}
       />
 
       {/* Non-blocking Top-Right Light Toast & OCR Refresh Notifications */}

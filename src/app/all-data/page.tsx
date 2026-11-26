@@ -15,9 +15,13 @@ import {
   Check,
   Archive,
   Minus,
+  RotateCcw,
+  Undo2,
 } from "lucide-react";
 import ToastNotification, { useToastState } from "@/app/_components/ui/ToastNotification";
+import ConfirmDialog from "@/app/_components/ui/ConfirmDialog";
 import MatchingDetailView from "../matching/_components/MatchingDetailView";
+import type { BatchRollbackTarget } from "~/utils/workflowStatus";
 
 interface BatchItem {
   id: string;
@@ -65,6 +69,17 @@ export default function AllDataPage() {
 
   // Detail Modal state
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+
+  // Rollback modal state (supports single row or bulk selected rows)
+  const [rollbackModal, setRollbackModal] = useState<{
+    isOpen: boolean;
+    batchIds: string[];
+    target: BatchRollbackTarget;
+    label: string;
+    ownerName?: string;
+  } | null>(null);
+  const [rollbackNote, setRollbackNote] = useState("");
+  const [isRollingBack, setIsRollingBack] = useState(false);
 
   // Copy & toast state
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -173,6 +188,54 @@ export default function AllDataPage() {
         ? prev.filter((id) => id !== batchId)
         : [...prev, batchId]
     );
+  };
+
+  const executeRollback = async () => {
+    if (!rollbackModal || rollbackModal.batchIds.length === 0 || isRollingBack) return;
+    setIsRollingBack(true);
+    try {
+      const res = await fetch("/api/batches/rollback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          batchIds: rollbackModal.batchIds,
+          target: rollbackModal.target,
+          note: rollbackNote.trim() || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Gagal mengembalikan status dokumen.");
+      }
+
+      const revertedSet = new Set(rollbackModal.batchIds);
+      setSelectedIds((prev) => prev.filter((id) => !revertedSet.has(id)));
+      setRollbackModal(null);
+      setRollbackNote("");
+      showToast(data.message || "Status dokumen berhasil dikembalikan.", "success");
+      await fetchAllDataBatches();
+    } catch (err) {
+      console.error("Rollback error:", err);
+      showToast(
+        err instanceof Error ? err.message : "Gagal mengembalikan status dokumen.",
+        "error"
+      );
+    } finally {
+      setIsRollingBack(false);
+    }
+  };
+
+  const openRollbackConfirm = (params: {
+    batchIds: string[];
+    target: BatchRollbackTarget;
+    label: string;
+    ownerName?: string;
+  }) => {
+    setRollbackNote("");
+    setRollbackModal({
+      isOpen: true,
+      ...params,
+    });
   };
 
   const handleExport = async (mode: "clean" | "with_action_log") => {
@@ -284,7 +347,45 @@ export default function AllDataPage() {
         </div>
 
         {/* Actions & Export Dropdown */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 flex-wrap self-start sm:self-auto">
+          {selectedVisibleIds.length > 0 && archiveView === "exported" && (
+            <button
+              type="button"
+              onClick={() =>
+                openRollbackConfirm({
+                  batchIds: selectedVisibleIds,
+                  target: "APPROVED",
+                  label: `${selectedVisibleIds.length} dokumen Exported`,
+                })
+              }
+              disabled={isRollingBack || isExporting}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+              title="Kembalikan dokumen Exported terpilih ke antrean Approved"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
+              <span>Ke Approved ({selectedVisibleIds.length})</span>
+            </button>
+          )}
+
+          {selectedVisibleIds.length > 0 && (
+            <button
+              type="button"
+              onClick={() =>
+                openRollbackConfirm({
+                  batchIds: selectedVisibleIds,
+                  target: "USER",
+                  label: `${selectedVisibleIds.length} dokumen terpilih`,
+                })
+              }
+              disabled={isRollingBack || isExporting}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-700 hover:text-slate-900 rounded-xl text-xs font-semibold transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+              title="Kembalikan dokumen terpilih ke workspace masing-masing user pembuat (Pending Validation)"
+            >
+              <Undo2 className="w-3.5 h-3.5 text-slate-600" />
+              <span>Ke User ({selectedVisibleIds.length})</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => fetchAllDataBatches()}
@@ -682,17 +783,61 @@ export default function AllDataPage() {
 
                       {/* 9. Aksi */}
                       <td className="py-2.5 px-4 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedBatchId(item.id);
-                          }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 transition-all cursor-pointer shadow-2xs"
-                        >
-                          <span>Buka Detail</span>
-                          <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700" />
-                        </button>
+                        <div className="inline-flex items-center justify-end gap-1.5">
+                          {isExportedItem && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openRollbackConfirm({
+                                  batchIds: [item.id],
+                                  target: "APPROVED",
+                                  label: displayTitle,
+                                });
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-slate-300 rounded-xl text-xs font-medium text-slate-700 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs"
+                              title="Kembalikan dari arsip Exported ke antrean Approved"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Ke Approved</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openRollbackConfirm({
+                                batchIds: [item.id],
+                                target: "USER",
+                                label: displayTitle,
+                                ownerName:
+                                  item.createdBy?.name ||
+                                  item.createdBy?.email ||
+                                  "User Pembuat",
+                              });
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-slate-300 rounded-xl text-xs font-medium text-slate-700 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs"
+                            title={`Kembalikan ke workspace ${
+                              item.createdBy?.name || "user"
+                            } (Pending Validation)`}
+                          >
+                            <Undo2 className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Ke User</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedBatchId(item.id);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:text-slate-900 transition-all cursor-pointer shadow-2xs"
+                          >
+                            <span>Buka Detail</span>
+                            <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -708,9 +853,77 @@ export default function AllDataPage() {
         <MatchingDetailView
           batchId={selectedBatchId}
           onClose={() => setSelectedBatchId(null)}
-          onStatusUpdate={() => fetchAllDataBatches()}
+          onStatusUpdate={(_id, newStatus) => {
+            const upper = String(newStatus || "").toUpperCase();
+            if (
+              upper === "MATCHING" ||
+              upper === "MISMATCHING" ||
+              upper === "PROSES" ||
+              upper === "PENDING"
+            ) {
+              setSelectedBatchId(null);
+            }
+            fetchAllDataBatches();
+          }}
         />
       )}
+
+      {/* 5. Confirm Rollback Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(rollbackModal?.isOpen)}
+        onClose={() => {
+          if (!isRollingBack) {
+            setRollbackModal(null);
+            setRollbackNote("");
+          }
+        }}
+        onConfirm={() => {
+          void executeRollback();
+        }}
+        variant="info"
+        isLoading={isRollingBack}
+        title={
+          rollbackModal?.target === "APPROVED"
+            ? "Kembalikan ke Antrean Approved?"
+            : "Kembalikan ke Workspace User?"
+        }
+        confirmText={
+          rollbackModal?.target === "APPROVED"
+            ? "Kembalikan ke Approved"
+            : "Kembalikan ke User"
+        }
+        description={
+          <div className="space-y-2.5">
+            <p>
+              {rollbackModal?.target === "APPROVED" ? (
+                <>
+                  <strong className="text-slate-900">{rollbackModal?.label}</strong> akan
+                  dikembalikan dari arsip <strong>Exported</strong> ke antrean{" "}
+                  <strong>Approved</strong> untuk dapat di-export ulang.
+                </>
+              ) : (
+                <>
+                  <strong className="text-slate-900">{rollbackModal?.label}</strong> akan
+                  dikembalikan ke status <strong>Pending Validation</strong> di workspace{" "}
+                  <strong className="text-slate-900">
+                    {rollbackModal?.ownerName || "masing-masing user pembuat"}
+                  </strong>{" "}
+                  agar dapat diedit/divalidasi ulang.
+                </>
+              )}
+            </p>
+            <div>
+              <input
+                type="text"
+                value={rollbackNote}
+                onChange={(e) => setRollbackNote(e.target.value)}
+                placeholder="Alasan / catatan pengembalian (opsional)"
+                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-slate-900 focus:bg-white"
+              />
+            </div>
+          </div>
+        }
+      />
 
       {/* Slim Light Top-Right Toast Notifications */}
       <ToastNotification items={[toast]} onClose={dismissToast} />

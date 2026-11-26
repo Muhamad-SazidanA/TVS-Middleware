@@ -6,7 +6,8 @@ import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
 import { loadServerWorkflowSteps } from "~/server/workflowLoader";
 import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import { getLockErrorForBatchRecord } from "~/server/batchGuards";
-import { hasIncompleteBatchDetails } from "~/utils/workflowStatus";
+import { rollbackBatchesInDb } from "~/server/batchRollback";
+import { hasIncompleteBatchDetails, type BatchRollbackTarget } from "~/utils/workflowStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -95,7 +96,38 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { status, totalFile } = body;
+    const { status, totalFile, action, target, note } = body;
+
+    if (action === "rollback") {
+      const normalizedTarget = String(target || "").toUpperCase();
+      if (normalizedTarget !== "APPROVED" && normalizedTarget !== "USER") {
+        return NextResponse.json(
+          { error: 'Target rollback tidak valid (gunakan "APPROVED" atau "USER").' },
+          { status: 400 }
+        );
+      }
+      const { results, skipped } = await rollbackBatchesInDb({
+        batchIds: [id],
+        target: normalizedTarget as BatchRollbackTarget,
+        note: typeof note === "string" ? note : undefined,
+      });
+      if (results.length === 0) {
+        const reason = skipped[0]?.reason || "Batch tidak dapat dikembalikan statusnya.";
+        const statusCode = reason.includes("tidak ditemukan") ? 404 : 400;
+        return NextResponse.json({ error: reason }, { status: statusCode });
+      }
+      const resItem = results[0]!;
+      return NextResponse.json({
+        success: true,
+        message:
+          resItem.target === "APPROVED"
+            ? `Batch #${id} dikembalikan ke status Approved`
+            : `Batch #${id} dikembalikan ke workspace ${resItem.ownerName} (Pending Validation)`,
+        batch: resItem.batch,
+        nextStatus: resItem.nextStatus,
+        target: resItem.target,
+      });
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateData: any = {};

@@ -188,3 +188,24 @@ export function canApproveBatchEvaluation(params: {
 }): boolean {
   return params.workflowStatus === "Pending Validation" && params.totalFields > 0;
 }
+
+export type BatchRollbackTarget = "APPROVED" | "USER";
+
+export interface RollbackEligibility {
+  canRevertToApproved: boolean;
+  canRevertToUser: boolean;
+}
+
+/**
+ * Determines which rollback transitions are valid from a batch's current raw DB status.
+ */
+export function getRollbackEligibility(rawStatus?: string | null): RollbackEligibility {
+  const st = String(rawStatus || "").toUpperCase();
+  if (st === "EXPORTED" || st === "ARCHIVED") {
+    return { canRevertToApproved: true, canRevertToUser: true };
+  }
+  if (st === "APPROVED") {
+    return { canRevertToApproved: false, canRevertToUser: true };
+  }
+  return { canRevertToApproved: false, canRevertToUser: false };
+}
