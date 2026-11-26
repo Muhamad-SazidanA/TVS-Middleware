@@ -16,6 +16,7 @@ import {
   Lock,
   FolderUp,
   History,
+  ChevronDown,
 } from "lucide-react";
 import type {
   BatchDocumentModel,
@@ -138,6 +139,7 @@ export default function ComparisonPanel({
 }: ComparisonPanelProps) {
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [historyModalOpen, setHistoryModalOpen] = useState<boolean>(false);
+  const [expandedHistoryMap, setExpandedHistoryMap] = useState<Record<string, boolean>>({});
   const defaultDoc =
     activeDocCode && activeDocCode.toUpperCase() !== "PIB"
       ? activeDocCode
@@ -1087,63 +1089,89 @@ export default function ComparisonPanel({
                           </div>
                         </div>
 
-                        {/* Chronological Change History (Data Action, Kamus, Edit, Setujui Satuan/All) */}
-                        {field.changeHistory && field.changeHistory.length > 0 && (
-                          <div
-                            className="mt-2.5 pt-2 border-t border-slate-100 space-y-1.5"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
-                              <History className="w-3 h-3 text-slate-400" />
-                              <span>Riwayat Perubahan ({field.changeHistory.length})</span>
-                            </div>
-                            <div className="space-y-1">
-                              {field.changeHistory.map((ev) => {
-                                const style = CHANGE_CATEGORY_STYLES[ev.category] || CHANGE_CATEGORY_STYLES.EDIT;
-                                return (
-                                  <div
-                                    key={ev.id}
-                                    className="px-2 py-1.5 rounded-md bg-slate-50/90 border border-slate-200/70 text-[10.5px] text-slate-700 leading-snug space-y-0.5"
-                                  >
-                                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                                      <div className="flex items-center gap-1.5 min-w-0">
-                                        <span
-                                          className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-semibold border ${style.badge}`}
-                                        >
-                                          {ev.categoryLabel}
-                                        </span>
-                                        <span className="text-[9.5px] font-medium text-slate-500">
-                                          [{ev.docType}]
-                                        </span>
-                                      </div>
-                                      <span className="text-[9.5px] text-slate-400 shrink-0">
-                                        {ev.actor}
-                                        {ev.timestamp ? ` • ${formatNoteDate(ev.timestamp)}` : ""}
-                                      </span>
-                                    </div>
+                        {/* Chronological Change History (Collapsible, collapsed by default) */}
+                        {field.changeHistory && field.changeHistory.length > 0 && (() => {
+                          const isHistoryOpen = Boolean(expandedHistoryMap[field.id]);
+                          return (
+                            <div
+                              className="mt-2.5 pt-2 border-t border-slate-100 space-y-1.5"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedHistoryMap((prev) => ({
+                                    ...prev,
+                                    [field.id]: !prev[field.id],
+                                  }));
+                                }}
+                                aria-expanded={isHistoryOpen}
+                                className="w-full flex items-center justify-between gap-2 px-2 py-1 -mx-0.5 rounded-md text-[10.5px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors cursor-pointer"
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <History className="w-3 h-3 text-slate-400" />
+                                  <span>Riwayat Perubahan ({field.changeHistory.length})</span>
+                                </span>
+                                <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400">
+                                  <span>{isHistoryOpen ? "Tutup" : "Lihat"}</span>
+                                  <ChevronDown
+                                    className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                                      isHistoryOpen ? "rotate-180 text-slate-600" : ""
+                                    }`}
+                                  />
+                                </span>
+                              </button>
+                              {isHistoryOpen && (
+                                <div className="space-y-1">
+                                  {field.changeHistory.map((ev) => {
+                                    const style = CHANGE_CATEGORY_STYLES[ev.category] || CHANGE_CATEGORY_STYLES.EDIT;
+                                    return (
+                                      <div
+                                        key={ev.id}
+                                        className="px-2 py-1.5 rounded-md bg-slate-50/90 border border-slate-200/70 text-[10.5px] text-slate-700 leading-snug space-y-0.5"
+                                      >
+                                        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                          <div className="flex items-center gap-1.5 min-w-0">
+                                            <span
+                                              className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-semibold border ${style.badge}`}
+                                            >
+                                              {ev.categoryLabel}
+                                            </span>
+                                            <span className="text-[9.5px] font-medium text-slate-500">
+                                              [{ev.docType}]
+                                            </span>
+                                          </div>
+                                          <span className="text-[9.5px] text-slate-400 shrink-0">
+                                            {ev.actor}
+                                            {ev.timestamp ? ` • ${formatNoteDate(ev.timestamp)}` : ""}
+                                          </span>
+                                        </div>
 
-                                    {ev.category === "KAMUS" ? (
-                                      <div className="text-[10.5px] text-slate-700">
-                                        <span className="font-mono text-slate-600">{ev.oldValue}</span>{" "}
-                                        <span className="text-slate-400">{"->"}</span>{" "}
-                                        <span className={`font-medium ${style.text}`}>{ev.newValue}</span>
-                                        {ev.notes && (
-                                          <div className="text-[9.5px] text-slate-500 mt-0.5">{ev.notes}</div>
+                                        {ev.category === "KAMUS" ? (
+                                          <div className="text-[10.5px] text-slate-700">
+                                            <span className="font-mono text-slate-600">{ev.oldValue}</span>{" "}
+                                            <span className="text-slate-400">{"->"}</span>{" "}
+                                            <span className={`font-medium ${style.text}`}>{ev.newValue}</span>
+                                            {ev.notes && (
+                                              <div className="text-[9.5px] text-slate-500 mt-0.5">{ev.notes}</div>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <div className="text-[10.5px] break-words">
+                                            <span className="text-slate-500 line-through font-mono">{ev.oldValue}</span>{" "}
+                                            <span className="text-slate-400">{"->"}</span>{" "}
+                                            <span className={`font-medium font-mono ${style.text}`}>{ev.newValue}</span>
+                                          </div>
                                         )}
                                       </div>
-                                    ) : (
-                                      <div className="text-[10.5px] break-words">
-                                        <span className="text-slate-500 line-through font-mono">{ev.oldValue}</span>{" "}
-                                        <span className="text-slate-400">{"->"}</span>{" "}
-                                        <span className={`font-medium font-mono ${style.text}`}>{ev.newValue}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         {/* Manual Notes on Header Field */}
                         {(!isReadOnly ||
