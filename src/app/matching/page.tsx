@@ -43,6 +43,8 @@ interface RawBatchItem {
   noPengajuan?: string | null;
   subtext: string;
   totalFile: number;
+  receivedFiles?: number;
+  hasIncompleteDetails?: boolean;
   status: "Matching" | "Mismatching" | "Proses" | "Ditolak" | "Failed";
   workflowStatus?: DocumentWorkflowStatus;
   rawStatus?: string;
@@ -115,14 +117,11 @@ function MatchingPageContent() {
         const rawSt = (target.rawStatus || "").toUpperCase();
         const isPending =
           target.workflowStatus === "Pending" ||
+          Boolean(target.hasIncompleteDetails) ||
           target.status === "Proses" ||
           rawSt === "PENDING" ||
           rawSt === "PROSES";
         if (isPending) {
-          showToast(
-            `Batch #${urlBatchId} masih berstatus Pending — akses detail dikunci hingga proses OCR selesai.`,
-            "warning"
-          );
           router.replace("/matching", { scroll: false });
           return;
         }
@@ -326,7 +325,9 @@ function MatchingPageContent() {
         evalSt === "PROSES" ||
         evalSt === "PENDING" ||
         rawSt === "PENDING" ||
-        rawSt === "PROSES";
+        rawSt === "PROSES" ||
+        Boolean(batch.hasIncompleteDetails) ||
+        batch.workflowStatus === "Pending";
 
       let effectiveStatus: "Matching" | "Mismatching" | "Proses" | "Ditolak" | "Failed" = "Matching";
       if (isFailed) {
@@ -359,6 +360,8 @@ function MatchingPageContent() {
         noPengajuan: pibAjuNo || null,
         subtext: batch.subtext || "",
         totalFile: batch.totalFile || (batch.details || []).length || 1,
+        receivedFiles: batch.receivedFiles,
+        hasIncompleteDetails: batch.hasIncompleteDetails,
         status: effectiveStatus,
         workflowStatus,
         exportedAt: batch.exportedAt || null,
@@ -583,17 +586,31 @@ function MatchingPageContent() {
     return sortedBatches.slice(start, start + rowsPerPage);
   }, [sortedBatches, currentPage, rowsPerPage]);
 
-  // Selection handlers
+  // Selection handlers (exclude Pending / incomplete rows from selection and Select All)
+  const isRowSelectable = useCallback(
+    (b: TableBatchItem) =>
+      b.workflowStatus !== "Pending" &&
+      !(b.workflowStatus !== "Failed" && b.hasIncompleteDetails) &&
+      b.status !== "Proses",
+    []
+  );
+
+  const selectablePageBatches = useMemo(
+    () => paginatedBatches.filter(isRowSelectable),
+    [paginatedBatches, isRowSelectable]
+  );
+
   const isAllSelected =
-    paginatedBatches.length > 0 &&
-    paginatedBatches.every((b) => selectedBatchIds.includes(b.id));
+    selectablePageBatches.length > 0 &&
+    selectablePageBatches.every((b) => selectedBatchIds.includes(b.id));
 
   const handleToggleSelectAll = () => {
+    if (selectablePageBatches.length === 0) return;
     if (isAllSelected) {
-      const pageIds = paginatedBatches.map((b) => b.id);
+      const pageIds = selectablePageBatches.map((b) => b.id);
       setSelectedBatchIds((prev) => prev.filter((id) => !pageIds.includes(id)));
     } else {
-      const pageIds = paginatedBatches.map((b) => b.id);
+      const pageIds = selectablePageBatches.map((b) => b.id);
       setSelectedBatchIds((prev) => Array.from(new Set([...prev, ...pageIds])));
     }
   };
@@ -603,10 +620,24 @@ function MatchingPageContent() {
     e: React.MouseEvent | React.ChangeEvent
   ) => {
     e.stopPropagation();
+    const target = tableBatches.find((b) => b.id === id);
+    if (target && !isRowSelectable(target)) return;
     setSelectedBatchIds((prev) =>
       prev.includes(id) ? prev.filter((itemId) => itemId !== id) : [...prev, id]
     );
   };
+
+  // Prune any previously selected IDs if a batch re-enters Pending state
+  useEffect(() => {
+    const lockedIds = new Set(
+      tableBatches.filter((b) => !isRowSelectable(b)).map((b) => b.id)
+    );
+    if (lockedIds.size === 0) return;
+    setSelectedBatchIds((prev) => {
+      const next = prev.filter((id) => !lockedIds.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [tableBatches, isRowSelectable]);
 
   // Sorting handler
   const handleSortChange = (colKey: string) => {
@@ -634,6 +665,8 @@ function MatchingPageContent() {
 
   // Assign handler
   const handleAssign = (batchId: string) => {
+    const target = tableBatches.find((b) => b.id === batchId);
+    if (target && !isRowSelectable(target)) return;
     setAssignedMap((prev) => {
       const isCurrentlyAssigned = Boolean(prev[batchId]);
       const nextState = { ...prev };
@@ -709,6 +742,7 @@ function MatchingPageContent() {
 
   // Single Row Download Handler
   const handleDownloadSingle = async (batch: TableBatchItem) => {
+    if (!isRowSelectable(batch)) return;
     try {
       const itemLabel = batch.noPengajuan || `Batch #${batch.id}`;
       showToast(`Mengunduh data hasil lengkap untuk ${itemLabel}...`);
@@ -726,15 +760,25 @@ function MatchingPageContent() {
     }
   };
 
+  const hasWorkspaceExportableBatches = useMemo(
+    () => tableBatches.some(isRowSelectable),
+    [tableBatches, isRowSelectable]
+  );
+
+  const footerDownloadBatches = useMemo(() => {
+    if (selectedBatchIds.length > 0) {
+      return tableBatches.filter(
+        (b) => selectedBatchIds.includes(b.id) && isRowSelectable(b)
+      );
+    }
+    return sortedBatches.filter(isRowSelectable);
+  }, [selectedBatchIds, tableBatches, sortedBatches, isRowSelectable]);
+
   // Handler unduh data hasil
   const handleDownloadExtractedData = async () => {
-    const targetBatches =
-      selectedBatchIds.length > 0
-        ? batches.filter((b) => selectedBatchIds.includes(b.id))
-        : batches;
+    const targetBatches = footerDownloadBatches;
 
     if (targetBatches.length === 0) {
-      showToast("Tidak ada data dokumen untuk diunduh.");
       return;
     }
 
@@ -793,12 +837,14 @@ function MatchingPageContent() {
               showToast(`Filter aktif: ${tabLabels[activeTab]}`, "info");
             }}
             onExportPersonal={(mode) => {
+              if (!hasWorkspaceExportableBatches) return;
               const params = new URLSearchParams();
               params.set("scope", "personal");
               params.set("mode", mode);
               if (searchQuery) params.set("search", searchQuery);
               window.location.href = `/api/export/excel?${params.toString()}`;
             }}
+            disableExport={!hasWorkspaceExportableBatches}
           />
         </div>
 
@@ -814,21 +860,11 @@ function MatchingPageContent() {
             isAllSelected={isAllSelected}
             onRowClick={(id, docCode) => {
               const target = tableBatches.find((b) => b.id === id);
-              if (target?.workflowStatus === "Pending" || target?.status === "Proses") {
-                showToast(
-                  `Batch #${id} masih berstatus Pending — akses detail file dikunci sampai proses OCR selesai.`,
-                  "warning"
-                );
+              if (target && !isRowSelectable(target)) {
                 return;
               }
               setSelectedBatchId(id);
               setSelectedDocCode(docCode || "PIB");
-            }}
-            onLockedClick={(id) => {
-              showToast(
-                `Batch #${id} masih berstatus Pending — akses detail file dikunci sampai proses OCR selesai.`,
-                "warning"
-              );
             }}
             onManageFiles={(b) => setManageFilesBatchId(b.id)}
             onDownload={handleDownloadSingle}
@@ -850,6 +886,7 @@ function MatchingPageContent() {
         <MatchingFooter
           onUploadFile={() => router.push("/upload")}
           onDownloadExtractedData={handleDownloadExtractedData}
+          disableDownloadExtracted={footerDownloadBatches.length === 0}
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={(p) => setCurrentPage(p)}

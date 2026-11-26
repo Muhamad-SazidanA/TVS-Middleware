@@ -160,7 +160,8 @@ export default function MatchingDetailView({
       setError(null);
       const res = await fetch(`/api/batches/${batchId}`, { cache: "no-store" });
       if (!res.ok) {
-        throw new Error(`Gagal memuat batch #${batchId}`);
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Gagal memuat batch #${batchId}`);
       }
       const data = await res.json();
       if (data.batch) {

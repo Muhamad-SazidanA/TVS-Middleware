@@ -5,6 +5,7 @@ import { createBatchLog } from "~/server/logger";
 import { loadServerWorkflowSteps } from "~/server/workflowLoader";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
 import { applyDataActionsToFields, applyDataActionsToTableRows } from "~/utils/workflowRunner";
+import { hasIncompleteBatchDetails, isDetailPendingOcr } from "~/utils/workflowStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -121,7 +122,7 @@ export async function POST(req: Request) {
         where: {
           OR: [{ isi: null }, { isi: "" }, { isi: { contains: '"ocrPending":true' } }],
           batch: {
-            status: "PROSES",
+            status: { in: ["PROSES", "PENDING"] },
           },
         },
         select: { id: true, batchId: true, fileId: true, fileType: true, isi: true },
@@ -224,21 +225,10 @@ export async function POST(req: Request) {
       if (batch && Array.isArray(batch.details)) {
         const filledDetails = batch.details.filter(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (d: any) => {
-            if (typeof d.isi !== "string" || !d.isi.trim().length) return false;
-            try {
-              const p = JSON.parse(d.isi);
-              if (p?.ocrPending === true) return false;
-            } catch {
-              // keep non-JSON string as filled
-            }
-            return true;
-          }
+          (d: any) => !isDetailPendingOcr(d)
         );
 
-        const isComplete =
-          batch.details.length >= (batch.totalFile || 1) &&
-          filledDetails.length === batch.details.length;
+        const isComplete = !hasIncompleteBatchDetails(batch);
 
         if (isComplete) {
           const [serverGroups, serverDataActions] = await Promise.all([

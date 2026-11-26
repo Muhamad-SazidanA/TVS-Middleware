@@ -6,6 +6,7 @@ import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
 import { loadServerWorkflowSteps } from "~/server/workflowLoader";
 import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import { getLockErrorForBatchRecord } from "~/server/batchGuards";
+import { hasIncompleteBatchDetails } from "~/utils/workflowStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,20 @@ export async function GET(
           where: { id },
           data: { status: dbStatusStr },
         }).catch((e: unknown) => console.warn("Failed async DB status update:", e));
+      }
+    }
+
+    if (!isLocked) {
+      const hasIncomplete = hasIncompleteBatchDetails(batch);
+      if (hasIncomplete || batch.status === "PENDING" || batch.status === "PROSES") {
+        return NextResponse.json(
+          {
+            error:
+              "Dokumen masih berstatus Pending (data OCR Nanonets belum lengkap) dan dikunci dari pembukaan.",
+            workflowStatus: "Pending",
+          },
+          { status: 423 }
+        );
       }
     }
 

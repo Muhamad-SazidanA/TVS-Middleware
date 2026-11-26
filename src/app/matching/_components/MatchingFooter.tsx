@@ -6,6 +6,7 @@ import { Plus, Download, ChevronLeft, ChevronRight } from "lucide-react";
 export interface MatchingFooterProps {
   onUploadFile: () => void;
   onDownloadExtractedData: () => void;
+  disableDownloadExtracted?: boolean;
   currentPage: number;
   totalPages: number;
   onPageChange: (newPage: number) => void;
@@ -17,6 +18,7 @@ export interface MatchingFooterProps {
 export default function MatchingFooter({
   onUploadFile,
   onDownloadExtractedData,
+  disableDownloadExtracted = false,
   currentPage,
   totalPages,
   onPageChange,
@@ -41,8 +43,14 @@ export default function MatchingFooter({
         {/* Secondary Button: Unduh data hasil */}
         <button
           type="button"
+          disabled={disableDownloadExtracted}
           onClick={onDownloadExtractedData}
-          className="h-8 px-3.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 font-medium text-xs rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer transition-colors select-none"
+          className="h-8 px-3.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200/90 font-medium text-xs rounded-lg shadow-2xs flex items-center gap-1.5 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors select-none"
+          title={
+            disableDownloadExtracted
+              ? "Terkunci: data Nanonets belum lengkap atau belum ada batch siap unduh"
+              : undefined
+          }
         >
           <Download className="w-3.5 h-3.5 text-slate-400" />
           <span>Unduh data hasil</span>

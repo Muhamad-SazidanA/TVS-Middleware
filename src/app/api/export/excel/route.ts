@@ -11,6 +11,7 @@ import {
   formatDocDisplayName,
 } from "~/utils/changeLogBuilder";
 import { logSystemAudit } from "~/server/auditLogger";
+import { hasIncompleteBatchDetails } from "~/utils/workflowStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -190,6 +191,10 @@ async function handleExcelExport(opts: ExportQueryOptions) {
     // 3. Filter by search query if passed (matching ID, no pengajuan, creator, approver, status)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const matchingBatches = batches.filter((batch: any) => {
+      const rawSt = String(batch.status || "").toUpperCase();
+      if (rawSt === "PENDING" || rawSt === "PROSES" || hasIncompleteBatchDetails(batch)) {
+        return false;
+      }
       if (!search) return true;
       const idMatch = (batch.id || "").toLowerCase().includes(search);
       const creatorMatch =
@@ -208,9 +213,21 @@ async function handleExcelExport(opts: ExportQueryOptions) {
       return idMatch || creatorMatch || approverMatch || statusMatch || detailMatch;
     });
 
-    if (scope === "all_data" && matchingBatches.length === 0) {
+    if (matchingBatches.length === 0 && (scope === "all_data" || batchIdsFilter.length > 0)) {
       return NextResponse.json(
-        { error: "Tidak ada dokumen Approved yang sesuai untuk diexport." },
+        {
+          error:
+            scope === "all_data"
+              ? "Tidak ada dokumen Approved yang sesuai untuk diexport."
+              : "Dokumen belum siap diexport karena data OCR Nanonets belum lengkap.",
+        },
+        { status: scope === "all_data" ? 400 : 423 }
+      );
+    }
+
+    if (matchingBatches.length === 0) {
+      return NextResponse.json(
+        { error: "Tidak ada dokumen selesai yang siap untuk diexport." },
         { status: 400 }
       );
     }

@@ -9,6 +9,7 @@ import { createBatchLog } from "~/server/logger";
 import { loadServerWorkflowSteps } from "~/server/workflowLoader";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
 import { applyDataActionsToFields, applyDataActionsToTableRows } from "~/utils/workflowRunner";
+import { hasIncompleteBatchDetails } from "~/utils/workflowStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -241,17 +242,24 @@ export async function POST(req: Request) {
                 fileName: file.name,
                 details: filtered,
               });
-            } else if (fileUrl) {
-              // Pre-initialize detailBatch.isi with fileUrl and originalFileName pending webhook completion
+            } else {
+              // Mark pending OCR explicitly so webhook fallback and lock guards identify unfinished files
               initialIsi = JSON.stringify({
                 fields: {},
                 table: [],
-                fileUrl,
+                ...(fileUrl ? { fileUrl } : {}),
                 originalFileName: file.name,
+                ocrPending: true,
               });
             }
           } catch {
-            initialIsi = fileUrl ? JSON.stringify({ fields: {}, table: [], fileUrl, originalFileName: file.name }) : null;
+            initialIsi = JSON.stringify({
+              fields: {},
+              table: [],
+              ...(fileUrl ? { fileUrl } : {}),
+              originalFileName: file.name,
+              ocrPending: true,
+            });
           }
 
           // Save request_file_id into detail_batches table
@@ -318,11 +326,11 @@ export async function POST(req: Request) {
         });
 
         if (fullBatch && Array.isArray(fullBatch.details)) {
-          const filled = fullBatch.details.filter(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (d: any) => typeof d.isi === "string" && d.isi.trim().length > 0
-          );
-          if (filled.length === fullBatch.details.length && fullBatch.details.length > 0) {
+          const isBatchReady = !hasIncompleteBatchDetails({
+            totalFile: fullBatch.totalFile || files.length,
+            details: fullBatch.details,
+          });
+          if (isBatchReady) {
             const { evaluateBatchMatching } = await import("~/server/nanonets");
             const [serverGroups, serverDataActions] = await Promise.all([
               loadServerEquivalencyGroups(),

@@ -17,6 +17,11 @@ import {
   getChangeEventsForField,
   stripStaleActionKeys,
 } from "~/utils/changeLogBuilder";
+import {
+  hasIncompleteBatchDetails,
+  isDetailPendingOcr,
+  isPibDetailType,
+} from "~/utils/workflowStatus";
 
 // Bounded proportional padding expansion algorithm for OCR boxes
 export function expandBboxPadding(
@@ -1053,23 +1058,20 @@ export function evaluateBatchComparison(
     return null;
   };
 
-  const isDetailWaitingOcr = (isi: unknown): boolean => {
-    if (!isi || (typeof isi === "string" && !isi.trim())) return true;
-    try {
-      const p = typeof isi === "string" ? JSON.parse(isi) : isi;
-      return p?.ocrPending === true;
-    } catch {
-      return false;
-    }
-  };
-
   let totalFields = 0;
   let matchedFields = 0;
   let mismatchedFields = 0;
   let hasAnySupporting = false;
   let hasAnyMismatch = false;
+  // Require all uploaded files (totalFile), primary PIB, and all OCR details to finish before leaving Proses
+  const hasIncomplete = hasIncompleteBatchDetails({
+    totalFile: rawBatch?.totalFile,
+    details,
+  });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let hasAnyProses = details.some((d: any) => isDetailWaitingOcr(d?.isi));
+  const rawPibDet = details.find((d: any) => isPibDetailType(d?.fileType));
+  const isPibWaitingOcr = !rawPibDet || isDetailPendingOcr(rawPibDet);
+  let hasAnyProses = hasIncomplete || isPibWaitingOcr;
 
   const evaluatedFieldModels: ComparisonFieldModel[] = [];
 
@@ -1078,10 +1080,10 @@ export function evaluateBatchComparison(
     if (!colKey) continue;
     hasAnySupporting = true;
 
-    // Check if doc is still processing (empty isi or ocrPending flag)
+    // Check if doc or primary PIB is still waiting for Nanonets OCR
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rawDet = details.find((d: any) => d.id === sup.id);
-    if (isDetailWaitingOcr(rawDet?.isi)) {
+    if (isPibWaitingOcr || isDetailPendingOcr(rawDet)) {
       docStatuses[colKey] = { status: "Proses" };
       hasAnyProses = true;
       continue;

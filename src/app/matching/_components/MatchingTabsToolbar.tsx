@@ -51,6 +51,7 @@ export interface MatchingTabsToolbarProps {
   hasActiveFilters?: boolean;
   onOpenFilterDialog?: () => void;
   onExportPersonal?: (mode: "clean" | "with_action_log") => void;
+  disableExport?: boolean;
 }
 
 export default function MatchingTabsToolbar({
@@ -67,6 +68,7 @@ export default function MatchingTabsToolbar({
   hasActiveFilters = false,
   onOpenFilterDialog,
   onExportPersonal,
+  disableExport = false,
 }: MatchingTabsToolbarProps) {
   const [columnDropdownOpen, setColumnDropdownOpen] = useState(false);
   const [exportDropdownOpen, setExportDropdownOpen] = useState(false);
@@ -197,9 +199,16 @@ export default function MatchingTabsToolbar({
         <div className="relative">
           <button
             type="button"
-            onClick={() => setExportDropdownOpen(!exportDropdownOpen)}
-            className="px-3 py-1.5 bg-white border border-slate-200/90 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-            title="Export Excel Workspace Data"
+            disabled={disableExport}
+            onClick={() => {
+              if (!disableExport) setExportDropdownOpen(!exportDropdownOpen);
+            }}
+            className="px-3 py-1.5 bg-white border border-slate-200/90 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-white"
+            title={
+              disableExport
+                ? "Terkunci: data Nanonets belum lengkap atau belum ada batch siap export"
+                : "Export Excel Workspace Data"
+            }
           >
             <Download className="w-3.5 h-3.5 text-slate-500" />
             <span className="hidden sm:inline">Export</span>

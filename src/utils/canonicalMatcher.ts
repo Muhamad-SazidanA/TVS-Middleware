@@ -1,6 +1,7 @@
 import { isEquivalentMatch, type DbEquivalencyGroup } from "./valueEquivalency";
 import { cleanVal, cleanNum } from "./itemMatcher";
 import type { ManualNote } from "~/app/matching/_components/detailTypes";
+import { hasIncompleteBatchDetails } from "./workflowStatus";
 
 export interface FieldComparisonResult {
   documentType: string;
@@ -741,7 +742,12 @@ export function evaluateCanonicalBatchMatching(
   batchId = "0",
   customRules?: DbEquivalencyGroup[]
 ): CanonicalBatchReport {
-  if (!details || !Array.isArray(details) || details.length === 0) {
+  if (
+    !details ||
+    !Array.isArray(details) ||
+    details.length === 0 ||
+    hasIncompleteBatchDetails({ totalFile, details })
+  ) {
     return createEmptyReport(batchId, "PROSES");
   }
 

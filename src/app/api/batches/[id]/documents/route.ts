@@ -16,6 +16,7 @@ import {
 } from "~/server/batchDocumentProcessor";
 import type { DocumentUpdateRecord } from "~/app/matching/_components/detailTypes";
 import { getLockErrorForBatchRecord } from "~/server/batchGuards";
+import { hasIncompleteBatchDetails } from "~/utils/workflowStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -318,13 +319,13 @@ export async function POST(
       where: { batchId },
     });
 
-    const anyPendingOcr = allDetails.some((d: { isi?: string | null }) => {
-      if (!d.isi || typeof d.isi !== "string" || !d.isi.trim()) return true;
-      return parseDetailMeta(d.isi).ocrPending === true;
+    const isIncomplete = hasIncompleteBatchDetails({
+      totalFile: allDetails.length,
+      details: allDetails,
     });
 
     let nextBatchStatus = "PROSES";
-    if (!anyPendingOcr && allDetails.length > 0) {
+    if (!isIncomplete) {
       const serverGroups = await loadServerEquivalencyGroups();
       nextBatchStatus = evaluateBatchMatching(allDetails, serverGroups);
     }

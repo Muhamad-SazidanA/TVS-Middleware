@@ -36,6 +36,8 @@ export interface TableBatchItem {
   noPengajuan?: string | null;
   subtext: string;
   totalFile: number;
+  receivedFiles?: number;
+  hasIncompleteDetails?: boolean;
   status: "Matching" | "Mismatching" | "Proses" | "Ditolak" | "Failed";
   workflowStatus?: DocumentWorkflowStatus;
   assignedTo?: string | null;
@@ -122,7 +124,6 @@ export default function MatchingTable({
   onToggleSelectRow,
   isAllSelected,
   onRowClick,
-  onLockedClick,
   onManageFiles,
   onDownload,
   onDelete,
@@ -153,6 +154,12 @@ export default function MatchingTable({
   ];
 
   const activeDocCols = docCols.filter((col) => columnVisibility[col.key]);
+  const hasSelectableRows = batches.some(
+    (b) =>
+      b.workflowStatus !== "Pending" &&
+      !(b.workflowStatus !== "Failed" && b.hasIncompleteDetails) &&
+      b.status !== "Proses"
+  );
 
   const renderSortIcon = (colKey: string) => {
     if (sortColumn !== colKey || sortDirection === "none") {
@@ -175,10 +182,11 @@ export default function MatchingTable({
               <th className="w-[48px] min-w-[48px] max-w-[48px] py-3.5 px-3 text-center sticky left-0 z-30 bg-slate-50 border-b border-slate-200 whitespace-nowrap">
                 <input
                   type="checkbox"
-                  checked={isAllSelected}
+                  disabled={!hasSelectableRows}
+                  checked={hasSelectableRows && isAllSelected}
                   onChange={onToggleSelectAll}
-                  className="w-3.5 h-3.5 rounded border-slate-300 text-slate-900 accent-slate-900 focus:ring-0 cursor-pointer"
-                  title="Pilih semua baris"
+                  className="w-3.5 h-3.5 rounded border-slate-300 text-slate-900 accent-slate-900 focus:ring-0 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title={hasSelectableRows ? "Pilih semua baris" : "Tidak ada baris yang dapat dipilih"}
                 />
               </th>
 
@@ -288,16 +296,23 @@ export default function MatchingTable({
                     ? "Pending"
                     : "Pending Validation");
 
-                const isPendingLocked = workflowStatus === "Pending";
+                const isFailed = workflowStatus === "Failed";
+                const isPendingLocked =
+                  workflowStatus === "Pending" ||
+                  (!isFailed && Boolean(batch.hasIncompleteDetails));
                 const isApproved = workflowStatus === "Approved";
                 const isExported = workflowStatus === "Exported";
-                const isFailed = workflowStatus === "Failed";
                 const isMatching =
                   batch.status === "Matching" ||
                   (batch.status as string) === "MATCHING";
 
+                const pendingProgressLabel =
+                  batch.totalFile > 0 && typeof batch.receivedFiles === "number"
+                    ? `OCR ${Math.min(batch.receivedFiles, batch.totalFile)}/${batch.totalFile} • Terkunci`
+                    : "OCR diproses • Terkunci";
+
                 const subInfo = isPendingLocked
-                  ? { label: "OCR diproses • Terkunci", className: "text-slate-400" }
+                  ? { label: pendingProgressLabel, className: "text-slate-400" }
                   : isExported
                   ? { label: "Archived • Match", className: "text-slate-500" }
                   : isApproved
@@ -312,44 +327,53 @@ export default function MatchingTable({
                   <tr
                     key={batch.id}
                     onClick={() => {
-                      if (isPendingLocked) {
-                        onLockedClick?.(batch.id);
-                        return;
-                      }
+                      if (isPendingLocked) return;
                       onRowClick(batch.id, "PIB");
                     }}
                     className={`group transition-colors select-none ${
                       isPendingLocked
-                        ? "cursor-not-allowed bg-slate-50/70 opacity-85 hover:bg-slate-100/70"
+                        ? "cursor-not-allowed bg-slate-50/80"
                         : isSelected
                         ? "cursor-pointer bg-blue-50/50 hover:bg-blue-50/70"
                         : "cursor-pointer hover:bg-slate-50/70"
                     }`}
                     title={
                       isPendingLocked
-                        ? "Status Pending: akses detail file dikunci sampai proses OCR selesai."
+                        ? "Data Nanonets belum lengkap — baris dikunci (hanya Hapus yang aktif)."
                         : undefined
                     }
                   >
                     {/* 1. Checkbox Column (Frozen on the left) */}
                     <td
                       className={`w-[48px] min-w-[48px] max-w-[48px] py-3 px-3 text-center sticky left-0 z-10 ${
-                        isSelected ? "bg-blue-50 group-hover:bg-blue-100/80" : "bg-white group-hover:bg-slate-50"
+                        isPendingLocked
+                          ? "bg-slate-50/80 cursor-not-allowed"
+                          : isSelected
+                          ? "bg-blue-50 group-hover:bg-blue-100/80"
+                          : "bg-white group-hover:bg-slate-50"
                       } transition-colors whitespace-nowrap`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <input
                         type="checkbox"
-                        checked={isSelected}
-                        onChange={(e) => onToggleSelectRow(batch.id, e)}
-                        className="w-3.5 h-3.5 rounded border-slate-300 text-slate-900 accent-slate-900 focus:ring-0 cursor-pointer"
+                        disabled={isPendingLocked}
+                        checked={isPendingLocked ? false : isSelected}
+                        onChange={(e) => {
+                          if (isPendingLocked) return;
+                          onToggleSelectRow(batch.id, e);
+                        }}
+                        className="w-3.5 h-3.5 rounded border-slate-300 text-slate-900 accent-slate-900 focus:ring-0 disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
                       />
                     </td>
 
                     {/* 2. Thumbnail Preview (Frozen on the left) */}
                     <td
                       className={`w-[56px] min-w-[56px] max-w-[56px] py-2.5 px-2 text-center sticky left-[48px] z-10 ${
-                        isSelected ? "bg-blue-50 group-hover:bg-blue-100/80" : "bg-white group-hover:bg-slate-50"
+                        isPendingLocked
+                          ? "bg-slate-50/80 opacity-50"
+                          : isSelected
+                          ? "bg-blue-50 group-hover:bg-blue-100/80"
+                          : "bg-white group-hover:bg-slate-50"
                       } transition-colors whitespace-nowrap`}
                     >
                       <div className="w-8 h-10 bg-white border border-slate-200 rounded-md shadow-2xs p-1 mx-auto flex flex-col justify-between shrink-0 group-hover:border-slate-300 transition-colors">
@@ -370,7 +394,11 @@ export default function MatchingTable({
                     {/* 3. No. Pengajuan (Option B: primary = Nomor Pengajuan PIB, secondary = #{batch.id}) */}
                     <td
                       className={`min-w-[260px] py-3 px-4 sticky left-[104px] z-10 ${
-                        isSelected ? "bg-blue-50 group-hover:bg-blue-100/80" : "bg-white group-hover:bg-slate-50"
+                        isPendingLocked
+                          ? "bg-slate-50/80"
+                          : isSelected
+                          ? "bg-blue-50 group-hover:bg-blue-100/80"
+                          : "bg-white group-hover:bg-slate-50"
                       } transition-colors border-r border-slate-200/80 shadow-[6px_0_12px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap`}
                     >
                       {(() => {
@@ -387,14 +415,25 @@ export default function MatchingTable({
                           : `#${batch.id}`;
 
                         return (
-                          <div className="flex flex-col justify-center">
+                          <div className={`flex flex-col justify-center ${isPendingLocked ? "opacity-60" : ""}`}>
                             <div className="flex items-center gap-1.5 font-medium text-slate-800 text-xs whitespace-nowrap">
                               <span className="font-semibold text-slate-900 font-mono tracking-tight">{displayTitle}</span>
                               <button
                                 type="button"
-                                onClick={(e) => handleCopy(displayTitle, batch.id, e)}
-                                className="p-1 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors cursor-pointer shrink-0"
-                                title="Salin no. pengajuan"
+                                disabled={isPendingLocked}
+                                onClick={(e) => {
+                                  if (isPendingLocked) {
+                                    e.stopPropagation();
+                                    return;
+                                  }
+                                  handleCopy(displayTitle, batch.id, e);
+                                }}
+                                className={`p-1 rounded transition-colors shrink-0 ${
+                                  isPendingLocked
+                                    ? "text-slate-300 cursor-not-allowed"
+                                    : "text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
+                                }`}
+                                title={isPendingLocked ? "Terkunci selama berstatus Pending" : "Salin no. pengajuan"}
                               >
                                 {copiedId === batch.id ? (
                                   <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -450,14 +489,29 @@ export default function MatchingTable({
                       onClick={(e) => e.stopPropagation()}
                     >
                       {batch.assignedTo ? (
-                        <span className="text-xs font-medium text-slate-700 whitespace-nowrap">
+                        <span
+                          className={`text-xs font-medium whitespace-nowrap ${
+                            isPendingLocked ? "text-slate-400 opacity-60" : "text-slate-700"
+                          }`}
+                        >
                           {batch.assignedTo}
                         </span>
                       ) : (
                         <button
                           type="button"
-                          onClick={() => onAssign(batch.id)}
-                          className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium cursor-pointer whitespace-nowrap"
+                          disabled={isPendingLocked}
+                          onClick={(e) => {
+                            if (isPendingLocked) {
+                              e.stopPropagation();
+                              return;
+                            }
+                            onAssign(batch.id);
+                          }}
+                          className={`text-xs font-medium whitespace-nowrap ${
+                            isPendingLocked
+                              ? "text-slate-300 cursor-not-allowed"
+                              : "text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                          }`}
                         >
                           Tugaskan
                         </button>
@@ -465,7 +519,11 @@ export default function MatchingTable({
                     </td>
 
                     {/* 6. Diunggah pada (strictly 1 line) */}
-                    <td className="py-3.5 px-4 text-center font-mono text-slate-600 text-xs whitespace-nowrap">
+                    <td
+                      className={`py-3.5 px-4 text-center font-mono text-xs whitespace-nowrap ${
+                        isPendingLocked ? "text-slate-400 opacity-60" : "text-slate-600"
+                      }`}
+                    >
                       {uploadDate}
                     </td>
 
@@ -478,25 +536,25 @@ export default function MatchingTable({
                         <td
                           key={col.key}
                           onClick={(e) => {
+                            if (isPendingLocked) {
+                              e.stopPropagation();
+                              return;
+                            }
                             if (st !== "-") {
                               e.stopPropagation();
-                              if (isPendingLocked) {
-                                onLockedClick?.(batch.id);
-                                return;
-                              }
                               onRowClick(batch.id, col.key);
                             }
                           }}
                           className={`py-3.5 px-4 text-center whitespace-nowrap ${
                             isPendingLocked
-                              ? "cursor-not-allowed opacity-70"
+                              ? "cursor-not-allowed opacity-60"
                               : st !== "-"
                               ? "cursor-pointer hover:bg-blue-50/70"
                               : ""
                           }`}
                           title={
                             isPendingLocked
-                              ? "Status Pending: akses detail dikunci hingga proses OCR selesai."
+                              ? "Status Pending: akses detail dikunci hingga semua data Nanonets selesai."
                               : st !== "-"
                               ? `Buka berkas ${col.key} di viewer`
                               : undefined
@@ -525,7 +583,11 @@ export default function MatchingTable({
                     {/* 8. Freeze/Sticky Row actions Column at the far right */}
                     <td
                       className={`sticky right-0 z-10 w-28 py-3.5 px-4 text-center ${
-                        isSelected ? "bg-blue-50 group-hover:bg-blue-100/80" : "bg-white group-hover:bg-slate-50"
+                        isPendingLocked
+                          ? "bg-slate-50/80"
+                          : isSelected
+                          ? "bg-blue-50 group-hover:bg-blue-100/80"
+                          : "bg-white group-hover:bg-slate-50"
                       } transition-colors border-l border-slate-200/80 shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.06)] whitespace-nowrap`}
                       onClick={(e) => e.stopPropagation()}
                     >
@@ -536,10 +598,7 @@ export default function MatchingTable({
                             type="button"
                             disabled={isPendingLocked || isApproved || isExported}
                             onClick={() => {
-                              if (isPendingLocked) {
-                                onLockedClick?.(batch.id);
-                                return;
-                              }
+                              if (isPendingLocked) return;
                               onManageFiles(batch);
                             }}
                             className={`p-1.5 rounded-lg transition-colors ${
@@ -562,34 +621,27 @@ export default function MatchingTable({
                         {/* Action 1: Unduh */}
                         <button
                           type="button"
-                          onClick={() => onDownload(batch)}
-                          className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                          title="Unduh"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                        </button>
-
-                        {/* Action 2: Hapus */}
-                        <button
-                          type="button"
                           disabled={isPendingLocked}
                           onClick={() => {
-                            if (isPendingLocked) {
-                              onLockedClick?.(batch.id);
-                              return;
-                            }
-                            onDelete(batch);
+                            if (isPendingLocked) return;
+                            onDownload(batch);
                           }}
                           className={`p-1.5 rounded-lg transition-colors ${
                             isPendingLocked
                               ? "text-slate-300 cursor-not-allowed"
-                              : "text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                              : "text-slate-400 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
                           }`}
-                          title={
-                            isPendingLocked
-                              ? "Terkunci selama berstatus Pending"
-                              : "Hapus"
-                          }
+                          title={isPendingLocked ? "Terkunci selama berstatus Pending" : "Unduh"}
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Action 2: Hapus (selalu aktif agar data nyangkut dapat dihapus kapan saja) */}
+                        <button
+                          type="button"
+                          onClick={() => onDelete(batch)}
+                          className="p-1.5 rounded-lg transition-colors text-slate-500 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                          title="Hapus"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

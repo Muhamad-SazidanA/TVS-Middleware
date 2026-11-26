@@ -4,7 +4,11 @@ import { auth } from "~/server/auth";
 import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
 import { loadServerWorkflowSteps } from "~/server/workflowLoader";
-import { deriveDocumentWorkflowStatus } from "~/utils/workflowStatus";
+import {
+  deriveDocumentWorkflowStatus,
+  hasIncompleteBatchDetails,
+  isDetailPendingOcr,
+} from "~/utils/workflowStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -216,13 +220,18 @@ export async function GET(req: Request) {
 
       // Dynamic evaluation from DB details using live equivalency rules & server Data Actions
       const evalResult = evaluateBatchComparison(batch, serverGroups, serverDataActions);
-      const evaluatedStatus = evalResult.status;
+      const isIncomplete = hasIncompleteBatchDetails(batch);
+      const receivedFiles = Array.isArray(batch.details)
+        ? batch.details.filter((d: unknown) => !isDetailPendingOcr(d)).length
+        : 0;
+      const evaluatedStatus = isIncomplete ? "Proses" : evalResult.status;
       const docStatuses = evalResult.docStatuses;
 
       const workflowStatus = deriveDocumentWorkflowStatus({
         rawStatus: batch.status,
         evaluatedStatus,
         errorMessage: batch.errorMessage,
+        hasIncompleteDetails: isIncomplete,
       });
 
       return {
@@ -232,6 +241,8 @@ export async function GET(req: Request) {
         noPengajuan,
         subtext: batchSubtext,
         totalFile: batch.totalFile || (batch.details || []).length || 0,
+        receivedFiles,
+        hasIncompleteDetails: isIncomplete,
         status: evaluatedStatus,
         workflowStatus,
         rawStatus: batch.status || "PENDING",

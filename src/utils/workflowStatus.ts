@@ -12,7 +12,29 @@ export interface BatchLockCheckResult {
 }
 
 /**
- * Checks whether a serialized detail record is still awaiting OCR output.
+ * Checks whether parsed OCR JSON contains any non-empty extracted header field or table row.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function hasExtractedDetailContent(parsed: any): boolean {
+  const fieldsObj =
+    parsed?.fields && typeof parsed.fields === "object"
+      ? (parsed.fields as Record<string, unknown>)
+      : {};
+  const hasFieldValue = Object.values(fieldsObj).some((val) => {
+    const raw =
+      val && typeof val === "object" && "value" in val
+        ? (val as { value?: unknown }).value
+        : val;
+    if (raw === undefined || raw === null) return false;
+    const str = String(raw).trim();
+    return str !== "" && str !== "-";
+  });
+  const hasTableRows = Array.isArray(parsed?.table) && parsed.table.length > 0;
+  return hasFieldValue || hasTableRows;
+}
+
+/**
+ * Checks whether a serialized detail record is still awaiting Nanonets OCR output.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isDetailPendingOcr(d: any): boolean {
@@ -21,10 +43,56 @@ export function isDetailPendingOcr(d: any): boolean {
   }
   try {
     const p = JSON.parse(d.isi);
-    return p?.ocrPending === true;
+    if (p?.ocrPending === true) return true;
+    if (p?.ocrError) return false;
+    if (p?.ocrPending === false) return false;
+    // Empty placeholder JSON (e.g., pre-initialized before Nanonets webhook callback) counts as pending
+    return !hasExtractedDetailContent(p);
   } catch {
     return false;
   }
+}
+
+/**
+ * Identifies whether a detail record's fileType represents the primary PIB reference document.
+ */
+export function isPibDetailType(fileType?: string | null): boolean {
+  const ft = String(fileType || "").trim().toLowerCase();
+  return ft === "pib" || ft.includes("file acuan") || ft.startsWith("pib");
+}
+
+/**
+ * Checks whether a batch is still incomplete: fewer details received than uploaded totalFile,
+ * missing/pending PIB reference document, or any detail record still awaiting Nanonets OCR.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function hasIncompleteBatchDetails(batch: any): boolean {
+  if (!batch) return true;
+  const details = Array.isArray(batch.details) ? batch.details : [];
+  if (details.length === 0) return true;
+
+  const expectedTotal = Number(batch.totalFile || 0);
+  if (expectedTotal > 0 && details.length < expectedTotal) {
+    return true;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (details.some((d: any) => isDetailPendingOcr(d))) {
+    return true;
+  }
+
+  // When details carry fileType metadata, require the primary PIB document to be present and OCR-complete
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hasTypedDetails = details.some((d: any) => typeof d?.fileType === "string" && d.fileType.trim().length > 0);
+  if (hasTypedDetails) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pibDetail = details.find((d: any) => isPibDetailType(d?.fileType));
+    if (!pibDetail || isDetailPendingOcr(pibDetail)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -53,14 +121,12 @@ export function getLockErrorForBatchRecord(batch: any): BatchLockCheckResult {
     };
   }
 
-  const hasPendingDetail =
-    Array.isArray(batch.details) && batch.details.some(isDetailPendingOcr);
-  if (st === "PENDING" || st === "PROSES" || hasPendingDetail) {
+  if (st === "PENDING" || st === "PROSES" || hasIncompleteBatchDetails(batch)) {
     return {
       blocked: true,
       httpStatus: 423,
       error:
-        "Dokumen masih berstatus Pending (OCR dalam proses) dan dikunci dari pembukaan atau manipulasi.",
+        "Dokumen masih berstatus Pending (menunggu kelengkapan data OCR Nanonets) dan dikunci dari pembukaan atau manipulasi.",
     };
   }
 
@@ -75,6 +141,7 @@ export function deriveDocumentWorkflowStatus(params: {
   evaluatedStatus?: string | null;
   errorMessage?: string | null;
   hasPendingDetail?: boolean;
+  hasIncompleteDetails?: boolean;
 }): DocumentWorkflowStatus {
   const rawUpper = String(params.rawStatus || "PENDING").toUpperCase();
   const hasErr = Boolean(params.errorMessage && String(params.errorMessage).trim());
@@ -99,6 +166,7 @@ export function deriveDocumentWorkflowStatus(params: {
 
   if (
     params.hasPendingDetail ||
+    params.hasIncompleteDetails ||
     params.evaluatedStatus === "Proses" ||
     rawUpper === "PENDING" ||
     rawUpper === "PROSES"
