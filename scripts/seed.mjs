@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { PrismaClient } from "@prisma/client";
+import { seedEquivalenciesIfEmpty } from "./seed-equivalencies.mjs";
 
 const prisma = new PrismaClient();
 
@@ -295,6 +296,9 @@ async function main() {
     }
     console.log(`[ACTION LOGS] Seeded ${logsToSeed.length} revision action logs.`);
   }
+
+  // 5. Seed Kamus Ekuivalensi if empty
+  await seedEquivalenciesIfEmpty(prisma);
 
   console.log("=== Seeding Completed Successfully! ===");
 }

@@ -18,6 +18,11 @@ if [ "${RUN_DB_PUSH_ON_START:-true}" = "true" ]; then
   done
 fi
 
+if [ "${RUN_EQUIVALENCY_SEED_ON_START:-true}" = "true" ]; then
+  echo "[docmatch] Checking Kamus Ekuivalensi seed..."
+  node scripts/seed-equivalencies.mjs
+fi
+
 if [ "${RUN_DB_SEED_ON_START:-false}" = "true" ]; then
   echo "[docmatch] Running seed script..."
   npm run db:seed

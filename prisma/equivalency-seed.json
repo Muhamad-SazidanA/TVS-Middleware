@@ -1,0 +1,64 @@
+[
+  {
+    "name": "Terms_of_Delivery",
+    "category": "general",
+    "canonical": "CIF",
+    "values": [
+      "CIF JAKARTA , INDONESIA",
+      "JAKARTA",
+      "INDONESIA"
+    ]
+  },
+  {
+    "name": "Identitas_Penjual",
+    "category": "general",
+    "canonical": "MARUBENI-ITOCHU STEEL INC",
+    "values": [
+      "Japan",
+      "Marubeni-Itochu Steel Inc.",
+      "Marubeni-Itochu Steel Inc. Nihonbashi 1-chome Bldg .  4-1 Nihonbashi 1-chome",
+      "Marubeni-Itochu Steel Inc. Nihonbashi 1-chome Bldg . 4-1 Nihonbashi 1-chome , Chuo-ku , Tokyo , 103-8247 , Japan",
+      "Marubeni-Itochu Steel Inc. Tokyo",
+      "MARUBENI-ITOCHU STEEL KOREA LTD . # 1112 , EAST WING 11TH FLOOR , HANSHIN INTER",
+      "Tokyo",
+      "MARUBENI-ITOCHU STEEL KOREA LTD . # 1112 ,"
+    ]
+  },
+  {
+    "name": "Identitas_Pembeli",
+    "category": "general",
+    "canonical": "PT. UNITED STEEL CENTER INDONESIA",
+    "values": [
+      "PT . UNITED STEEL CENTER INDONESIA KAWASAN INDUSTRI MITRA KARAWANG JL MITRA RAYA SELATAN II , F. 1 , PARUNGMULYA , CIAMPEL , KAB . KARAWANG , JAWA BARAT , 41363 INDONESIA TAX ID : 002. 047. 617. 2-431.000"
+    ]
+  },
+  {
+    "name": "Pelabuhan_Asal",
+    "category": "general",
+    "canonical": "KWANGYANG",
+    "values": [
+      "KWANGYANG, KOREA",
+      "KOREA"
+    ]
+  },
+  {
+    "name": "Pelabuhan_Tujuan",
+    "category": "general",
+    "canonical": "TANJUNG PRIOK",
+    "values": [
+      "JAKARTA, INDONESIA",
+      "JAKARTA",
+      "INDONESIA",
+      "TANJUNG PRIOK, JAKARTA, INDONESIA"
+    ]
+  },
+  {
+    "name": "Deskripsi_Barang",
+    "category": "general",
+    "canonical": "COLD ROLLED COIL",
+    "values": [
+      "COLD ROLLED COIL.",
+      "COLD ROLLED COIL HOT ROLLED STEEL SHEET IN COIL ( PO COIL ) GALVANNEALED COIL"
+    ]
+  }
+]
