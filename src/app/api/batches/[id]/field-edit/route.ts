@@ -4,6 +4,7 @@ import { auth } from "~/server/auth";
 import { createBatchLog } from "~/server/logger";
 import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
+import { loadServerWorkflowSteps } from "~/server/workflowLoader";
 import { logSystemAudit } from "~/server/auditLogger";
 import { FIELD_SYNONYMS } from "~/utils/documentRegistry";
 import { getBatchMutationLock } from "~/server/batchGuards";
@@ -278,7 +279,10 @@ export async function POST(
     }).catch((err) => console.warn("[Audit] Failed to log field-edit override:", err));
 
     // 5. Re-evaluate overall batch matching status
-    const serverGroups = await loadServerEquivalencyGroups();
+    const [serverGroups, serverDataActions] = await Promise.all([
+      loadServerEquivalencyGroups(),
+      loadServerWorkflowSteps(),
+    ]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allDetails = await (db as any).detailBatch.findMany({
       where: { batchId },
@@ -293,7 +297,8 @@ export async function POST(
         ...batchRecord,
         details: allDetails,
       },
-      serverGroups
+      serverGroups,
+      serverDataActions
     );
 
     const dbStatusStr =

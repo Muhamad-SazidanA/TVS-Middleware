@@ -3,6 +3,7 @@ import { db } from "~/server/db";
 import { auth } from "~/server/auth";
 import { evaluateDbBatchStatus } from "~/server/matchingEngine";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
+import { loadServerWorkflowSteps } from "~/server/workflowLoader";
 import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import { getLockErrorForBatchRecord } from "~/server/batchGuards";
 
@@ -40,8 +41,16 @@ export async function GET(
       batch.status === "DITOLAK";
 
     if (!isLocked || shouldRevalidate) {
-      const serverGroups = await loadServerEquivalencyGroups();
-      const evaluatedStatus = evaluateDbBatchStatus(batch.details || [], batch.totalFile, serverGroups);
+      const [serverGroups, serverDataActions] = await Promise.all([
+        loadServerEquivalencyGroups(),
+        loadServerWorkflowSteps(),
+      ]);
+      const evaluatedStatus = evaluateDbBatchStatus(
+        batch.details || [],
+        batch.totalFile,
+        serverGroups,
+        serverDataActions
+      );
       const dbStatusStr = evaluatedStatus === "Matching" ? "MATCHING" : evaluatedStatus === "Mismatching" ? "MISMATCHING" : "PROSES";
       if (batch.status !== dbStatusStr) {
         batch.status = dbStatusStr;
@@ -146,8 +155,11 @@ export async function PUT(
         );
       }
 
-      const serverGroups = await loadServerEquivalencyGroups();
-      const evalResult = evaluateBatchComparison(prevBatch, serverGroups);
+      const [serverGroups, serverDataActions] = await Promise.all([
+        loadServerEquivalencyGroups(),
+        loadServerWorkflowSteps(),
+      ]);
+      const evalResult = evaluateBatchComparison(prevBatch, serverGroups, serverDataActions);
       if (evalResult.totalFields === 0 || evalResult.mismatchedFields > 0) {
         return NextResponse.json(
           {

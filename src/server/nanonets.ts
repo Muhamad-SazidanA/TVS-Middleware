@@ -1,6 +1,7 @@
 import { env } from "~/env";
 import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import type { DbEquivalencyGroup } from "~/utils/valueEquivalency";
+import type { WorkflowStep } from "~/types/workflow";
 
 export const CATEGORY_MODEL_MAP: Record<string, string> = {
   // USC 7 Official Document Categories
@@ -392,8 +393,9 @@ export function filterPibData(rawJson: any) {
  */
 export function evaluateBatchMatching(
   details: Array<{ fileType: string; isi?: string | null }>,
-  dbGroups?: DbEquivalencyGroup[]
+  dbGroups?: DbEquivalencyGroup[],
+  dataActions?: WorkflowStep[]
 ): "MATCHING" | "MISMATCHING" {
-  const result = evaluateBatchComparison({ details }, dbGroups);
+  const result = evaluateBatchComparison({ details }, dbGroups, dataActions);
   return result.status === "Matching" ? "MATCHING" : "MISMATCHING";
 }

@@ -305,9 +305,11 @@ function DocumentThumbnail({ fileUrl, className = "w-10 h-13" }: { fileUrl?: str
 
 const STORAGE_KEY = "system_workflow_data_actions";
 
-// USC Document Tabs definition (strictly 1 file per tab, no emojis)
+// Document Tabs definition (7 physical documents + Global Semua Dokumen tab)
+export type WorkflowTabDocType = UscDocumentType | "all";
+
 export interface DocumentTabDef {
-  id: UscDocumentType;
+  id: WorkflowTabDocType;
   label: string;
   fullName: string;
   badge: string;
@@ -322,6 +324,7 @@ const USC_DOCUMENT_TABS: DocumentTabDef[] = [
   { id: "ak", label: "Form AK", fullName: "Certificate of Origin (Form AK)", badge: "Pembanding" },
   { id: "wl", label: "Weight List", fullName: "Weight List (WL)", badge: "Pembanding" },
   { id: "ms", label: "Mill Test Cert", fullName: "Mill Test Certificate (MTC)", badge: "Pembanding" },
+  { id: "all", label: "Semua Dokumen", fullName: "Semua Dokumen (Global)", badge: "Global" },
 ];
 
 const DOC_SCOPE_OPTIONS: { label: string; value: WorkflowDocScope }[] = [
@@ -1413,7 +1416,7 @@ function ValueMappingEditor({
 
 export default function WorkflowBuilder() {
   const [steps, setSteps] = useState<WorkflowStep[]>([]);
-  const [activeDocTab, setActiveDocTab] = useState<UscDocumentType>("pib");
+  const [activeDocTab, setActiveDocTab] = useState<WorkflowTabDocType>("pib");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({});
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
@@ -1864,7 +1867,7 @@ export default function WorkflowBuilder() {
     const activeDocNorm = normalizeDocumentType(activeDocTab);
     return steps.filter((step) => {
       const stepDocNorm = normalizeDocumentType(step.docScope);
-      const matchDoc = stepDocNorm === activeDocNorm || (stepDocNorm === "all" && activeDocNorm === "pib");
+      const matchDoc = stepDocNorm === activeDocNorm;
       const targetFieldsStr = Array.isArray(step.targetFields)
         ? step.targetFields.join(" ")
         : (step.targetField || "");

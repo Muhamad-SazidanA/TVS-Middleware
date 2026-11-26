@@ -1,10 +1,30 @@
-import defaultDataActions from "~/config/data_actions.json";
 import { applyDataActionsToFields, applyDataActionsToTableRows } from "~/utils/workflowRunner";
+import type { WorkflowStep } from "~/types/workflow";
 import type {
   ChangeEventCategory,
   ComparisonFieldModel,
   FieldChangeEvent,
 } from "~/app/matching/_components/detailTypes";
+
+export function stripStaleActionKeys(
+  rec: Record<string, unknown>,
+  manualEditsMap: Record<string, { oldValue?: string; newValue?: string }>
+): Record<string, unknown> {
+  const editedTokens = new Set(
+    Object.keys(manualEditsMap || {}).map((mk) => normalizeFieldToken(mk))
+  );
+  const cleaned: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rec || {})) {
+    if (k.toLowerCase().endsWith("_action") || k.toLowerCase().endsWith(" action")) {
+      const baseToken = normalizeFieldToken(k);
+      if (!editedTokens.has(baseToken)) {
+        continue;
+      }
+    }
+    cleaned[k] = v;
+  }
+  return cleaned;
+}
 
 export function normalizeDocCode(typeRaw?: string | null): string {
   const t = String(typeRaw || "").trim().toLowerCase();
@@ -117,9 +137,14 @@ function classifyDbActionLog(log: {
  * Extracts all active Data Action transformations from a batch's details.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function extractDataActionEvents(details: any[]): FieldChangeEvent[] {
+export function extractDataActionEvents(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  details: any[],
+  dataActions?: WorkflowStep[]
+): FieldChangeEvent[] {
   const events: FieldChangeEvent[] = [];
   const seenPerDocField = new Set<string>();
+  const hasLiveDataActions = Array.isArray(dataActions);
 
   for (const det of details || []) {
     if (!det?.isi) continue;
@@ -133,24 +158,33 @@ export function extractDataActionEvents(details: any[]): FieldChangeEvent[] {
       ? (p.table as Array<Record<string, unknown>>).map((r) => ({ ...r }))
       : [];
 
-    try {
-      if (Array.isArray(defaultDataActions) && defaultDataActions.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fields = applyDataActionsToFields(fields as Record<string, string>, docCode || "all", defaultDataActions as any);
-        if (table.length > 0) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          table = applyDataActionsToTableRows(table, docCode || "all", defaultDataActions as any);
+    if (hasLiveDataActions) {
+      fields = stripStaleActionKeys(fields, manualEditsMap);
+      table = table.map((row) => stripStaleActionKeys(row, manualEditsMap));
+      try {
+        if (dataActions.length > 0) {
+          fields = applyDataActionsToFields(fields as Record<string, string>, docCode || "all", dataActions);
+          if (table.length > 0) {
+            table = applyDataActionsToTableRows(table, docCode || "all", dataActions);
+          }
         }
+      } catch {
+        // Ignore pipeline evaluation fallback error
       }
-    } catch {
-      // Ignore pipeline evaluation fallback error
     }
 
     const collectFromRecord = (rec: Record<string, unknown>) => {
       // Check saved pre-edit Data Action originals first
       for (const [origKey, origMeta] of Object.entries(dataActionOriginals)) {
         const rawOrig = readCellText(origMeta?.rawValue);
-        const actOrig = readCellText(origMeta?.actionValue);
+        let actOrig = readCellText(origMeta?.actionValue);
+        if (hasLiveDataActions) {
+          if (dataActions.length === 0) continue;
+          const liveCheck = applyDataActionsToFields({ [origKey]: rawOrig }, docCode || "all", dataActions);
+          const liveVal = readCellText(liveCheck[`${origKey}_action`]);
+          if (!liveVal || liveVal === "-" || liveVal === rawOrig) continue;
+          actOrig = liveVal;
+        }
         if (!rawOrig || rawOrig === "-" || !actOrig || actOrig === "-" || rawOrig === actOrig) {
           continue;
         }
@@ -188,9 +222,8 @@ export function extractDataActionEvents(details: any[]): FieldChangeEvent[] {
         )?.[1];
         if (matchingManual?.newValue !== undefined && String(matchingManual.newValue).trim() === actVal) {
           try {
-            if (Array.isArray(defaultDataActions) && defaultDataActions.length > 0 && rawVal && rawVal !== "-") {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const recomputed = applyDataActionsToFields({ [baseKey]: rawVal }, docCode || "all", defaultDataActions as any);
+            if (hasLiveDataActions && dataActions.length > 0 && rawVal && rawVal !== "-") {
+              const recomputed = applyDataActionsToFields({ [baseKey]: rawVal }, docCode || "all", dataActions);
               actVal = readCellText(recomputed[`${baseKey}_action`]);
             } else {
               actVal = "";
@@ -276,13 +309,14 @@ export function extractKamusEvents(fields: ComparisonFieldModel[]): FieldChangeE
 export function buildBatchChangeLogs(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rawBatch: { details?: any[]; actionLogs?: any[]; createdBy?: { name?: string | null } | null },
-  evaluatedFields: ComparisonFieldModel[] = []
+  evaluatedFields: ComparisonFieldModel[] = [],
+  dataActions?: WorkflowStep[]
 ): FieldChangeEvent[] {
   const details = Array.isArray(rawBatch?.details) ? rawBatch.details : [];
   const dbLogs = Array.isArray(rawBatch?.actionLogs) ? rawBatch.actionLogs : [];
   const defaultCreator = rawBatch?.createdBy?.name || "Operator";
 
-  const dataActionEvents = extractDataActionEvents(details);
+  const dataActionEvents = extractDataActionEvents(details, dataActions);
   const kamusEvents = extractKamusEvents(evaluatedFields);
 
   // Build persistent ActionLog events chronologically

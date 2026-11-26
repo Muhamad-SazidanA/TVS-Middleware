@@ -190,56 +190,5 @@
     },
     "enabled": true,
     "sampleInput": ""
-  },
-  {
-    "id": "step-1794889000001",
-    "name": "Standardize dimension format (WL & ALL)",
-    "description": "Standarisasi format ukuran dimensi (misal: 1.0x821xC -> 1.0 MM X 821 MM X C) dengan pemisah spasi dan satuan MM seragam.",
-    "docScope": "all",
-    "targetField": "Ukuran_Barang, Ukuran, Size, Dimension, Dimensi",
-    "targetFields": [
-      "Ukuran_Barang",
-      "Ukuran",
-      "Size",
-      "Dimension",
-      "Dimensi"
-    ],
-    "outputMode": "new_field",
-    "outputFieldName": "Ukuran_Barang_action",
-    "action": {
-      "type": "replace_text",
-      "config": {
-        "findText": "([0-9.]+)\\s*(?:MM|mm)?\\s*[xX*×]\\s*([0-9.]+)\\s*(?:MM|mm)?\\s*[xX*×]\\s*([a-zA-Z0-9]+)",
-        "replaceWith": "$1 MM X $2 MM X $3",
-        "isRegex": true,
-        "matchCase": false
-      }
-    },
-    "enabled": true,
-    "sampleInput": "1.0x821xC"
-  },
-  {
-    "id": "step-1794889000002",
-    "name": "Uppercase dimension (WL & ALL)",
-    "description": "Ubah seluruh huruf pada ukuran dimensi (misal kode temper/coil C) menjadi huruf kapital (UPPERCASE).",
-    "docScope": "all",
-    "targetField": "Ukuran_Barang, Ukuran, Size, Dimension, Dimensi",
-    "targetFields": [
-      "Ukuran_Barang",
-      "Ukuran",
-      "Size",
-      "Dimension",
-      "Dimensi"
-    ],
-    "outputMode": "new_field",
-    "outputFieldName": "Ukuran_Barang_action",
-    "action": {
-      "type": "case_transform",
-      "config": {
-        "transform": "uppercase"
-      }
-    },
-    "enabled": true,
-    "sampleInput": "1.0 MM X 821 MM X c"
   }
 ]

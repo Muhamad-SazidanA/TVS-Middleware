@@ -324,8 +324,15 @@ export async function POST(req: Request) {
           );
           if (filled.length === fullBatch.details.length && fullBatch.details.length > 0) {
             const { evaluateBatchMatching } = await import("~/server/nanonets");
-            const serverGroups = await loadServerEquivalencyGroups();
-            const matchResult = evaluateBatchMatching(fullBatch.details, serverGroups);
+            const [serverGroups, serverDataActions] = await Promise.all([
+              loadServerEquivalencyGroups(),
+              loadServerWorkflowSteps(),
+            ]);
+            const matchResult = evaluateBatchMatching(
+              fullBatch.details,
+              serverGroups,
+              serverDataActions
+            );
             finalBatchStatus = matchResult;
           }
 

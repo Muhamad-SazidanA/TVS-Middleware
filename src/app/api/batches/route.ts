@@ -3,6 +3,7 @@ import { db } from "~/server/db";
 import { auth } from "~/server/auth";
 import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
+import { loadServerWorkflowSteps } from "~/server/workflowLoader";
 import { deriveDocumentWorkflowStatus } from "~/utils/workflowStatus";
 
 export const dynamic = "force-dynamic";
@@ -130,7 +131,10 @@ export async function GET(req: Request) {
       rawBatches = [];
     }
 
-    const serverGroups = await loadServerEquivalencyGroups();
+    const [serverGroups, serverDataActions] = await Promise.all([
+      loadServerEquivalencyGroups(),
+      loadServerWorkflowSteps(),
+    ]);
 
     // Process and format batches with dynamic live DB evaluation
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -210,8 +214,8 @@ export async function GET(req: Request) {
         batchSubtext = dateStr ? `${batch.totalFile || (batch.details || []).length} File • ${dateStr}` : `${batch.totalFile || (batch.details || []).length} File`;
       }
 
-      // Dynamic evaluation from DB details using the unified detailAdapter engine
-      const evalResult = evaluateBatchComparison(batch, serverGroups);
+      // Dynamic evaluation from DB details using live equivalency rules & server Data Actions
+      const evalResult = evaluateBatchComparison(batch, serverGroups, serverDataActions);
       const evaluatedStatus = evalResult.status;
       const docStatuses = evalResult.docStatuses;
 
@@ -264,15 +268,22 @@ export async function GET(req: Request) {
       );
     }
 
-    // Filter status
-    if (statusFilter && statusFilter.toUpperCase() !== "ALL") {
-      const targetStatus =
-        statusFilter.toUpperCase() === "MATCHING"
-          ? "Matching"
-          : statusFilter.toUpperCase() === "MISMATCHING"
-          ? "Mismatching"
-          : "Proses";
-      filteredBatches = filteredBatches.filter((b) => b.status === targetStatus);
+    // Filter evaluation status (for personal/workspace view; scope=all_data already filters DB archive status)
+    if (scope !== "all_data" && statusFilter && statusFilter.toUpperCase() !== "ALL") {
+      const upperStatusFilter = statusFilter.toUpperCase();
+      if (upperStatusFilter === "MATCHING") {
+        filteredBatches = filteredBatches.filter((b) => b.status === "Matching");
+      } else if (upperStatusFilter === "MISMATCHING") {
+        filteredBatches = filteredBatches.filter((b) => b.status === "Mismatching");
+      } else if (upperStatusFilter === "PROSES" || upperStatusFilter === "PENDING") {
+        filteredBatches = filteredBatches.filter((b) => b.status === "Proses");
+      } else {
+        filteredBatches = filteredBatches.filter(
+          (b) =>
+            b.rawStatus.toUpperCase() === upperStatusFilter ||
+            b.workflowStatus.toUpperCase() === upperStatusFilter
+        );
+      }
     }
 
     return NextResponse.json({

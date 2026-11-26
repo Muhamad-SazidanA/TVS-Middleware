@@ -10,11 +10,12 @@ import type {
   ManualNote,
 } from "./detailTypes";
 import type { FieldMatchStatus } from "~/types/documentComparison";
-import defaultDataActions from "~/config/data_actions.json";
+import type { WorkflowStep } from "~/types/workflow";
 import { applyDataActionsToFields, applyDataActionsToTableRows } from "~/utils/workflowRunner";
 import {
   buildBatchChangeLogs,
   getChangeEventsForField,
+  stripStaleActionKeys,
 } from "~/utils/changeLogBuilder";
 
 // Bounded proportional padding expansion algorithm for OCR boxes
@@ -114,7 +115,11 @@ interface ParsedIsi {
   ocrPending?: boolean;
 }
 
-export function parseDocumentIsi(isi?: unknown, docCode?: string): ParsedIsi {
+export function parseDocumentIsi(
+  isi?: unknown,
+  docCode?: string,
+  dataActions?: WorkflowStep[]
+): ParsedIsi {
   if (!isi) {
     return {
       fields: {},
@@ -133,18 +138,27 @@ export function parseDocumentIsi(isi?: unknown, docCode?: string): ParsedIsi {
     let fields = { ...(p.fields || {}) };
     let table = Array.isArray(p.table) ? p.table.map((r: Record<string, unknown>) => ({ ...r })) : [];
 
-    // Dynamically apply active Data Actions from config if not yet applied
-    try {
-      if (Array.isArray(defaultDataActions) && defaultDataActions.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        fields = applyDataActionsToFields(fields, docCode || "all", defaultDataActions as any);
-        if (table.length > 0) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          table = applyDataActionsToTableRows(table, docCode || "all", defaultDataActions as any);
+    // Apply ONLY explicitly provided live Data Actions from /api/data-actions or server config.
+    // Strip stale non-manual *_action keys first so deleted/disabled rules take effect immediately.
+    if (Array.isArray(dataActions)) {
+      const manualMap = (p.manualEdits || {}) as Record<
+        string,
+        { oldValue?: string; newValue?: string }
+      >;
+      fields = stripStaleActionKeys(fields, manualMap) as Record<string, string>;
+      table = table.map((row: Record<string, unknown>) =>
+        stripStaleActionKeys(row, manualMap)
+      );
+      try {
+        if (dataActions.length > 0) {
+          fields = applyDataActionsToFields(fields, docCode || "all", dataActions);
+          if (table.length > 0) {
+            table = applyDataActionsToTableRows(table, docCode || "all", dataActions);
+          }
         }
+      } catch {
+        // ignore pipeline errors
       }
-    } catch {
-      // ignore
     }
 
     return {
@@ -510,7 +524,10 @@ function resolveDocumentDisplayMeta(
 
 // Transform raw batch details from backend into Normalized Batch Model
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
+export function adaptBatchToModel(
+  rawBatch: any,
+  dataActions?: WorkflowStep[]
+): BatchComparisonModel {
   const batchId = String(rawBatch.id);
   const details: Array<any> = Array.isArray(rawBatch.details) ? rawBatch.details : [];
 
@@ -520,7 +537,7 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
     return ft === "pib" || ft.includes("file acuan") || ft.startsWith("pib");
   });
 
-  const parsedPibIsi = parseDocumentIsi(rawPib?.isi);
+  const parsedPibIsi = parseDocumentIsi(rawPib?.isi, "PIB", dataActions);
 
   // Auto-enrich composite and item-level PIB fields:
   // 1. Negara_Asal: (Kotak D.1 Hal. 1 / Table Row 0)
@@ -624,7 +641,7 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
     if (meta.code !== "Invoice" && meta.code !== "BL") {
       continue;
     }
-    const parsedIsi = parseDocumentIsi(d.isi, meta.code);
+    const parsedIsi = parseDocumentIsi(d.isi, meta.code, dataActions);
     const supDisplay = resolveDocumentDisplayMeta(
       d,
       parsedIsi,
@@ -672,7 +689,8 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
 export function buildComparisonFields(
   pibDoc: BatchDocumentModel,
   supportingDoc: BatchDocumentModel | null,
-  equivalencyGroups: DbEquivalencyGroup[] = []
+  equivalencyGroups: DbEquivalencyGroup[] = [],
+  dataActions?: WorkflowStep[]
 ): ComparisonFieldModel[] {
   if (!supportingDoc) return [];
 
@@ -870,7 +888,8 @@ export function buildComparisonFields(
         details: batchSyntheticDetails,
         actionLogs: Array.isArray(pibDoc.rawActionLogs) ? pibDoc.rawActionLogs : [],
       },
-      [fieldModel]
+      [fieldModel],
+      dataActions
     );
 
     fieldModel.changeHistory = getChangeEventsForField(allEventsForPair, {
@@ -887,11 +906,12 @@ export function buildComparisonFields(
 export function buildAllComparisonGroups(
   pibDoc: BatchDocumentModel,
   supportingDocs: BatchDocumentModel[],
-  equivalencyGroups: DbEquivalencyGroup[] = []
+  equivalencyGroups: DbEquivalencyGroup[] = [],
+  dataActions?: WorkflowStep[]
 ): DocumentComparisonGroup[] {
   // Matching now operates strictly on header fields (table line items are not pulled)
   return supportingDocs.map((supDoc) => {
-    const fields = buildComparisonFields(pibDoc, supDoc, equivalencyGroups);
+    const fields = buildComparisonFields(pibDoc, supDoc, equivalencyGroups, dataActions);
     const matchedCount = fields.filter((f) => f.status === "MATCH").length;
     const mismatchedCount = fields.filter((f) => f.status === "MISMATCH").length;
 
@@ -939,7 +959,8 @@ export interface BatchComparisonEvaluationResult {
 export function evaluateBatchComparison(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rawBatch: any,
-  equivalencyGroups: DbEquivalencyGroup[] = []
+  equivalencyGroups: DbEquivalencyGroup[] = [],
+  dataActions?: WorkflowStep[]
 ): BatchComparisonEvaluationResult {
   const docStatuses: Record<string, { status: "Match" | "Mismatch" | "Proses" | "-" }> = {
     Invoice: { status: "-" },
@@ -979,7 +1000,7 @@ export function evaluateBatchComparison(
     };
   }
 
-  const model = adaptBatchToModel(rawBatch);
+  const model = adaptBatchToModel(rawBatch, dataActions);
 
   const docCodeToKey = (code: string): string | null => {
     const c = (code || "").toUpperCase();
@@ -1022,7 +1043,7 @@ export function evaluateBatchComparison(
       continue;
     }
 
-    const fields = buildComparisonFields(model.pib, sup, equivalencyGroups);
+    const fields = buildComparisonFields(model.pib, sup, equivalencyGroups, dataActions);
     evaluatedFieldModels.push(...fields);
     const m = fields.filter((f) => f.status === "MATCH").length;
     const mis = fields.filter((f) => f.status === "MISMATCH").length;

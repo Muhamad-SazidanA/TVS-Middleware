@@ -40,6 +40,7 @@ import {
   deriveDocumentWorkflowStatus,
   canApproveBatchEvaluation,
 } from "~/utils/workflowStatus";
+import type { WorkflowStep } from "~/types/workflow";
 
 const DocumentViewer = dynamic(() => import("./DocumentViewer"), {
   ssr: false,
@@ -126,6 +127,8 @@ export default function MatchingDetailView({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [equivalencyGroups, setEquivalencyGroups] = useState<DbEquivalencyGroup[]>([]);
+  const [dataActionSteps, setDataActionSteps] = useState<WorkflowStep[]>([]);
+  const [dataActionsLoaded, setDataActionsLoaded] = useState<boolean>(false);
   const initialLoadDoneRef = useRef<string | null>(null);
 
   // Active view states
@@ -276,13 +279,34 @@ export default function MatchingDetailView({
     }
   }, []);
 
+  const loadDataActions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/data-actions", { cache: "no-store" });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.success && Array.isArray(d.steps)) {
+          setDataActionSteps(d.steps);
+        } else {
+          setDataActionSteps([]);
+        }
+      }
+    } catch (err) {
+      console.warn("Data actions fetch error:", err);
+    } finally {
+      setDataActionsLoaded(true);
+    }
+  }, []);
+
   const handleRefreshInPlace = useCallback(async () => {
     if (isRefreshingInPlace) return;
     setIsRefreshingInPlace(true);
     try {
       trackedPendingIdsRef.current.clear();
-      const updated = await loadBatch(true);
-      await loadEquivalencies();
+      const [updated] = await Promise.all([
+        loadBatch(true),
+        loadEquivalencies(),
+        loadDataActions(),
+      ]);
       setReadyOcrUpdate(null);
       setDismissedPendingSig(null);
       if (updated) {
@@ -294,7 +318,7 @@ export default function MatchingDetailView({
     } finally {
       setIsRefreshingInPlace(false);
     }
-  }, [isRefreshingInPlace, loadBatch, loadEquivalencies, onStatusUpdate, batchId, showToast]);
+  }, [isRefreshingInPlace, loadBatch, loadEquivalencies, loadDataActions, onStatusUpdate, batchId, showToast]);
 
   const ocrBannerItem: ToastItem | null = useMemo(() => {
     if (readyOcrUpdate) {
@@ -344,8 +368,9 @@ export default function MatchingDetailView({
       setRawBatch(null);
       loadBatch();
       loadEquivalencies();
+      loadDataActions();
     }
-  }, [batchId, loadBatch, loadEquivalencies]);
+  }, [batchId, loadBatch, loadEquivalencies, loadDataActions]);
 
   // Lock background scroll when detail view is active
   useEffect(() => {
@@ -368,9 +393,9 @@ export default function MatchingDetailView({
 
   // Transform raw batch into Normalized Batch Model
   const batchModel: BatchComparisonModel | null = useMemo(() => {
-    if (!rawBatch) return null;
-    return adaptBatchToModel(rawBatch);
-  }, [rawBatch]);
+    if (!rawBatch || !dataActionsLoaded) return null;
+    return adaptBatchToModel(rawBatch, dataActionSteps);
+  }, [rawBatch, dataActionsLoaded, dataActionSteps]);
 
   // Initialize selected supporting code when batchModel is loaded
   useEffect(() => {
@@ -399,8 +424,13 @@ export default function MatchingDetailView({
   // Build all comparison groups: PIB (acuan) vs each supporting document (Invoice, PL, BL, AK, WL, MS)
   const comparisonGroups: DocumentComparisonGroup[] = useMemo(() => {
     if (!batchModel) return [];
-    return buildAllComparisonGroups(batchModel.pib, batchModel.supporting, equivalencyGroups);
-  }, [batchModel, equivalencyGroups]);
+    return buildAllComparisonGroups(
+      batchModel.pib,
+      batchModel.supporting,
+      equivalencyGroups,
+      dataActionSteps
+    );
+  }, [batchModel, equivalencyGroups, dataActionSteps]);
 
   // Flattened all fields for DocumentViewer highlights
   const allFields: ComparisonFieldModel[] = useMemo(() => {
@@ -409,9 +439,9 @@ export default function MatchingDetailView({
 
   // Complete chronological batch change logs (Data Action, Kamus, Edit, Setujui Satuan/All/Berkas)
   const batchChangeLogs = useMemo(() => {
-    if (!rawBatch) return [];
-    return buildBatchChangeLogs(rawBatch, allFields);
-  }, [rawBatch, allFields]);
+    if (!rawBatch || !dataActionsLoaded) return [];
+    return buildBatchChangeLogs(rawBatch, allFields, dataActionSteps);
+  }, [rawBatch, allFields, dataActionsLoaded, dataActionSteps]);
 
   // Active document group & title for footer actions
   const isAllSelected =
@@ -689,7 +719,7 @@ export default function MatchingDetailView({
   };
 
   // Loading state matching exact post-load split layout (7/5 viewer + comparison skeleton)
-  if (loading) {
+  if (loading || !dataActionsLoaded) {
     return (
       <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col overflow-hidden">
         <main className="flex-1 overflow-hidden p-2 sm:p-3 bg-slate-100/70">

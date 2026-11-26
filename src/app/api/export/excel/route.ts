@@ -4,6 +4,7 @@ import { db } from "~/server/db";
 import { auth } from "~/server/auth";
 import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
+import { loadServerWorkflowSteps } from "~/server/workflowLoader";
 import {
   buildBatchChangeLogs,
   extractManualNotesFromBatch,
@@ -181,7 +182,10 @@ async function handleExcelExport(opts: ExportQueryOptions) {
       orderBy: { id: "asc" },
     });
 
-    const serverGroups = await loadServerEquivalencyGroups();
+    const [serverGroups, serverDataActions] = await Promise.all([
+      loadServerEquivalencyGroups(),
+      loadServerWorkflowSteps(),
+    ]);
 
     // 3. Filter by search query if passed (matching ID, no pengajuan, creator, approver, status)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -244,10 +248,14 @@ async function handleExcelExport(opts: ExportQueryOptions) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const batchDataList = matchingBatches.map((batch: any) => {
       const detailSheetName = getSafeSheetName(`Detail (${batch.id})`, usedSheetNames);
-      const evalResult = evaluateBatchComparison(batch, serverGroups);
+      const evalResult = evaluateBatchComparison(batch, serverGroups, serverDataActions);
 
       // Complete chronological logs: Data Action, Kamus Ekuivalensi, Edit Manual, Setujui (Satuan/Massal/Berkas), File Updates
-      const rawEvents = buildBatchChangeLogs(batch, evalResult.evaluatedFieldModels || []);
+      const rawEvents = buildBatchChangeLogs(
+        batch,
+        evalResult.evaluatedFieldModels || [],
+        serverDataActions
+      );
       const activeActions = rawEvents.map((ev, idx) => ({
         no: idx + 1,
         docType: formatDocDisplayName(ev.docType),

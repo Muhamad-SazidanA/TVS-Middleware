@@ -4,6 +4,7 @@ import { auth } from "~/server/auth";
 import { createBatchLog } from "~/server/logger";
 import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
+import { loadServerWorkflowSteps } from "~/server/workflowLoader";
 import { logSystemAudit } from "~/server/auditLogger";
 import { getBatchMutationLock } from "~/server/batchGuards";
 
@@ -187,14 +188,18 @@ export async function POST(
       }).catch((err) => console.warn("[BatchLog] Failed to create log:", err));
 
       // Re-evaluate matching
-      const serverGroups = await loadServerEquivalencyGroups();
+      const [serverGroups, serverDataActions] = await Promise.all([
+        loadServerEquivalencyGroups(),
+        loadServerWorkflowSteps(),
+      ]);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const allDetails = await (db as any).detailBatch.findMany({ where: { batchId } });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const batchRecord = await (db as any).batch.findUnique({ where: { id: batchId } });
       const evalResult = evaluateBatchComparison(
         { ...batchRecord, details: allDetails },
-        serverGroups
+        serverGroups,
+        serverDataActions
       );
 
       const dbStatusStr =
@@ -412,7 +417,10 @@ export async function POST(
     }
 
     // 5. Re-evaluate overall batch matching status
-    const serverGroups = await loadServerEquivalencyGroups();
+    const [serverGroups, serverDataActions] = await Promise.all([
+      loadServerEquivalencyGroups(),
+      loadServerWorkflowSteps(),
+    ]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allDetails = await (db as any).detailBatch.findMany({
       where: { batchId },
@@ -427,7 +435,8 @@ export async function POST(
         ...batchRecord,
         details: allDetails,
       },
-      serverGroups
+      serverGroups,
+      serverDataActions
     );
 
     const dbStatusStr =

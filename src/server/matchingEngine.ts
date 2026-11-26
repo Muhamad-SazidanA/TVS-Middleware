@@ -13,6 +13,7 @@ import {
   compareFieldStrict,
 } from "~/utils/canonicalMatcher";
 import { loadServerEquivalencyGroups, type DbEquivalencyGroup } from "~/server/equivalencyLoader";
+import type { WorkflowStep } from "~/types/workflow";
 
 export {
   evaluateCanonicalBatchMatching,
@@ -61,7 +62,12 @@ import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapte
  * Evaluates batch status for DB batches using unified detailAdapter comparison engine.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function evaluateDbBatchStatus(details: any[], totalFile?: number, dbGroups?: DbEquivalencyGroup[]): "Matching" | "Mismatching" | "Proses" {
-  const result = evaluateBatchComparison({ details, totalFile }, dbGroups);
+export function evaluateDbBatchStatus(
+  details: any[],
+  totalFile?: number,
+  dbGroups?: DbEquivalencyGroup[],
+  dataActions?: WorkflowStep[]
+): "Matching" | "Mismatching" | "Proses" {
+  const result = evaluateBatchComparison({ details, totalFile }, dbGroups, dataActions);
   return result.status;
 }

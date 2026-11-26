@@ -23,6 +23,7 @@ import ConfirmDialog from "@/app/_components/ui/ConfirmDialog";
 
 import { evaluateBatchComparison } from "./_components/detailAdapter";
 import type { DbEquivalencyGroup } from "~/utils/valueEquivalency";
+import type { WorkflowStep } from "~/types/workflow";
 
 interface DetailBatch {
   id: number;
@@ -60,9 +61,10 @@ const defaultColumnVisibility: ColumnVisibility = {
 
 function calculateDocStatuses(
   batch: RawBatchItem,
-  equivalencyGroups: DbEquivalencyGroup[] = []
+  equivalencyGroups: DbEquivalencyGroup[] = [],
+  dataActions: WorkflowStep[] = []
 ): Record<string, DocumentStatusCell> {
-  const res = evaluateBatchComparison(batch, equivalencyGroups);
+  const res = evaluateBatchComparison(batch, equivalencyGroups, dataActions);
   return res.docStatuses;
 }
 
@@ -77,6 +79,7 @@ function MatchingPageContent() {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [equivalencyGroups, setEquivalencyGroups] = useState<DbEquivalencyGroup[]>([]);
+  const [dataActionSteps, setDataActionSteps] = useState<WorkflowStep[]>([]);
 
   // Filtering, search, tabs
   const [activeTab, setActiveTab] = useState<MatchingTabId>("all");
@@ -206,10 +209,25 @@ function MatchingPageContent() {
     }
   }, []);
 
+  const fetchDataActions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/data-actions", { cache: "no-store" });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.success && Array.isArray(d.steps)) {
+          setDataActionSteps(d.steps);
+        }
+      }
+    } catch (err) {
+      console.warn("Gagal memuat konfigurasi Data Actions:", err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchBatches(false);
     fetchEquivalencies();
-  }, [fetchBatches, fetchEquivalencies]);
+    fetchDataActions();
+  }, [fetchBatches, fetchEquivalencies, fetchDataActions]);
 
   // Auto-polling (every 3s) whenever any batch is in PROSES / PENDING status waiting for Nanonets webhooks
   useEffect(() => {
@@ -289,7 +307,7 @@ function MatchingPageContent() {
       }
 
       // Bind status badges and per-document status directly from server data with dynamic consistency
-      const docStatuses = batch.docStatuses || calculateDocStatuses(batch, equivalencyGroups);
+      const docStatuses = batch.docStatuses || calculateDocStatuses(batch, equivalencyGroups, dataActionSteps);
       const docStatusList = Object.values(docStatuses).map((d) => d.status);
       const isAnyDocMismatch = docStatusList.some((s) => s === "Mismatch");
       const rawSt = (batch.rawStatus || "").toUpperCase();
@@ -352,7 +370,7 @@ function MatchingPageContent() {
         docStatuses,
       };
     });
-  }, [batches, assignedMap, equivalencyGroups]);
+  }, [batches, assignedMap, equivalencyGroups, dataActionSteps]);
 
   // Check if any batch or document is currently processing
   const hasProcessingBatches = useMemo(() => {

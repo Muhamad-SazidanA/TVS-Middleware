@@ -241,8 +241,15 @@ export async function POST(req: Request) {
           filledDetails.length === batch.details.length;
 
         if (isComplete) {
-          const serverGroups = await loadServerEquivalencyGroups();
-          const matchResult = evaluateBatchMatching(batch.details, serverGroups);
+          const [serverGroups, serverDataActions] = await Promise.all([
+            loadServerEquivalencyGroups(),
+            loadServerWorkflowSteps(),
+          ]);
+          const matchResult = evaluateBatchMatching(
+            batch.details,
+            serverGroups,
+            serverDataActions
+          );
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (db as any).batch.update({
             where: { id: batchId },

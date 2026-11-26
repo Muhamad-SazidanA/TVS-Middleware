@@ -23,6 +23,9 @@ if [ "${RUN_EQUIVALENCY_SEED_ON_START:-true}" = "true" ]; then
   node scripts/seed-equivalencies.mjs
 fi
 
+echo "[docmatch] Checking Data Actions config sync..."
+node scripts/sync-data-actions.mjs
+
 if [ "${RUN_DB_SEED_ON_START:-false}" = "true" ]; then
   echo "[docmatch] Running seed script..."
   npm run db:seed
