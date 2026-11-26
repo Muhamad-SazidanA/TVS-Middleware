@@ -19,31 +19,19 @@ export interface EquivalencyGroupItem {
 }
 
 const CATEGORIES: Array<{ id: string; label: string }> = [
-  { id: "all", label: "Semua Kategori" },
-  { id: "port", label: "Pelabuhan (Port)" },
-  { id: "company", label: "Perusahaan (Company)" },
-  { id: "incoterms", label: "Incoterms / Penyerahan" },
-  { id: "general", label: "Umum (General)" },
+  { id: "all", label: "Semua" },
+  { id: "port", label: "Pelabuhan" },
+  { id: "company", label: "Perusahaan" },
+  { id: "incoterms", label: "Incoterms" },
+  { id: "general", label: "Umum" },
 ];
 
-const CATEGORY_STYLES: Record<string, { label: string; badge: string }> = {
-  port: { label: "Pelabuhan", badge: "bg-teal-50 text-teal-800 border-teal-200" },
-  company: { label: "Perusahaan", badge: "bg-indigo-50 text-indigo-800 border-indigo-200" },
-  incoterms: { label: "Incoterms", badge: "bg-amber-50 text-amber-800 border-amber-200" },
-  general: { label: "Umum", badge: "bg-slate-100 text-slate-800 border-slate-200" },
+const CATEGORY_LABELS: Record<string, string> = {
+  port: "Pelabuhan",
+  company: "Perusahaan",
+  incoterms: "Incoterms",
+  general: "Umum",
 };
-
-// SVG Icons (Zero Emojis)
-const InfoIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-    />
-  </svg>
-);
 
 const PlusIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -87,23 +75,6 @@ const EditIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
 const XIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
-const DatabaseIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
-    />
-  </svg>
-);
-
-const StarIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
-  <svg className={className} fill="currentColor" viewBox="0 0 20 20">
-    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
   </svg>
 );
 
@@ -340,22 +311,21 @@ export default function EquivalencyManager() {
       <ToastNotification toast={toast} onClose={dismissToast} />
 
       {/* Header Card & Actions (Card 2 Fixed) */}
-      <div className="shrink-0 bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <DatabaseIcon className="w-4 h-4 text-blue-600" />
-              <span>Database Kamus Ekuivalensi Nilai</span>
+      <div className="shrink-0 bg-white rounded-xl border border-slate-200 px-4 py-3.5 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-slate-900">
+              Kamus Ekuivalensi
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Daftarkan grup nilai yang dianggap setara dalam pencocokan antar dokumen (misal: pelabuhan, nama perusahaan, incoterms). Nilai yang tidak terdaftar hanya akan cocok jika sama persis (exact match).
-            </p>
+            <span className="text-[11px] font-medium text-slate-400">
+              ({groups.length} aturan)
+            </span>
           </div>
 
           <button
             type="button"
             onClick={handleOpenCreate}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer shrink-0 shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium bg-[#091E42] hover:bg-[#091E42]/90 text-white transition-colors cursor-pointer shrink-0 shadow-2xs"
           >
             <PlusIcon className="w-3.5 h-3.5" />
             <span>Tambah Grup</span>
@@ -363,9 +333,9 @@ export default function EquivalencyManager() {
         </div>
 
         {/* Filters: Category and Search */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-1">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 pt-2.5 border-t border-slate-100">
           {/* Category Tabs */}
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
             {CATEGORIES.map((cat) => {
               const isActive = selectedCategory === cat.id;
               const count =
@@ -377,16 +347,16 @@ export default function EquivalencyManager() {
                   key={cat.id}
                   type="button"
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
                     isActive
-                      ? "bg-[#E2ECFE] text-[#1D4ED8] border border-blue-200 font-semibold"
-                      : "bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200"
+                      ? "bg-slate-900 text-white"
+                      : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
                   }`}
                 >
                   <span>{cat.label}</span>
                   <span
-                    className={`ml-1.5 text-[10px] px-1.5 py-0.2 rounded-full ${
-                      isActive ? "bg-white text-blue-700 font-bold" : "bg-slate-200/80 text-slate-600"
+                    className={`ml-1.5 text-[10px] ${
+                      isActive ? "text-slate-300" : "text-slate-400"
                     }`}
                   >
                     {count}
@@ -397,20 +367,20 @@ export default function EquivalencyManager() {
           </div>
 
           {/* Search Box */}
-          <div className="relative w-full md:w-64">
+          <div className="relative w-full md:w-60">
             <SearchIcon className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cari grup, canonical, atau nilai..."
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+              placeholder="Cari aturan atau nilai..."
+              className="w-full pl-8 pr-7 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-slate-900 focus:bg-white transition-all"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 <XIcon className="w-3 h-3" />
               </button>
@@ -423,70 +393,60 @@ export default function EquivalencyManager() {
       <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 pb-1">
         {loading ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-xs text-slate-500">
-            Memuat kamus ekuivalensi dari database...
+            Memuat kamus ekuivalensi...
           </div>
         ) : filteredGroups.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-10 text-center space-y-3">
-          <div className="mx-auto w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
-            <DatabaseIcon className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-xs font-semibold text-slate-800">
-              {groups.length === 0 ? "Belum ada grup ekuivalensi terdaftar" : "Tidak ada grup yang sesuai filter pencarian"}
-            </h3>
-            <p className="text-[11px] text-slate-500 max-w-sm mx-auto mt-0.5">
+          <div className="bg-white rounded-xl border border-slate-200 p-10 text-center space-y-2.5">
+            <p className="text-xs font-medium text-slate-700">
               {groups.length === 0
-                ? "Tambahkan grup baru untuk menyatukan variasi penulisan nilai yang setara (misal: 'TANJUNG PRIOK' dengan 'JAKARTA')."
-                : "Coba ubah kata kunci pencarian atau kategori filter."}
+                ? "Belum ada aturan kamus terdaftar."
+                : "Tidak ada aturan yang sesuai filter."}
             </p>
-          </div>
-          {groups.length === 0 && (
-            <button
-              type="button"
-              onClick={handleOpenCreate}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer shadow-2xs"
-            >
-              <PlusIcon className="w-3.5 h-3.5" />
-              <span>Tambah Grup Pertama</span>
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {filteredGroups.map((group) => {
-            const catBadge =
-              CATEGORY_STYLES[group.category] || {
-                label: group.category,
-                badge: "bg-slate-100 text-slate-800 border-slate-200",
-              };
-
-            return (
-              <div
-                key={group.id}
-                className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs hover:border-slate-300 transition-all flex flex-col justify-between"
+            {groups.length === 0 && (
+              <button
+                type="button"
+                onClick={handleOpenCreate}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[#091E42] hover:bg-[#091E42]/90 text-white transition-colors cursor-pointer"
               >
-                <div className="space-y-3">
-                  {/* Top Bar: Category badge & Actions */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${catBadge.badge}`}
-                    >
-                      {catBadge.label}
-                    </span>
+                <PlusIcon className="w-3.5 h-3.5" />
+                <span>Tambah Grup</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {filteredGroups.map((group) => {
+              const catLabel = CATEGORY_LABELS[group.category] || group.category;
 
-                    <div className="flex items-center gap-1">
+              return (
+                <div
+                  key={group.id}
+                  className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs hover:border-slate-300 transition-colors flex flex-col"
+                >
+                  {/* Top Row: Group Name, Plain Category, Actions */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h3 className="text-sm font-semibold text-slate-900 truncate">
+                        {group.name}
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+                        {catLabel}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
                         onClick={() => handleOpenEdit(group)}
-                        title="Edit Aturan"
-                        className="p-1 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Edit"
+                        className="p-1 rounded text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
                       >
                         <EditIcon className="w-3.5 h-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => setDeleteTarget(group)}
-                        title="Hapus Aturan"
+                        title="Hapus"
                         className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                       >
                         <TrashIcon className="w-3.5 h-3.5" />
@@ -494,177 +454,125 @@ export default function EquivalencyManager() {
                     </div>
                   </div>
 
-                  {/* Group Name (Clear semantic concept header) */}
-                  <div className="space-y-0.5">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      Aturan Representasi:
+                  {/* Canonical Value */}
+                  <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200/80 space-y-0.5">
+                    <span className="text-[11px] font-medium text-slate-500 block">
+                      Acuan (PIB)
                     </span>
-                    <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                      {group.name}
-                    </h3>
-                  </div>
-
-                  {/* Canonical Value (Standard target banner) */}
-                  <div className="p-2.5 rounded-lg bg-blue-50/70 border border-blue-200/90 space-y-1">
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1.5">
-                        <StarIcon className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                        <span>Nilai Standar Acuan (Canonical):</span>
-                      </span>
-                      <span className="text-[9px] font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.2 rounded">
-                        Target Match
-                      </span>
-                    </div>
-                    <span className="block text-xs font-mono font-bold text-blue-800 break-words leading-relaxed">
+                    <span className="block text-xs font-mono font-semibold text-slate-900 break-words">
                       {group.canonical}
                     </span>
                   </div>
 
-                  {/* Equivalent Values (Field variations) */}
+                  {/* Equivalent Variations */}
                   <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Variasi Teks Lapangan ({group.values.length}):
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        Otomatis disamakan
-                      </span>
-                    </div>
+                    <span className="text-[11px] font-medium text-slate-500 block">
+                      Variasi ({group.values.length})
+                    </span>
 
                     {group.values.length === 0 ? (
-                      <span className="text-[11px] text-slate-400 italic block py-1">
-                        Belum ada variasi nilai tambahan.
+                      <span className="text-xs text-slate-400 block">
+                        Belum ada variasi.
                       </span>
                     ) : (
-                      <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                      <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-0.5">
                         {group.values.map((v, idx) => (
-                          <div
+                          <span
                             key={v.id || idx}
-                            className="px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200/90 text-[11px] font-mono text-slate-700 break-words leading-relaxed flex items-start gap-2"
+                            className="inline-flex items-center px-2.5 py-1 rounded-md bg-white border border-slate-200 text-xs font-mono text-slate-700 break-words max-w-full"
                           >
-                            <span className="text-[10px] font-sans font-bold text-slate-400 select-none pt-0.5">
-                              #{idx + 1}
-                            </span>
-                            <span className="flex-1">{v.value}</span>
-                          </div>
+                            {v.value}
+                          </span>
                         ))}
                       </div>
                     )}
                   </div>
                 </div>
-
-                {/* Footer Count */}
-                <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-400 flex items-center justify-between mt-3">
-                  <span>Total {group.values.length + 1} entri teks terdaftar</span>
-                  <span className="font-mono text-slate-300">ID #{group.id}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* CREATE / EDIT MODAL */}
+      {/* CREATE / EDIT MODAL (Compact single-view without outer popup scroll) */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-lg p-5 space-y-4 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  {editingGroup ? "Edit Aturan Kamus Ekuivalensi" : "Tambah Aturan Kamus Baru"}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Menghubungkan variasi teks dokumen agar sistem mencocokkannya secara otomatis.
-                </p>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/45 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-xl p-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-sm font-semibold text-slate-900">
+                {editingGroup ? "Edit Aturan Kamus" : "Tambah Aturan Kamus"}
+              </h3>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+                className="text-slate-400 hover:text-slate-700 p-1 rounded hover:bg-slate-100 cursor-pointer transition-colors"
+                title="Tutup"
               >
                 <XIcon className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Beginner-friendly explanation */}
-            <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-lg text-xs text-blue-800 space-y-0.5 shrink-0">
-              <span className="font-bold flex items-center gap-1.5">
-                <InfoIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                <span>Petunjuk Penggunaan Kamus</span>
-              </span>
-              <p className="text-[11px] text-blue-700/90 leading-relaxed">
-                Kamus ini bertindak sebagai jembatan kesetaraan: jika dokumen lain menulis teks dengan variasi nama atau alamat yang berbeda dari PIB, sistem otomatis menganggapnya <strong>MATCH</strong> dan tidak terjadi mismatch.
-              </p>
-            </div>
-
             {formError && (
-              <div className="px-3 py-2 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs shrink-0">
+              <div className="mt-3 px-3 py-2 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs">
                 {formError}
               </div>
             )}
 
-            <form onSubmit={handleSaveForm} className="space-y-3 overflow-y-auto pr-1 flex-1">
-              {/* Nama Grup & Kategori */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    Nama Representasi Aturan:
+            <form onSubmit={handleSaveForm} className="mt-3.5 space-y-3">
+              {/* Row 1: Rule Name & Category */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="text-xs font-medium text-slate-700 block mb-1">
+                    Nama Aturan
                   </label>
                   <input
                     type="text"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder="misal: Identitas Pembeli, Pelabuhan Korea"
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 font-medium focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+                    placeholder="Contoh: Terms_of_Delivery"
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-slate-900 transition-colors"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Nama konsep/topik untuk mengenali aturan ini di daftar.
-                  </p>
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-slate-700 block mb-1">
-                    Kategori:
+                  <label className="text-xs font-medium text-slate-700 block mb-1">
+                    Kategori
                   </label>
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white transition-all cursor-pointer"
+                    className="w-full h-9 px-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-none focus:border-slate-900 transition-colors cursor-pointer"
                   >
-                    <option value="port">Pelabuhan (Port)</option>
-                    <option value="company">Perusahaan (Company)</option>
-                    <option value="incoterms">Incoterms / Penyerahan</option>
-                    <option value="general">Umum (General)</option>
+                    <option value="port">Pelabuhan</option>
+                    <option value="company">Perusahaan</option>
+                    <option value="incoterms">Incoterms</option>
+                    <option value="general">Umum</option>
                   </select>
                 </div>
               </div>
 
-              {/* Nilai Canonical */}
+              {/* Row 2: Canonical Value */}
               <div>
-                <label className="text-xs font-semibold text-slate-700 block mb-1">
-                  Nilai Acuan Utama Standar (Canonical):
+                <label className="text-xs font-medium text-slate-700 block mb-1">
+                  Nilai Acuan (PIB)
                 </label>
-                <textarea
-                  rows={2}
+                <input
+                  type="text"
                   value={formCanonical}
                   onChange={(e) => setFormCanonical(e.target.value)}
-                  placeholder="misal: TANJUNG PRIOK"
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-blue-700 focus:outline-none focus:border-blue-600 focus:bg-white transition-all leading-relaxed"
+                  placeholder="Contoh: CIF"
+                  className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-mono font-medium text-slate-900 focus:outline-none focus:border-slate-900 transition-colors"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Nilai standar resmi yang tertera di dokumen acuan (PIB) sebagai patokan matching.
-                </p>
               </div>
 
-              {/* Variasi Nilai Ekuivalen */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 block">
-                  Variasi Nilai Teks Lapangan yang Disamakan:
+              {/* Row 3: Variations Input + Chips */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-slate-700 block">
+                  Variasi Nilai ({formValues.length})
                 </label>
-                <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
                   <textarea
-                    rows={2}
+                    rows={1}
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={(e) => {
@@ -673,52 +581,49 @@ export default function EquivalencyManager() {
                         handleAddAlias();
                       }
                     }}
-                    placeholder="Ketik atau paste variasi teks di sini (bisa satu alamat panjang, atau pisahkan dengan koma/baris baru)"
-                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-800 focus:outline-none focus:border-blue-600 focus:bg-white transition-all leading-relaxed"
+                    placeholder="Ketik / paste variasi (pisahkan koma atau Enter)"
+                    className="flex-1 h-9 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono text-slate-900 focus:outline-none focus:border-slate-900 transition-colors resize-none leading-snug"
                   />
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-slate-400">
-                      Tekan Enter atau klik tombol Tambah
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleAddAlias}
-                      className="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors cursor-pointer"
-                    >
-                      + Tambah Variasi
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddAlias}
+                    className="h-9 px-3 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors cursor-pointer shrink-0 whitespace-nowrap"
+                  >
+                    + Tambah
+                  </button>
                 </div>
 
-                {/* List of added values */}
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg min-h-[72px] max-h-48 overflow-y-auto space-y-1.5">
+                {/* Compact Wrap Chip List (only inner chip box scrolls if huge) */}
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg min-h-[54px] max-h-36 overflow-y-auto">
                   {formValues.length === 0 ? (
-                    <span className="text-[11px] text-slate-400 italic block py-2 text-center">
-                      Belum ada variasi teks ditambahkan. Ketik atau paste di atas lalu klik Tambah.
+                    <span className="text-xs text-slate-400 block py-1.5 text-center">
+                      Belum ada variasi ditambahkan
                     </span>
                   ) : (
-                    formValues.map((val, idx) => (
-                      <div
-                        key={idx}
-                        className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 shadow-2xs text-xs font-mono text-slate-800 flex items-start justify-between gap-2"
-                      >
-                        <span className="break-words flex-1 leading-relaxed">{val}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveAlias(val)}
-                          className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer shrink-0"
-                          title="Hapus variasi ini"
+                    <div className="flex flex-wrap gap-1.5">
+                      {formValues.map((val, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-xs font-mono text-slate-800 max-w-full"
                         >
-                          <XIcon className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))
+                          <span className="break-words leading-snug">{val}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAlias(val)}
+                            className="text-slate-400 hover:text-rose-600 cursor-pointer shrink-0"
+                            title="Hapus"
+                          >
+                            <XIcon className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+              {/* Sticky/Docked Modal Footer Buttons */}
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
@@ -730,9 +635,9 @@ export default function EquivalencyManager() {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                  className="px-4 py-1.5 rounded-lg text-xs font-medium bg-[#091E42] hover:bg-[#091E42]/90 text-white transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
                 >
-                  {isSaving ? "Menyimpan..." : editingGroup ? "Simpan Perubahan" : "Simpan ke Database"}
+                  {isSaving ? "Menyimpan..." : editingGroup ? "Simpan Perubahan" : "Simpan"}
                 </button>
               </div>
             </form>
@@ -742,11 +647,11 @@ export default function EquivalencyManager() {
 
       {/* DELETE CONFIRMATION MODAL */}
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/50 backdrop-blur-xs animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/45 backdrop-blur-xs animate-in fade-in">
           <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-sm p-5 space-y-3">
-            <h3 className="text-sm font-bold text-slate-900">Hapus Grup Ekuivalensi?</h3>
+            <h3 className="text-sm font-semibold text-slate-900">Hapus Aturan?</h3>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Grup <strong className="text-slate-800">&quot;{deleteTarget.name}&quot;</strong> beserta seluruh variasi nilainya akan dihapus dari database. Dokumen yang sebelumnya cocok melalui grup ini akan menjadi <span className="font-semibold text-rose-600">MISMATCH</span> jika nilainya tidak identik.
+              Aturan <strong className="text-slate-800">&quot;{deleteTarget.name}&quot;</strong> beserta seluruh variasinya akan dihapus permanen.
             </p>
             <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2">
               <button
@@ -761,9 +666,9 @@ export default function EquivalencyManager() {
                 type="button"
                 onClick={handleDeleteConfirm}
                 disabled={isDeleting}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
+                className="px-3.5 py-1.5 rounded-lg text-xs font-medium bg-rose-600 hover:bg-rose-700 text-white transition-colors cursor-pointer shadow-2xs disabled:opacity-50"
               >
-                {isDeleting ? "Menghapus..." : "Hapus Grup"}
+                {isDeleting ? "Menghapus..." : "Hapus"}
               </button>
             </div>
           </div>
