@@ -1924,12 +1924,12 @@ export default function WorkflowBuilder() {
   };
 
   return (
-    <div className="space-y-3.5">
+    <div className="flex-1 min-h-0 flex flex-col gap-3.5">
       {/* Top-Right Light Toast Notification */}
       <ToastNotification toast={toast} onClose={dismissToast} />
 
-      {/* Consolidated Data Actions Toolbar + Document Switcher Card */}
-      <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+      {/* Consolidated Fixed Data Actions Toolbar + Document Switcher Card */}
+      <div className="shrink-0 bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
         <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-xs font-semibold text-slate-900">Data Actions</h2>
@@ -2017,8 +2017,8 @@ export default function WorkflowBuilder() {
         </div>
       </div>
 
-      {/* ACTIVE DOCUMENT DATA ACTIONS LIST */}
-      <div className="space-y-3">
+      {/* Scrollable Active Document Data Actions List */}
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 pb-2">
         {activeDocumentSteps.length === 0 ? (
           // Clean & Slim Empty State (Zero Emojis)
           <div className="bg-white rounded-xl border border-dashed border-slate-300 p-8 text-center space-y-2.5">

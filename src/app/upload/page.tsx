@@ -168,17 +168,22 @@ export default function UploadPage() {
   };
 
   return (
-    <div className="h-full overflow-y-auto px-6 sm:px-8 py-8 max-w-7xl mx-auto w-full space-y-4">
-      {/* Page Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-        <div>
-          <h1 className="text-base font-bold text-blue-950">Upload Dokumen</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Unggah berkas PIB (File Acuan) dan Dokumen Pembanding</p>
+    <div className="h-full flex flex-col overflow-hidden w-full">
+      {/* Fixed Page Header */}
+      <div className="shrink-0 px-6 sm:px-8 pt-6 pb-3 bg-slate-50/90">
+        <div className="max-w-7xl mx-auto w-full flex items-center justify-between pb-3 border-b border-slate-200">
+          <div>
+            <h1 className="text-base font-bold text-blue-950">Upload Dokumen</h1>
+            <p className="text-xs text-slate-500 mt-0.5">Unggah berkas PIB (File Acuan) dan Dokumen Pembanding</p>
+          </div>
         </div>
       </div>
 
-      {/* Main Content Layout: Left 2-Column Cards Grid (Col-span-9) + Right Compact Summary Card (Col-span-3) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
+      {/* Scrollable Upload Body */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 sm:px-8 py-4">
+        <div className="max-w-7xl mx-auto w-full">
+          {/* Main Content Layout: Left 2-Column Cards Grid (Col-span-9) + Right Compact Summary Card (Col-span-3) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
         {/* LEFT COLUMN: 7 Upload Cards arranged 2 Cards per Row */}
         <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 gap-3.5 items-start">
           {categories.map((cat) => {
@@ -295,7 +300,7 @@ export default function UploadPage() {
         </div>
 
         {/* RIGHT COLUMN: 2x Smaller Compact Summary & Action Panel Card */}
-        <div className="lg:col-span-3 space-y-3 sticky top-6">
+        <div className="lg:col-span-3 space-y-3 lg:sticky lg:top-0">
           <div className="bg-white border border-slate-200/90 rounded-xl p-3 shadow-xs space-y-3">
             {/* Panel Title */}
             <div className="border-b border-slate-100 pb-2 flex items-center justify-between">
@@ -371,6 +376,8 @@ export default function UploadPage() {
                 </>
               )}
             </button>
+          </div>
+        </div>
           </div>
         </div>
       </div>
