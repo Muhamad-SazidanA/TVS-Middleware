@@ -4,48 +4,13 @@ import { db } from "~/server/db";
 import { auth } from "~/server/auth";
 import { evaluateBatchComparison } from "~/app/matching/_components/detailAdapter";
 import { loadServerEquivalencyGroups } from "~/server/equivalencyLoader";
+import {
+  buildBatchChangeLogs,
+  extractManualNotesFromBatch,
+  formatDocDisplayName,
+} from "~/utils/changeLogBuilder";
 
 export const dynamic = "force-dynamic";
-
-function parseIsi(isi?: string | null) {
-  if (!isi) return { fields: {}, table: [], manualEdits: {}, manualNotes: [] };
-  try {
-    const p = typeof isi === "string" ? JSON.parse(isi) : isi;
-    return {
-      fields: p?.fields || p?.prediction?.fields || p || {},
-      table: Array.isArray(p?.table) ? p.table : Array.isArray(p?.prediction?.table) ? p.prediction.table : [],
-      manualEdits: p?.manualEdits || {},
-      manualNotes: Array.isArray(p?.manualNotes) ? p.manualNotes : [],
-    };
-  } catch {
-    return { fields: {}, table: [], manualEdits: {}, manualNotes: [] };
-  }
-}
-
-// Extract raw value without _action overrides
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getRawVal(fields: Record<string, any>, ...keys: string[]): string {
-  if (!fields) return "-";
-  for (const k of keys) {
-    if (fields[k] !== undefined && fields[k] !== null && String(fields[k]).trim() !== "") {
-      const v = typeof fields[k] === "object" ? fields[k]?.value : fields[k];
-      if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
-    }
-  }
-
-  for (const k of keys) {
-    const cleanK = k.toLowerCase().replace(/[\s_.-]+/g, "");
-    for (const [rk, rv] of Object.entries(fields)) {
-      const lower = rk.toLowerCase();
-      if (lower.endsWith("_action") || lower.endsWith(" action")) continue;
-      if (lower.replace(/[\s_.-]+/g, "") === cleanK) {
-        const v = typeof rv === "object" ? rv?.value : rv;
-        if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
-      }
-    }
-  }
-  return "-";
-}
 
 function formatDate(d?: Date | string | null): string {
   if (!d) return "-";
@@ -151,10 +116,18 @@ export async function GET(req: Request) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     const search = searchParams.get("search")?.toLowerCase().trim() || "";
+    const batchIdsParam = searchParams.get("batchIds")?.trim() || "";
+    const batchIdsFilter = batchIdsParam
+      ? batchIdsParam.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
 
     // 1. RBAC & Scope constraints
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const whereClause: any = {};
+
+    if (batchIdsFilter.length > 0) {
+      whereClause.id = { in: batchIdsFilter };
+    }
 
     if (scope === "all_data") {
       whereClause.status = "APPROVED";
@@ -238,126 +211,30 @@ export async function GET(req: Request) {
       const detailSheetName = getSafeSheetName(`Detail (${batch.id})`, usedSheetNames);
       const evalResult = evaluateBatchComparison(batch, serverGroups);
 
-      // Active data actions and manual notes
-      interface ActiveActionItem {
-        no: number;
-        docType: string;
-        fieldName: string;
-        actionType: string;
-        oldValue: string;
-        newValue: string;
-        evalStatus: string;
-        notes: string;
-        actionBy: string;
-        timestamp: string;
-      }
-      const activeActions: ActiveActionItem[] = [];
-      let actionIdx = 1;
+      // Complete chronological logs: Data Action, Kamus Ekuivalensi, Edit Manual, Setujui (Satuan/Massal/Berkas), File Updates
+      const rawEvents = buildBatchChangeLogs(batch, evalResult.evaluatedFieldModels || []);
+      const activeActions = rawEvents.map((ev, idx) => ({
+        no: idx + 1,
+        docType: formatDocDisplayName(ev.docType),
+        fieldName: formatFieldLabel(ev.fieldLabel || ev.fieldName),
+        actionType: ev.categoryLabel,
+        oldValue: ev.oldValue || "-",
+        newValue: ev.newValue || "-",
+        evalStatus: "Tercatat",
+        notes: ev.notes || "-",
+        actionBy: ev.actor || batch.createdBy?.name || "Operator",
+        timestamp: ev.timestamp ? formatDate(ev.timestamp) : "Otomatis",
+      }));
 
-      // From actionLogs table
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (batch.actionLogs || []).forEach((log: any) => {
-        activeActions.push({
-          no: actionIdx++,
-          docType: formatDocName(log.docType || "Dokumen"),
-          fieldName: formatFieldLabel(log.fieldName),
-          actionType: "Revisi Manual / Standarisasi",
-          oldValue: log.oldValue || "-",
-          newValue: log.newValue || "-",
-          evalStatus: "Tervalidasi",
-          notes: log.notes || `Revisi field ${log.fieldName}`,
-          actionBy: log.actionBy || batch.createdBy?.name || "Operator",
-          timestamp: formatDate(log.createdAt),
-        });
-      });
-
-      // From detail documents _action transformations
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (batch.details || []).forEach((det: any) => {
-        if (!det.isi) return;
-        const p = parseIsi(det.isi);
-        const f = p.fields || {};
-        for (const [k, v] of Object.entries(f)) {
-          if (!k.toLowerCase().endsWith("_action") && !k.toLowerCase().endsWith(" action")) continue;
-          const baseKey = k.replace(/_action$/i, "").replace(/ action$/i, "");
-          const rawVal = getRawVal(f, baseKey);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const actVal = typeof v === "object" && v !== null ? String((v as any).value || "").trim() : String(v || "").trim();
-
-          if (actVal && actVal !== "-" && actVal !== rawVal && rawVal !== "-") {
-            const alreadyLogged = activeActions.some(
-              (a) => a.docType === formatDocName(det.fileType) && a.fieldName === formatFieldLabel(baseKey)
-            );
-            if (!alreadyLogged) {
-              activeActions.push({
-                no: actionIdx++,
-                docType: formatDocName(det.fileType || "Dokumen"),
-                fieldName: formatFieldLabel(baseKey),
-                actionType: "Transformasi Data Action",
-                oldValue: rawVal,
-                newValue: actVal,
-                evalStatus: "Aktif Selaras",
-                notes: `Transformasi otomatis Data Action pada ${formatDocName(det.fileType)} (${formatFieldLabel(baseKey)})`,
-                actionBy: "Sistem / Operator",
-                timestamp: formatDate(det.updatedAt || det.createdAt),
-              });
-            }
-          }
-        }
-
-        // From manualEdits in JSON
-        for (const [k, v] of Object.entries(p.manualEdits || {})) {
-          const alreadyLogged = activeActions.some(
-            (a) => a.docType === formatDocName(det.fileType) && a.fieldName === formatFieldLabel(k)
-          );
-          if (!alreadyLogged) {
-            activeActions.push({
-              no: actionIdx++,
-              docType: formatDocName(det.fileType || "Dokumen"),
-              fieldName: formatFieldLabel(k),
-              actionType: "Revisi Manual Operator",
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              oldValue: (v as any)?.oldValue || "-",
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              newValue: (v as any)?.newValue || "-",
-              evalStatus: "Terselesaikan",
-              notes: `Perubahan manual operator pada field ${formatFieldLabel(k)}`,
-              actionBy: batch.createdBy?.name || "Operator",
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              timestamp: formatDate((v as any)?.editedAt || det.updatedAt),
-            });
-          }
-        }
-      });
-
-      // Extract manual notes for Bagian 3
-      interface ManualNoteItem {
-        no: number;
-        docType: string;
-        targetKey: string;
-        note: string;
-        author: string;
-        timestamp: string;
-      }
-      const manualNotesList: ManualNoteItem[] = [];
-      let noteIdx = 1;
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (batch.details || []).forEach((det: any) => {
-        if (!det.isi) return;
-        const p = parseIsi(det.isi);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (p.manualNotes || []).forEach((n: any) => {
-          manualNotesList.push({
-            no: noteIdx++,
-            docType: formatDocName(det.fileType),
-            targetKey: formatFieldLabel(n.targetKey || "Umum"),
-            note: n.note || "-",
-            author: n.author || batch.createdBy?.name || "Operator",
-            timestamp: formatDate(n.createdAt),
-          });
-        });
-      });
+      // Extract ALL manual notes cleanly (supports both `.text` and legacy `.note`)
+      const manualNotesList = extractManualNotesFromBatch(batch).map((n, idx) => ({
+        no: idx + 1,
+        docType: n.docType,
+        targetKey: formatFieldLabel(n.targetKey),
+        note: n.note,
+        author: n.author,
+        timestamp: formatDate(n.timestampRaw),
+      }));
 
       return {
         batch,
@@ -737,10 +614,10 @@ export async function GET(req: Request) {
       // "ada yang bersih ada yang + log + Catatan yang mau saya bangun tuh yang seperti ini"
       // =========================================================================
       if (mode === "with_action_log") {
-        // --- BAGIAN 2: DATA ACTION AKTIF & TRANSFORMASI NILAI ---
+        // --- BAGIAN 2: LOG LENGKAP PERUBAHAN (DATA ACTION, KAMUS, EDIT, SETUJUI SATUAN/ALL) ---
         detailSheet.addRow([]); // Blank line
         const sec2Banner = detailSheet.addRow([
-          "BAGIAN 2: DATA ACTION AKTIF & TRANSFORMASI NILAI",
+          "BAGIAN 2: LOG LENGKAP PERUBAHAN (DATA ACTION, KAMUS, EDIT & SETUJUI)",
         ]);
         detailSheet.mergeCells(`A${sec2Banner.number}:G${sec2Banner.number}`);
         sec2Banner.height = 22;
@@ -753,10 +630,10 @@ export async function GET(req: Request) {
           "No",
           "Dokumen",
           "Field Terkait",
-          "Tipe Data Action",
-          "Nilai Asli (Original)",
-          "Nilai Transformasi",
-          "Status & Catatan Revisi",
+          "Kategori Aksi",
+          "Nilai Sebelum / Asli",
+          "Nilai Sesudah / Hasil",
+          "Detail Perubahan, Pelaku & Waktu",
         ]);
         actHdrRow.height = 22;
         actHdrRow.eachCell((c) => {
@@ -774,7 +651,7 @@ export async function GET(req: Request) {
             "Semua Nilai Bersih",
             "-",
             "-",
-            "Semua parameter pada batch ini menggunakan nilai asli bersih tanpa Data Action aktif.",
+            "Belum ada Data Action, Kamus Ekuivalensi, Edit Manual, atau Setujui pada batch ini.",
           ]);
           emptyActRow.height = 22;
           detailSheet.mergeCells(`D${emptyActRow.number}:F${emptyActRow.number}`);
@@ -784,6 +661,7 @@ export async function GET(req: Request) {
           });
         } else {
           item.activeActions.forEach((act, aIdx) => {
+            const detailSummary = `${act.notes} (${act.actionBy} • ${act.timestamp})`;
             const aRow = detailSheet.addRow([
               aIdx + 1,
               act.docType,
@@ -791,9 +669,9 @@ export async function GET(req: Request) {
               act.actionType,
               act.oldValue,
               act.newValue,
-              act.notes,
+              detailSummary,
             ]);
-            aRow.height = 22;
+            aRow.height = 24;
             aRow.getCell(1).alignment = { vertical: "middle", horizontal: "center" };
             aRow.getCell(2).alignment = { vertical: "middle", horizontal: "left", indent: 1 };
             aRow.getCell(3).alignment = { vertical: "middle", horizontal: "left", indent: 1 };
@@ -940,6 +818,29 @@ export async function GET(req: Request) {
             c.border = thinBorder;
           });
         });
+
+        item.manualNotesList.forEach((noteItem) => {
+          const r = auditSheet.addRow({
+            no: auditIdx++,
+            batchId: item.batch.id,
+            docType: noteItem.docType,
+            fieldName: noteItem.targetKey,
+            actionType: "Catatan Manual",
+            oldValue: "-",
+            newValue: noteItem.note,
+            notes: noteItem.note,
+            actionBy: noteItem.author,
+            timestamp: noteItem.timestamp,
+          });
+          r.height = 22;
+          r.getCell(1).alignment = { vertical: "middle", horizontal: "center" };
+          r.getCell(2).alignment = { vertical: "middle", horizontal: "center" };
+          r.getCell(6).font = { name: "Consolas", size: 9 };
+          r.getCell(7).font = { name: "Consolas", size: 9, bold: true, color: { argb: "FF334155" } };
+          r.eachCell({ includeEmpty: true }, (c) => {
+            c.border = thinBorder;
+          });
+        });
       });
     }
 
@@ -948,7 +849,13 @@ export async function GET(req: Request) {
     const timestampStr = new Date().toISOString().slice(0, 10);
     const scopeLabel = scope === "all_data" ? "AllData_Approved" : "Personal";
     const modeLabel = mode === "with_action_log" ? "With_ActionLogs" : "Clean";
-    const filename = `DocMatch_${scopeLabel}_${modeLabel}_${timestampStr}.xlsx`;
+    const batchSuffix =
+      batchIdsFilter.length === 1
+        ? `_Batch_${batchIdsFilter[0]}`
+        : batchIdsFilter.length > 1
+        ? `_${batchIdsFilter.length}Batch`
+        : "";
+    const filename = `DocMatch_${scopeLabel}_${modeLabel}${batchSuffix}_${timestampStr}.xlsx`;
 
     return new NextResponse(buffer, {
       status: 200,

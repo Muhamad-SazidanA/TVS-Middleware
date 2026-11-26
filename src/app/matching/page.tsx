@@ -19,7 +19,6 @@ import BatchDocumentsModal from "./_components/BatchDocumentsModal";
 import ConfirmDialog from "@/app/_components/ui/ConfirmDialog";
 
 import { evaluateBatchComparison } from "./_components/detailAdapter";
-import { generateMatchingExcel } from "~/utils/excelExporter";
 import type { DbEquivalencyGroup } from "~/utils/valueEquivalency";
 
 interface DetailBatch {
@@ -640,52 +639,46 @@ function MatchingPageContent() {
     }
   };
 
+  // Unified server-side Excel download helper (includes complete Data Action, Kamus, Edit, Setujui, & Catatan logs)
+  const triggerServerExcelDownload = async (params: URLSearchParams, fallbackName: string) => {
+    const res = await fetch(`/api/export/excel?${params.toString()}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.error || "Gagal mengunduh file Excel.");
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get("content-disposition") || "";
+    const matchName = /filename="?([^"]+)"?/i.exec(disposition);
+    const filename = matchName?.[1] || fallbackName;
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // Single Row Download Handler
   const handleDownloadSingle = async (batch: TableBatchItem) => {
     try {
       const itemLabel = batch.noPengajuan || `Batch #${batch.id}`;
-      showToast(`Mengunduh data hasil untuk ${itemLabel}...`);
-      const rawBatch = batches.find((b) => b.id === batch.id);
-      if (!rawBatch) return;
+      showToast(`Mengunduh data hasil lengkap untuk ${itemLabel}...`);
 
-      await generateMatchingExcel({
-        batches: [rawBatch as any],
-        getComparisonReport: (b) => {
-          const rep = evaluateBatchComparison(b, equivalencyGroups);
-          return {
-            allFields: rep.allFields.map((f) => ({
-              documentType: f.documentType,
-              fieldName: f.fieldName,
-              pibValue: f.pibValue,
-              pembandingValue: f.targetValue,
-              status: (f.status === "MATCH" ? "MATCH" : "MISMATCH") as "MATCH" | "MISMATCH" | "INFO",
-              isMatch: f.status === "MATCH",
-              notes: f.notes,
-            })),
-            mismatches: rep.allFields
-              .filter((f) => f.status === "MISMATCH")
-              .map((m) => ({
-                documentType: m.documentType,
-                fieldName: m.fieldName,
-                pibValue: m.pibValue,
-                pembandingValue: m.targetValue,
-                status: "MISMATCH" as const,
-                isMatch: false,
-                notes: m.notes,
-              })),
-          };
-        },
-        getEffectiveStatus: (b) => {
-          const rep = evaluateBatchComparison(b, equivalencyGroups);
-          return rep.status;
-        },
-        customFilename: `Laporan_Matching_Batch_${rawBatch.id}`,
-      });
+      const params = new URLSearchParams();
+      params.set("scope", "personal");
+      params.set("mode", "with_action_log");
+      params.set("batchIds", batch.id);
 
+      await triggerServerExcelDownload(params, `Laporan_Matching_Batch_${batch.id}.xlsx`);
       showToast(`Berhasil mengunduh laporan ${itemLabel}`);
     } catch (err) {
       console.error("Download error:", err);
-      showToast("Gagal mengunduh data batch.");
+      showToast(err instanceof Error ? err.message : "Gagal mengunduh data batch.");
     }
   };
 
@@ -702,44 +695,22 @@ function MatchingPageContent() {
     }
 
     try {
-      showToast(`Menyiapkan data unduh untuk ${targetBatches.length} batch...`);
-      await generateMatchingExcel({
-        batches: targetBatches as any,
-        getComparisonReport: (b) => {
-          const rep = evaluateBatchComparison(b, equivalencyGroups);
-          return {
-            allFields: rep.allFields.map((f) => ({
-              documentType: f.documentType,
-              fieldName: f.fieldName,
-              pibValue: f.pibValue,
-              pembandingValue: f.targetValue,
-              status: (f.status === "MATCH" ? "MATCH" : "MISMATCH") as "MATCH" | "MISMATCH" | "INFO",
-              isMatch: f.status === "MATCH",
-              notes: f.notes,
-            })),
-            mismatches: rep.allFields
-              .filter((f) => f.status === "MISMATCH")
-              .map((m) => ({
-                documentType: m.documentType,
-                fieldName: m.fieldName,
-                pibValue: m.pibValue,
-                pembandingValue: m.targetValue,
-                status: "MISMATCH" as const,
-                isMatch: false,
-                notes: m.notes,
-              })),
-          };
-        },
-        getEffectiveStatus: (b) => {
-          const rep = evaluateBatchComparison(b, equivalencyGroups);
-          return rep.status;
-        },
-        customFilename: `Laporan_Matching_${targetBatches.length}_Batch`,
-      });
+      showToast(`Menyiapkan data unduh lengkap untuk ${targetBatches.length} batch...`);
+
+      const params = new URLSearchParams();
+      params.set("scope", "personal");
+      params.set("mode", "with_action_log");
+      if (targetBatches.length <= 100) {
+        params.set("batchIds", targetBatches.map((b) => b.id).join(","));
+      } else if (searchQuery) {
+        params.set("search", searchQuery);
+      }
+
+      await triggerServerExcelDownload(params, `Laporan_Matching_${targetBatches.length}_Batch.xlsx`);
       showToast(`Berhasil mengunduh data hasil (${targetBatches.length} batch)`);
     } catch (err) {
       console.error("Bulk download error:", err);
-      showToast("Gagal mengunduh data hasil.");
+      showToast(err instanceof Error ? err.message : "Gagal mengunduh data hasil.");
     }
   };
 

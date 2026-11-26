@@ -42,9 +42,20 @@ export async function POST(
         where: { batchId },
       });
 
-      // Group fields by detail
+      // Group fields by detail and prepare bulk ActionLog rows
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const detailUpdateMap = new Map<number, any>();
+      const bulkActionLogs: Array<{
+        batchId: string;
+        docType: string;
+        docNumber: string;
+        fieldName: string;
+        oldValue: string;
+        newValue: string;
+        notes: string;
+        actionBy: string;
+      }> = [];
+      const targetDocLabel = docCode || "Dokumen Aktif";
 
       for (const f of fields) {
         let targetDetail = f.detailId
@@ -84,6 +95,9 @@ export async function POST(
             if (!isiObj.manualMatches || typeof isiObj.manualMatches !== "object") {
               isiObj.manualMatches = {};
             }
+            if (!Array.isArray(isiObj.manualMatchHistory)) {
+              isiObj.manualMatchHistory = [];
+            }
             detailUpdateMap.set(targetDetail.id, isiObj);
           }
 
@@ -98,6 +112,31 @@ export async function POST(
             const cleanKey = f.fieldName.toLowerCase().replace(/[^a-z0-9]/g, "");
             isiObj.manualMatches[cleanKey] = matchEntry;
           }
+
+          const fDisplayName = f.fieldLabel || f.fieldName || f.fieldId || "-";
+          const fDocDisplay = f.docCode || targetDetail.fileType || targetDocLabel;
+
+          isiObj.manualMatchHistory.push({
+            fieldId: f.fieldId,
+            fieldName: f.fieldName || fDisplayName,
+            fieldLabel: fDisplayName,
+            docCode: fDocDisplay,
+            confirmed: true,
+            actionMode: "MASSAL",
+            confirmedAt: matchEntry.confirmedAt,
+            confirmedBy: actionByName,
+          });
+
+          bulkActionLogs.push({
+            batchId,
+            docType: fDocDisplay,
+            docNumber: targetDetail.nomorAju || targetDetail.nomorInvoice || batchId,
+            fieldName: fDisplayName,
+            oldValue: "MISMATCH",
+            newValue: "MATCH (Setujui Massal)",
+            notes: `[Setujui Massal (All)] Disetujui via Setujui ${targetDocLabel} oleh ${actionByName}`,
+            actionBy: actionByName,
+          });
         }
       }
 
@@ -110,7 +149,16 @@ export async function POST(
         });
       }
 
-      const targetDocLabel = docCode || "Dokumen Aktif";
+      if (bulkActionLogs.length > 0) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (db as any).actionLog.createMany({
+            data: bulkActionLogs,
+          });
+        } catch (alErr) {
+          console.warn("Failed recording bulk actionLogs:", alErr);
+        }
+      }
       await logSystemAudit({
         action: "OVERRIDE",
         category: "BATCH_DATA",
@@ -213,6 +261,16 @@ export async function POST(
         string,
         { confirmed: boolean; confirmedAt: string; confirmedBy: string }
       >;
+      manualMatchHistory?: Array<{
+        fieldId?: string;
+        fieldName?: string;
+        fieldLabel?: string;
+        docCode?: string;
+        confirmed: boolean;
+        actionMode: "SATUAN" | "MASSAL";
+        confirmedAt: string;
+        confirmedBy: string;
+      }>;
       [key: string]: unknown;
     } = { fields: {}, table: [] };
 
@@ -232,6 +290,9 @@ export async function POST(
     }
     if (!isiObj.manualMatches || typeof isiObj.manualMatches !== "object") {
       isiObj.manualMatches = {};
+    }
+    if (!Array.isArray(isiObj.manualMatchHistory)) {
+      isiObj.manualMatchHistory = [];
     }
 
     const session = await auth();
@@ -254,6 +315,20 @@ export async function POST(
       isiObj.manualMatches[cleanKey] = matchEntry;
     }
 
+    const displayName = fieldLabel || fieldName || fieldId;
+    const docDisplayName = docCode || detail.fileType || "Dokumen Pendukung";
+
+    isiObj.manualMatchHistory.push({
+      fieldId,
+      fieldName: fieldName || displayName,
+      fieldLabel: displayName,
+      docCode: docDisplayName,
+      confirmed: isConfirmed,
+      actionMode: "SATUAN",
+      confirmedAt: matchEntry.confirmedAt,
+      confirmedBy: actionByName,
+    });
+
     const updatedIsiStr = JSON.stringify(isiObj);
 
     // 3. Update detailBatch in DB
@@ -264,8 +339,6 @@ export async function POST(
     });
 
     // 4. Audit Logging (SystemAuditLog, BatchLog, ActionLog)
-    const displayName = fieldLabel || fieldName || fieldId;
-    const docDisplayName = docCode || detail.fileType || "Dokumen Pendukung";
 
     await logSystemAudit({
       action: "OVERRIDE",
@@ -321,10 +394,10 @@ export async function POST(
           docNumber: detail.nomorAju || detail.nomorInvoice || batchId,
           fieldName: displayName,
           oldValue: isConfirmed ? "MISMATCH" : "MATCH",
-          newValue: isConfirmed ? "MATCH (Dikonfirmasi Manual)" : "MISMATCH",
+          newValue: isConfirmed ? "MATCH (Setujui Satuan)" : "MISMATCH",
           notes: isConfirmed
-            ? `Konfirmasi manual oleh ${actionByName}`
-            : `Batal konfirmasi manual oleh ${actionByName}`,
+            ? `[Setujui Satuan] Konfirmasi manual oleh ${actionByName}`
+            : `[Batal Setujui Satuan] Batal konfirmasi manual oleh ${actionByName}`,
           actionBy: actionByName,
         },
       });

@@ -16,9 +16,49 @@ import {
 } from "lucide-react";
 import type {
   BatchDocumentModel,
+  ChangeEventCategory,
   ComparisonFieldModel,
   DocumentComparisonGroup,
+  FieldChangeEvent,
 } from "./detailTypes";
+
+const CHANGE_CATEGORY_STYLES: Record<
+  ChangeEventCategory,
+  { badge: string; text: string }
+> = {
+  DATA_ACTION: {
+    badge: "bg-teal-50 text-teal-800 border-teal-200",
+    text: "text-teal-700",
+  },
+  KAMUS: {
+    badge: "bg-violet-50 text-violet-800 border-violet-200",
+    text: "text-violet-700",
+  },
+  EDIT: {
+    badge: "bg-amber-50 text-amber-800 border-amber-200",
+    text: "text-amber-700",
+  },
+  SETUJUI_SATUAN: {
+    badge: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    text: "text-emerald-700",
+  },
+  SETUJUI_ALL: {
+    badge: "bg-emerald-100/80 text-emerald-900 border-emerald-300",
+    text: "text-emerald-800",
+  },
+  SETUJUI_BERKAS: {
+    badge: "bg-blue-50 text-blue-800 border-blue-200",
+    text: "text-blue-700",
+  },
+  BATAL_SETUJUI: {
+    badge: "bg-rose-50 text-rose-800 border-rose-200",
+    text: "text-rose-700",
+  },
+  DOC_UPDATE: {
+    badge: "bg-sky-50 text-sky-800 border-sky-200",
+    text: "text-sky-700",
+  },
+};
 
 function formatNoteDate(dateStr?: string): string {
   if (!dateStr) return "-";
@@ -59,6 +99,7 @@ export interface ComparisonPanelProps {
   onEditManualNote?: (noteId: string, text: string) => Promise<void>;
   onDeleteManualNote?: (noteId: string) => Promise<void>;
   onManageDocuments?: () => void;
+  batchChangeLogs?: FieldChangeEvent[];
   footer?: React.ReactNode;
   className?: string;
 }
@@ -81,10 +122,12 @@ export default function ComparisonPanel({
   onEditManualNote,
   onDeleteManualNote,
   onManageDocuments,
+  batchChangeLogs = [],
   footer,
   className = "",
 }: ComparisonPanelProps) {
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [historyModalOpen, setHistoryModalOpen] = useState<boolean>(false);
   const defaultDoc =
     activeDocCode && activeDocCode.toUpperCase() !== "PIB"
       ? activeDocCode
@@ -427,17 +470,30 @@ export default function ComparisonPanel({
             </span>
           </div>
 
-          {onManageDocuments && (
-            <button
-              type="button"
-              onClick={onManageDocuments}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer shrink-0"
-              title="Kelola, tambah, atau upload ulang dokumen batch"
-            >
-              <FolderUp className="w-3.5 h-3.5 text-slate-500" />
-              <span>Kelola File</span>
-            </button>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {batchChangeLogs.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setHistoryModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer shrink-0"
+                title="Lihat seluruh log perubahan batch (Data Action, Kamus, Edit, Setujui)"
+              >
+                <History className="w-3.5 h-3.5 text-slate-500" />
+                <span>Log ({batchChangeLogs.length})</span>
+              </button>
+            )}
+            {onManageDocuments && (
+              <button
+                type="button"
+                onClick={onManageDocuments}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer shrink-0"
+                title="Kelola, tambah, atau upload ulang dokumen batch"
+              >
+                <FolderUp className="w-3.5 h-3.5 text-slate-500" />
+                <span>Kelola File</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* PIB document replacement note if replaced */}
@@ -851,6 +907,64 @@ export default function ComparisonPanel({
                           </div>
                         </div>
 
+                        {/* Chronological Change History (Data Action, Kamus, Edit, Setujui Satuan/All) */}
+                        {field.changeHistory && field.changeHistory.length > 0 && (
+                          <div
+                            className="mt-2.5 pt-2 border-t border-slate-100 space-y-1.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+                              <History className="w-3 h-3 text-slate-400" />
+                              <span>Riwayat Perubahan ({field.changeHistory.length})</span>
+                            </div>
+                            <div className="space-y-1">
+                              {field.changeHistory.map((ev) => {
+                                const style = CHANGE_CATEGORY_STYLES[ev.category] || CHANGE_CATEGORY_STYLES.EDIT;
+                                return (
+                                  <div
+                                    key={ev.id}
+                                    className="px-2 py-1.5 rounded-md bg-slate-50/90 border border-slate-200/70 text-[10.5px] text-slate-700 leading-snug space-y-0.5"
+                                  >
+                                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <span
+                                          className={`inline-flex items-center px-1.5 py-0.2 rounded text-[9.5px] font-semibold border ${style.badge}`}
+                                        >
+                                          {ev.categoryLabel}
+                                        </span>
+                                        <span className="text-[9.5px] font-medium text-slate-500">
+                                          [{ev.docType}]
+                                        </span>
+                                      </div>
+                                      <span className="text-[9.5px] text-slate-400 shrink-0">
+                                        {ev.actor}
+                                        {ev.timestamp ? ` • ${formatNoteDate(ev.timestamp)}` : ""}
+                                      </span>
+                                    </div>
+
+                                    {ev.category === "KAMUS" ? (
+                                      <div className="text-[10.5px] text-slate-700">
+                                        <span className="font-mono text-slate-600">{ev.oldValue}</span>{" "}
+                                        <span className="text-slate-400">{"->"}</span>{" "}
+                                        <span className={`font-medium ${style.text}`}>{ev.newValue}</span>
+                                        {ev.notes && (
+                                          <div className="text-[9.5px] text-slate-500 mt-0.5">{ev.notes}</div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="text-[10.5px] break-words">
+                                        <span className="text-slate-500 line-through font-mono">{ev.oldValue}</span>{" "}
+                                        <span className="text-slate-400">{"->"}</span>{" "}
+                                        <span className={`font-medium font-mono ${style.text}`}>{ev.newValue}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Manual Notes on Header Field */}
                         <div className="mt-2.5 pt-2 border-t border-slate-100 space-y-1.5" onClick={(e) => e.stopPropagation()}>
                           {field.manualNotes && field.manualNotes.length > 0 && (
@@ -873,7 +987,7 @@ export default function ComparisonPanel({
                                         e.stopPropagation();
                                         handleOpenNoteModal("edit", note.targetType, note.targetKey, note.docCode, note.detailId, note.text, note.id, `${field.number}. ${field.label}`);
                                       }}
-                                      className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+                                      className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
                                       title="Edit catatan"
                                     >
                                       <Pencil className="w-3 h-3" />
@@ -884,7 +998,7 @@ export default function ComparisonPanel({
                                         e.stopPropagation();
                                         handleDeleteNote(note.id);
                                       }}
-                                      className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                                      className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                                       title="Hapus catatan"
                                     >
                                       <Trash2 className="w-3 h-3" />
@@ -902,10 +1016,10 @@ export default function ComparisonPanel({
                                 e.stopPropagation();
                                 handleOpenNoteModal("add", "field", field.fieldName, group.docCode, field.supportingDetailId || field.pibDetailId, "", undefined, `${field.number}. ${field.label}`);
                               }}
-                              className="inline-flex items-center gap-1 text-[10.5px] font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 px-2 py-0.5 rounded transition-colors"
+                              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-600 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
                             >
-                              <Plus className="w-3 h-3" />
-                              <span>+ Catatan</span>
+                              <Plus className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Catatan</span>
                             </button>
                           </div>
                         </div>
@@ -1073,6 +1187,83 @@ export default function ComparisonPanel({
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Full Batch Audit Log Modal */}
+      {historyModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setHistoryModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+              <div>
+                <h4 className="font-bold text-sm text-slate-900">
+                  Log Lengkap Perubahan Batch #{batchId}
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Menampilkan seluruh Data Action, Kamus Ekuivalensi, Edit Nilai, dan Setujui (Satuan/All/Berkas).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {batchChangeLogs.length === 0 ? (
+                <div className="py-10 text-center text-xs text-slate-400">
+                  Belum ada riwayat perubahan pada batch ini.
+                </div>
+              ) : (
+                batchChangeLogs.map((ev, idx) => {
+                  const style = CHANGE_CATEGORY_STYLES[ev.category] || CHANGE_CATEGORY_STYLES.EDIT;
+                  return (
+                    <div
+                      key={ev.id}
+                      className="p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 space-y-1 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-[10.5px] font-mono text-slate-400">#{idx + 1}</span>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border ${style.badge}`}
+                          >
+                            {ev.categoryLabel}
+                          </span>
+                          <span className="font-semibold text-slate-800 truncate">
+                            {ev.fieldLabel || ev.fieldName}
+                          </span>
+                          <span className="text-[10.5px] text-slate-500">[{ev.docType}]</span>
+                        </div>
+                        <span className="text-[10.5px] text-slate-400 shrink-0">
+                          {ev.actor}
+                          {ev.timestamp ? ` • ${formatNoteDate(ev.timestamp)}` : ""}
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] pl-6 break-words">
+                        <span className="text-slate-500 line-through font-mono">{ev.oldValue}</span>{" "}
+                        <span className="text-slate-400">{"->"}</span>{" "}
+                        <span className={`font-semibold font-mono ${style.text}`}>{ev.newValue}</span>
+                      </div>
+                      {ev.notes && (
+                        <div className="text-[10.5px] text-slate-500 pl-6">{ev.notes}</div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

@@ -12,6 +12,10 @@ import type {
 import type { FieldMatchStatus } from "~/types/documentComparison";
 import defaultDataActions from "~/config/data_actions.json";
 import { applyDataActionsToFields, applyDataActionsToTableRows } from "~/utils/workflowRunner";
+import {
+  buildBatchChangeLogs,
+  getChangeEventsForField,
+} from "~/utils/changeLogBuilder";
 
 // Bounded proportional padding expansion algorithm for OCR boxes
 export function expandBboxPadding(
@@ -605,6 +609,7 @@ export function adaptBatchToModel(rawBatch: any): BatchComparisonModel {
     updateHistory: parsedPibIsi.updateHistory,
     ocrPending: parsedPibIsi.ocrPending,
     rawIsi: parsedPibIsi,
+    rawActionLogs: Array.isArray(rawBatch?.actionLogs) ? rawBatch.actionLogs : [],
   };
 
   // Identify Supporting Documents (Restricted to Invoice and BL only)
@@ -803,9 +808,15 @@ export function buildComparisonFields(
 
     let fieldStatus = match.status;
     let fieldReason = match.reason;
+    const kamusReason =
+      match.reason && match.reason.toLowerCase().includes("kamus")
+        ? match.reason.replace(/^\(|\)$/g, "").trim()
+        : undefined;
     if (isManualConfirmed) {
       fieldStatus = "MATCH";
-      fieldReason = "Dikonfirmasi manual (Batch ini)";
+      fieldReason = kamusReason
+        ? `Dikonfirmasi manual (Batch ini) • ${kamusReason}`
+        : "Dikonfirmasi manual (Batch ini)";
     }
 
     const pibNotes = (pibIsi?.manualNotes || []).filter(
@@ -816,7 +827,7 @@ export function buildComparisonFields(
     );
     const allFieldNotes = [...pibNotes, ...supNotes];
 
-    return {
+    const fieldModel: ComparisonFieldModel = {
       id: d.id,
       number: d.number,
       label: d.label,
@@ -845,8 +856,30 @@ export function buildComparisonFields(
       supportingManualNotes: supNotes,
       supportingDetailId: supportingDoc.id,
       matchReason: fieldReason,
+      kamusReason,
       manualNotes: allFieldNotes,
     };
+
+    const batchSyntheticDetails = [
+      pibDoc.id ? { id: pibDoc.id, fileType: "PIB", isi: pibDoc.rawIsi } : null,
+      supportingDoc.id ? { id: supportingDoc.id, fileType: supportingDoc.code, isi: supportingDoc.rawIsi } : null,
+    ].filter(Boolean);
+
+    const allEventsForPair = buildBatchChangeLogs(
+      {
+        details: batchSyntheticDetails,
+        actionLogs: Array.isArray(pibDoc.rawActionLogs) ? pibDoc.rawActionLogs : [],
+      },
+      [fieldModel]
+    );
+
+    fieldModel.changeHistory = getChangeEventsForField(allEventsForPair, {
+      ...fieldModel,
+      pibKeys,
+      supportingKeys: supKeys,
+    });
+
+    return fieldModel;
   });
 }
 
@@ -898,7 +931,9 @@ export interface BatchComparisonEvaluationResult {
     targetValue: string;
     status: "MATCH" | "MISMATCH";
     notes?: string;
+    kamusReason?: string;
   }>;
+  evaluatedFieldModels?: ComparisonFieldModel[];
 }
 
 export function evaluateBatchComparison(
@@ -928,6 +963,7 @@ export function evaluateBatchComparison(
     targetValue: string;
     status: "MATCH" | "MISMATCH";
     notes?: string;
+    kamusReason?: string;
   }> = [];
 
   const details = Array.isArray(rawBatch?.details) ? rawBatch.details : [];
@@ -970,6 +1006,8 @@ export function evaluateBatchComparison(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let hasAnyProses = details.some((d: any) => isDetailWaitingOcr(d?.isi));
 
+  const evaluatedFieldModels: ComparisonFieldModel[] = [];
+
   for (const sup of model.supporting) {
     const colKey = docCodeToKey(sup.code);
     if (!colKey) continue;
@@ -985,6 +1023,7 @@ export function evaluateBatchComparison(
     }
 
     const fields = buildComparisonFields(model.pib, sup, equivalencyGroups);
+    evaluatedFieldModels.push(...fields);
     const m = fields.filter((f) => f.status === "MATCH").length;
     const mis = fields.filter((f) => f.status === "MISMATCH").length;
 
@@ -993,13 +1032,22 @@ export function evaluateBatchComparison(
     mismatchedFields += mis;
 
     for (const f of fields) {
+      const historyTags = (f.changeHistory || []).map(
+        (ev) => `[${ev.categoryLabel}] ${ev.oldValue} -> ${ev.newValue}`
+      );
+      const baseNote =
+        f.matchReason || (f.status === "MATCH" ? "Data sesuai" : "Nilai berbeda dengan acuan PIB");
+      const richNotes =
+        historyTags.length > 0 ? `${baseNote} | ${historyTags.join(" ; ")}` : baseNote;
+
       allFields.push({
         documentType: sup.code,
         fieldName: f.label,
         pibValue: f.pibValue,
         targetValue: f.supportingValue,
         status: f.status === "MATCH" ? "MATCH" : "MISMATCH",
-        notes: f.matchReason || (f.status === "MATCH" ? "Data sesuai" : "Nilai berbeda dengan acuan PIB"),
+        notes: richNotes,
+        kamusReason: f.kamusReason,
       });
     }
 
@@ -1040,5 +1088,6 @@ export function evaluateBatchComparison(
     mismatchedFields,
     docs: docsSummary,
     allFields,
+    evaluatedFieldModels,
   };
 }

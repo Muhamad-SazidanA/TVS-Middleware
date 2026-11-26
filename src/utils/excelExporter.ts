@@ -1,4 +1,9 @@
 import ExcelJS from "exceljs";
+import {
+  buildBatchChangeLogs,
+  extractManualNotesFromBatch,
+  formatDocDisplayName,
+} from "./changeLogBuilder";
 
 export interface ExportDetailBatch {
   id?: number | string;
@@ -545,11 +550,11 @@ export async function generateMatchingExcel({
     }
 
     // ==========================================
-    // SECTION 2: DATA ACTION AKTIF & TRANSFORMASI NILAI
+    // SECTION 2: LOG LENGKAP PERUBAHAN (DATA ACTION, KAMUS, EDIT & SETUJUI)
     // ==========================================
     detailSheet.addRow([]); // Blank line
     const sec2Banner = detailSheet.addRow([
-      "BAGIAN 2: DATA ACTION AKTIF & TRANSFORMASI NILAI",
+      "BAGIAN 2: LOG LENGKAP PERUBAHAN (DATA ACTION, KAMUS, EDIT & SETUJUI)",
     ]);
     detailSheet.mergeCells(`A${sec2Banner.number}:G${sec2Banner.number}`);
     sec2Banner.height = 22;
@@ -562,10 +567,10 @@ export async function generateMatchingExcel({
       "No",
       "Dokumen",
       "Field Terkait",
-      "Tipe Data Action",
-      "Nilai Asli (Original)",
-      "Nilai Transformasi",
-      "Status & Catatan Revisi",
+      "Kategori Aksi",
+      "Nilai Sebelum / Asli",
+      "Nilai Sesudah / Hasil",
+      "Detail Perubahan, Pelaku & Waktu",
     ]);
     actHdrRow.height = 22;
     actHdrRow.eachCell((c) => {
@@ -575,63 +580,14 @@ export async function generateMatchingExcel({
       c.border = thinBorder;
     });
 
-    // Extract active actions from batch details and logs
-    interface ActiveActionMini {
-      docType: string;
-      fieldName: string;
-      actionType: string;
-      oldVal: string;
-      newVal: string;
-      notes: string;
-    }
-    const batchActions: ActiveActionMini[] = [];
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const actionLogs = (item.batch as any).actionLogs || [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    actionLogs.forEach((log: any) => {
-      batchActions.push({
-        docType: log.docType || "Dokumen",
-        fieldName: log.fieldName,
-        actionType: "Revisi Manual / Standarisasi",
-        oldVal: log.oldValue || "-",
-        newVal: log.newValue || "-",
-        notes: log.notes || `Revisi field ${log.fieldName}`,
-      });
-    });
-
-    (item.batch.details || []).forEach((det) => {
-      if (!det.isi) return;
-      try {
-        const p = typeof det.isi === "string" ? JSON.parse(det.isi) : det.isi;
-        const f = p?.fields || {};
-        for (const [k, v] of Object.entries(f)) {
-          if (!k.toLowerCase().endsWith("_action") && !k.toLowerCase().endsWith(" action")) continue;
-          const baseKey = k.replace(/_action$/i, "").replace(/ action$/i, "");
-          const rawV = f[baseKey];
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const actStr = typeof v === "object" && v !== null ? String((v as any).value || "").trim() : String(v || "").trim();
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const rawStr = typeof rawV === "object" && rawV !== null ? String((rawV as any).value || "").trim() : String(rawV || "").trim();
-
-          if (actStr && rawStr && actStr !== "-" && rawStr !== "-" && actStr !== rawStr) {
-            const alreadyIn = batchActions.some((a) => a.docType === det.fileType && a.fieldName === baseKey);
-            if (!alreadyIn) {
-              batchActions.push({
-                docType: det.fileType || "Dokumen",
-                fieldName: baseKey,
-                actionType: "Transformasi Data Action",
-                oldVal: rawStr,
-                newVal: actStr,
-                notes: `Transformasi otomatis Data Action pada ${det.fileType} (${baseKey})`,
-              });
-            }
-          }
-        }
-      } catch {
-        // Ignore parse error
-      }
-    });
+    const batchActions = buildBatchChangeLogs(item.batch as any).map((ev) => ({
+      docType: formatDocDisplayName(ev.docType),
+      fieldName: ev.fieldLabel || ev.fieldName,
+      actionType: ev.categoryLabel,
+      oldVal: ev.oldValue || "-",
+      newVal: ev.newValue || "-",
+      notes: `${ev.notes}${ev.actor ? ` (${ev.actor})` : ""}${ev.timestamp ? ` • ${ev.timestamp}` : ""}`,
+    }));
 
     if (batchActions.length === 0) {
       const emptyActRow = detailSheet.addRow([
@@ -641,7 +597,7 @@ export async function generateMatchingExcel({
         "Semua Nilai Bersih",
         "-",
         "-",
-        "Semua parameter pada batch ini menggunakan nilai asli bersih tanpa Data Action aktif.",
+        "Belum ada Data Action, Kamus Ekuivalensi, Edit Manual, atau Setujui pada batch ini.",
       ]);
       emptyActRow.height = 22;
       detailSheet.mergeCells(`D${emptyActRow.number}:F${emptyActRow.number}`);
@@ -660,7 +616,7 @@ export async function generateMatchingExcel({
           act.newVal,
           act.notes,
         ]);
-        aRow.height = 22;
+        aRow.height = 24;
         aRow.getCell(1).alignment = { vertical: "middle", horizontal: "center" };
         aRow.getCell(2).alignment = { vertical: "middle", horizontal: "left", indent: 1 };
         aRow.getCell(3).font = { name: "Calibri", size: 10, bold: true, color: { argb: "FF0F766E" } };
@@ -675,6 +631,80 @@ export async function generateMatchingExcel({
 
         aRow.eachCell({ includeEmpty: true }, (c) => {
           c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: actIdx % 2 === 1 ? "FFF0FDFA" : "FFFFFFFF" } };
+          c.border = thinBorder;
+        });
+      });
+    }
+
+    // ==========================================
+    // SECTION 3: CATATAN MANUAL OPERATOR
+    // ==========================================
+    const manualNotes = extractManualNotesFromBatch(item.batch as any);
+    detailSheet.addRow([]);
+    const sec3Banner = detailSheet.addRow([
+      "BAGIAN 3: CATATAN MANUAL OPERATOR",
+    ]);
+    detailSheet.mergeCells(`A${sec3Banner.number}:G${sec3Banner.number}`);
+    sec3Banner.height = 22;
+    const sec3Cell = detailSheet.getCell(`A${sec3Banner.number}`);
+    sec3Cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF334155" } };
+    sec3Cell.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+    sec3Cell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+
+    const noteHdrRow = detailSheet.addRow([
+      "No",
+      "Dokumen",
+      "Field / Target Terkait",
+      "Isi Catatan",
+      "Diinput Oleh",
+      "Waktu Catatan",
+      "Status",
+    ]);
+    noteHdrRow.height = 22;
+    noteHdrRow.eachCell((c) => {
+      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+      c.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FF1E293B" } };
+      c.alignment = { vertical: "middle", horizontal: "center" };
+      c.border = thinBorder;
+    });
+
+    if (manualNotes.length === 0) {
+      const emptyNoteRow = detailSheet.addRow([
+        1,
+        "-",
+        "-",
+        "Tidak ada catatan manual tambahan pada batch ini.",
+        "-",
+        "-",
+        "Sesuai",
+      ]);
+      emptyNoteRow.height = 22;
+      detailSheet.mergeCells(`D${emptyNoteRow.number}:F${emptyNoteRow.number}`);
+      emptyNoteRow.eachCell({ includeEmpty: true }, (c) => {
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+        c.border = thinBorder;
+      });
+    } else {
+      manualNotes.forEach((n, nIdx) => {
+        const nRow = detailSheet.addRow([
+          nIdx + 1,
+          n.docType,
+          n.targetKey,
+          n.note,
+          n.author,
+          n.timestampRaw || "-",
+          "Tercatat",
+        ]);
+        nRow.height = 22;
+        nRow.getCell(1).alignment = { vertical: "middle", horizontal: "center" };
+        nRow.getCell(2).alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+        nRow.getCell(3).alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+        nRow.getCell(4).alignment = { vertical: "middle", horizontal: "left", indent: 1, wrapText: true };
+        nRow.getCell(5).alignment = { vertical: "middle", horizontal: "center" };
+        nRow.getCell(6).alignment = { vertical: "middle", horizontal: "center" };
+        nRow.getCell(7).alignment = { vertical: "middle", horizontal: "center" };
+        nRow.eachCell({ includeEmpty: true }, (c) => {
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
           c.border = thinBorder;
         });
       });

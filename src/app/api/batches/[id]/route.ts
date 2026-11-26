@@ -69,12 +69,16 @@ export async function PUT(
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateData: any = {};
+    let approvalActorName = "Operator";
+    let isApprovingBatch = false;
 
     if (status) {
       let dbStatus = status;
       if (status === "Matching" || status === "APPROVED" || status === "Approved") {
         dbStatus = "APPROVED";
+        isApprovingBatch = true;
         const session = await auth();
+        approvalActorName = session?.user?.name || session?.user?.email || "Operator";
         updateData.approvedAt = new Date();
         if (session?.user?.id) {
           updateData.approvedById = session.user.id;
@@ -93,6 +97,31 @@ export async function PUT(
 
     if (totalFile !== undefined && totalFile !== null) {
       updateData.totalFile = Number(totalFile);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const prevBatch = isApprovingBatch
+      ? await (db as any).batch.findUnique({ where: { id }, select: { status: true } })
+      : null;
+
+    if (isApprovingBatch && prevBatch && prevBatch.status !== "APPROVED") {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (db as any).actionLog.create({
+          data: {
+            batchId: id,
+            docType: "Batch",
+            docNumber: id,
+            fieldName: "Status Batch",
+            oldValue: prevBatch.status || "MISMATCHING",
+            newValue: "APPROVED",
+            notes: `[Setujui Berkas] Selesaikan & Pindahkan File ke All Data oleh ${approvalActorName}`,
+            actionBy: approvalActorName,
+          },
+        });
+      } catch (alErr) {
+        console.warn("Failed recording batch approval actionLog:", alErr);
+      }
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

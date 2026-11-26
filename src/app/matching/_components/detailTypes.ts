@@ -21,6 +21,30 @@ export interface ManualNote {
   updatedAt?: string;
 }
 
+export type ChangeEventCategory =
+  | "DATA_ACTION"
+  | "KAMUS"
+  | "EDIT"
+  | "SETUJUI_SATUAN"
+  | "SETUJUI_ALL"
+  | "SETUJUI_BERKAS"
+  | "BATAL_SETUJUI"
+  | "DOC_UPDATE";
+
+export interface FieldChangeEvent {
+  id: string;
+  category: ChangeEventCategory;
+  categoryLabel: string;
+  docType: string;
+  fieldName: string;
+  fieldLabel?: string;
+  oldValue: string;
+  newValue: string;
+  notes: string;
+  actor: string;
+  timestamp?: string;
+}
+
 export interface DocumentUpdateRecord {
   fileName: string;
   previousFileName?: string;
@@ -50,6 +74,7 @@ export interface BatchDocumentModel {
   updateHistory?: DocumentUpdateRecord[];
   ocrPending?: boolean;
   rawIsi?: unknown;
+  rawActionLogs?: unknown[];
 }
 
 export interface ComparisonFieldModel {
@@ -63,6 +88,7 @@ export interface ComparisonFieldModel {
   manualConfirmedBy?: string;
   manualConfirmedAt?: string;
   pibValue: string;
+  pibRawValue?: string;
   pibPage?: number;
   pibBbox?: NormalizedBbox;
   pibIsManual?: boolean;
@@ -72,6 +98,7 @@ export interface ComparisonFieldModel {
   pibManualNotes?: ManualNote[];
   pibDetailId?: number;
   supportingValue: string;
+  supportingRawValue?: string;
   supportingPage?: number;
   supportingBbox?: NormalizedBbox;
   supportingIsManual?: boolean;
@@ -81,7 +108,9 @@ export interface ComparisonFieldModel {
   supportingManualNotes?: ManualNote[];
   supportingDetailId?: number;
   matchReason?: string;
+  kamusReason?: string;
   manualNotes?: ManualNote[];
+  changeHistory?: FieldChangeEvent[];
 }
 
 export interface DocumentComparisonGroup {
@@ -102,4 +131,5 @@ export interface BatchComparisonModel {
   status: string;
   pib: BatchDocumentModel;
   supporting: BatchDocumentModel[];
+  changeLogs?: FieldChangeEvent[];
 }

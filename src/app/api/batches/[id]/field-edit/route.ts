@@ -42,7 +42,16 @@ export async function POST(
     let isiObj: {
       fields: Record<string, string>;
       table: Array<Record<string, string>>;
-      manualEdits?: Record<string, { oldValue: string; newValue: string; editedAt: string }>;
+      manualEdits?: Record<string, { oldValue: string; newValue: string; editedAt: string; editedBy?: string }>;
+      manualEditHistory?: Array<{
+        fieldName: string;
+        docType?: string;
+        oldValue: string;
+        newValue: string;
+        editedAt: string;
+        editedBy?: string;
+      }>;
+      dataActionOriginals?: Record<string, { rawValue: string; actionValue: string }>;
       [key: string]: unknown;
     } = { fields: {}, table: [] };
 
@@ -62,6 +71,12 @@ export async function POST(
     }
     if (!isiObj.manualEdits || typeof isiObj.manualEdits !== "object") {
       isiObj.manualEdits = {};
+    }
+    if (!Array.isArray(isiObj.manualEditHistory)) {
+      isiObj.manualEditHistory = [];
+    }
+    if (!isiObj.dataActionOriginals || typeof isiObj.dataActionOriginals !== "object") {
+      isiObj.dataActionOriginals = {};
     }
 
     const cleanNewVal = String(newValue ?? "").trim();
@@ -120,6 +135,26 @@ export async function POST(
     }
     const synonyms = Array.from(synSet);
 
+    const session = await auth();
+    const actionByName = session?.user?.name || session?.user?.email || "Operator";
+
+    // Preserve pre-edit Data Action snapshot if a Data Action originally transformed this field
+    const existingRaw = isiObj.fields[fieldName];
+    const existingAction = isiObj.fields[`${fieldName}_action`];
+    if (
+      !isiObj.dataActionOriginals[fieldName] &&
+      existingRaw !== undefined &&
+      existingAction !== undefined &&
+      String(existingRaw).trim() !== "" &&
+      String(existingAction).trim() !== "" &&
+      String(existingRaw).trim() !== String(existingAction).trim()
+    ) {
+      isiObj.dataActionOriginals[fieldName] = {
+        rawValue: String(existingRaw).trim(),
+        actionValue: String(existingAction).trim(),
+      };
+    }
+
     // Preserve original key if not set yet
     if (isiObj.fields[fieldName] === undefined && cleanOldVal && cleanOldVal !== "-") {
       isiObj.fields[fieldName] = cleanOldVal;
@@ -154,16 +189,23 @@ export async function POST(
       if (firstRow) updateTableRow(firstRow);
     }
 
-    // Record manual edit metadata
+    // Record manual edit metadata & full chronological history
+    const editedAtIso = new Date().toISOString();
     const editEntry = {
       oldValue: cleanOldVal || "-",
       newValue: cleanNewVal,
-      editedAt: new Date().toISOString(),
+      editedAt: editedAtIso,
+      editedBy: actionByName,
     };
     isiObj.manualEdits[fieldName] = editEntry;
     for (const syn of synonyms) {
       isiObj.manualEdits[syn] = editEntry;
     }
+    isiObj.manualEditHistory.push({
+      fieldName,
+      docType: detail.fileType,
+      ...editEntry,
+    });
 
     const updatedIsiStr = JSON.stringify(isiObj);
 
@@ -175,8 +217,6 @@ export async function POST(
     });
 
     // 4. Create Audit Log in batch_logs
-    const session = await auth();
-    const actionByName = session?.user?.name || session?.user?.email || "Operator";
 
     await createBatchLog({
       batchId,
@@ -191,7 +231,7 @@ export async function POST(
         field: fieldName,
         oldValue: cleanOldVal || "-",
         newValue: cleanNewVal,
-        editedAt: new Date().toISOString(),
+        editedAt: editedAtIso,
       },
     });
 
@@ -205,7 +245,7 @@ export async function POST(
           fieldName,
           oldValue: cleanOldVal || "-",
           newValue: cleanNewVal,
-          notes: `Koreksi nilai manual oleh ${actionByName}`,
+          notes: `[Edit Nilai] Koreksi nilai manual oleh ${actionByName}`,
           actionBy: actionByName,
         },
       });

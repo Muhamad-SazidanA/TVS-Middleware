@@ -29,6 +29,7 @@ import type {
   ComparisonFieldModel,
   DocumentComparisonGroup,
 } from "./detailTypes";
+import { buildBatchChangeLogs } from "~/utils/changeLogBuilder";
 import type { DbEquivalencyGroup } from "~/utils/valueEquivalency";
 
 const DocumentViewer = dynamic(() => import("./DocumentViewer"), {
@@ -264,6 +265,12 @@ export default function MatchingDetailView({
   const allFields: ComparisonFieldModel[] = useMemo(() => {
     return comparisonGroups.flatMap((g) => g.fields);
   }, [comparisonGroups]);
+
+  // Complete chronological batch change logs (Data Action, Kamus, Edit, Setujui Satuan/All/Berkas)
+  const batchChangeLogs = useMemo(() => {
+    if (!rawBatch) return [];
+    return buildBatchChangeLogs(rawBatch, allFields);
+  }, [rawBatch, allFields]);
 
   // Active document group & title for footer actions
   const isAllSelected =
@@ -711,6 +718,7 @@ export default function MatchingDetailView({
               onEditManualNote={handleEditManualNote}
               onDeleteManualNote={handleDeleteManualNote}
               onManageDocuments={() => setDocsModalOpen(true)}
+              batchChangeLogs={batchChangeLogs}
               className="h-full"
               footer={
                 <div className="flex items-center justify-between w-full gap-3 flex-wrap">
