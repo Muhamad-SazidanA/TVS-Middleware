@@ -335,12 +335,12 @@ export default function EquivalencyManager() {
   }, [groups, selectedCategory, search]);
 
   return (
-    <div className="space-y-4">
+    <div className="flex-1 min-h-0 flex flex-col gap-3.5">
       {/* Top-Right Light Toast Notification */}
       <ToastNotification toast={toast} onClose={dismissToast} />
 
-      {/* Header Card & Actions */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
+      {/* Header Card & Actions (Card 2 Fixed) */}
+      <div className="shrink-0 bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
             <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
@@ -419,12 +419,13 @@ export default function EquivalencyManager() {
         </div>
       </div>
 
-      {/* Groups List */}
-      {loading ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-xs text-slate-500">
-          Memuat kamus ekuivalensi dari database...
-        </div>
-      ) : filteredGroups.length === 0 ? (
+      {/* Groups List (Scrollable below fixed cards) */}
+      <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 pb-1">
+        {loading ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-xs text-slate-500">
+            Memuat kamus ekuivalensi dari database...
+          </div>
+        ) : filteredGroups.length === 0 ? (
         <div className="bg-white rounded-xl border border-slate-200 p-10 text-center space-y-3">
           <div className="mx-auto w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
             <DatabaseIcon className="w-5 h-5" />
@@ -562,6 +563,7 @@ export default function EquivalencyManager() {
           })}
         </div>
       )}
+      </div>
 
       {/* CREATE / EDIT MODAL */}
       {isModalOpen && (

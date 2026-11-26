@@ -255,9 +255,9 @@ export default function AuditLogViewer() {
   };
 
   return (
-    <div className="space-y-4">
-      {/* 1. Header Information & Metric Cards */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3.5">
+    <div className="flex-1 min-h-0 flex flex-col gap-3.5">
+      {/* 1. Card 2 (Fixed): Header Information, Metric Cards & Filters */}
+      <div className="shrink-0 bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3.5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
             <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
@@ -395,8 +395,8 @@ export default function AuditLogViewer() {
         </div>
       </div>
 
-      {/* 2. Audit Activity Feed / Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+      {/* 2. Audit Activity Feed / Table (Only list scrolls) */}
+      <div className="flex-1 min-h-0 flex flex-col bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         {loading ? (
           <div className="p-12 text-center text-xs text-slate-500">
             Memuat catatan riwayat audit sistem...
@@ -416,7 +416,7 @@ export default function AuditLogViewer() {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100">
             {displayedLogs.map((log) => {
               const catBadge = getCategoryLabel(log.category);
               const initials = getInitials(log.userName);
@@ -502,7 +502,7 @@ export default function AuditLogViewer() {
 
         {/* 3. Pagination Controls */}
         {totalPages > 1 && (
-          <div className="p-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+          <div className="shrink-0 p-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
             <span>
               Menampilkan entri {(page - 1) * 25 + 1} - {Math.min(page * 25, totalCount)} dari total{" "}
               {totalCount}
