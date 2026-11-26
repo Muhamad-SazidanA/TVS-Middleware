@@ -498,28 +498,33 @@ async function handleExcelExport(opts: ExportQueryOptions) {
 
     // =========================================================================
     // SHEET 2+: DETAIL MATCHING & MISMATCH - BATCH (1 SHEET PER BATCH)
-    // Kembali ke Recap Matching & Mismatch
-    // DETAIL MATCHING & MISMATCH - BATCH [ID]
-    // No, Dokumen, Field Parameter, Nilai PIB (Acuan Utama), Nilai Dokumen Pembanding, Status, Keterangan / Verifikasi
+    // Clean mode: 6 columns (No, Dokumen, Field Parameter, Nilai PIB, Nilai Pembanding, Status)
+    // With Action Log mode: 7 columns (+ Keterangan / Verifikasi) + Bagian 2 Log + Bagian 3 Catatan
+    // Detail values always reflect original raw Nanonets webhook values while Status reflects final Match/Mismatch.
     // =========================================================================
+    const isCleanMode = mode !== "with_action_log";
+    const lastDetailCol = isCleanMode ? "F" : "G";
+
     batchDataList.forEach((item) => {
       const detailSheet = workbook.addWorksheet(item.detailSheetName, {
         views: [{ state: "normal", activeCell: "A1", showGridLines: true }],
       });
 
-      detailSheet.columns = [
+      const baseDetailColumns = [
         { key: "no", width: 8 },
         { key: "doc", width: 22 },
         { key: "param", width: 32 },
         { key: "pibVal", width: 34 },
         { key: "compVal", width: 34 },
         { key: "status", width: 14 },
-        { key: "notes", width: 52 },
       ];
+      detailSheet.columns = isCleanMode
+        ? baseDetailColumns
+        : [...baseDetailColumns, { key: "notes", width: 52 }];
 
       // Row 1: Back Navigation Hyperlink to Sheet 1
       const backRow = detailSheet.addRow(["Kembali ke Recap Matching & Mismatch"]);
-      detailSheet.mergeCells("A1:G1");
+      detailSheet.mergeCells(`A1:${lastDetailCol}1`);
       backRow.height = 22;
       const backCell = detailSheet.getCell("A1");
       backCell.value = {
@@ -539,7 +544,7 @@ async function handleExcelExport(opts: ExportQueryOptions) {
       const titleRow = detailSheet.addRow([
         `DETAIL MATCHING & MISMATCH - BATCH ${item.batch.id}`,
       ]);
-      detailSheet.mergeCells("A2:G2");
+      detailSheet.mergeCells(`A2:${lastDetailCol}2`);
       titleRow.height = 24;
       const titleCell = detailSheet.getCell("A2");
       titleCell.fill = {
@@ -550,16 +555,19 @@ async function handleExcelExport(opts: ExportQueryOptions) {
       titleCell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
       titleCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
 
-      // Row 3: Table Column Headers (User Spec: No, Dokumen, Field Parameter, Nilai PIB, Nilai Pembanding, Status, Keterangan)
-      const hdrRow = detailSheet.addRow([
+      // Row 3: Table Column Headers
+      const detailHeaderLabels = [
         "No",
         "Dokumen",
         "Field Parameter",
         "Nilai PIB (Acuan Utama)",
         "Nilai Dokumen Pembanding",
         "Status",
-        "Keterangan / Verifikasi",
-      ]);
+      ];
+      if (!isCleanMode) {
+        detailHeaderLabels.push("Keterangan / Verifikasi");
+      }
+      const hdrRow = detailSheet.addRow(detailHeaderLabels);
       hdrRow.height = 24;
       hdrRow.eachCell((c, colNum) => {
         c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
@@ -572,19 +580,22 @@ async function handleExcelExport(opts: ExportQueryOptions) {
         c.border = thinBorder;
       });
 
-      // Row 4+: Populate All Fields
+      // Row 4+: Populate All Fields (raw webhook values + final Match/Mismatch status)
       if (item.evalResult.allFields.length === 0) {
-        const emptyRow = detailSheet.addRow([
+        const emptyRowCells: Array<string | number> = [
           1,
           "-",
           "-",
           "-",
           "-",
           "INFO",
-          "Belum ada data perbandingan pada batch ini.",
-        ]);
+        ];
+        if (!isCleanMode) {
+          emptyRowCells.push("Belum ada data perbandingan pada batch ini.");
+        }
+        const emptyRow = detailSheet.addRow(emptyRowCells);
         emptyRow.height = 24;
-        detailSheet.mergeCells("B4:G4");
+        detailSheet.mergeCells(`B4:${lastDetailCol}4`);
         emptyRow.getCell(2).alignment = { vertical: "middle", horizontal: "center" };
         emptyRow.eachCell({ includeEmpty: true }, (c) => {
           c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
@@ -595,15 +606,19 @@ async function handleExcelExport(opts: ExportQueryOptions) {
           const isMatch = field.status === "MATCH";
           const isMismatch = field.status === "MISMATCH";
 
-          const r = detailSheet.addRow([
+          const rowCells: Array<string | number> = [
             fIdx + 1,
             formatDocName(field.documentType),
             formatFieldLabel(field.fieldName),
-            field.pibValue || "-",
-            field.targetValue || "-",
+            field.rawPibValue || "-",
+            field.rawTargetValue || "-",
             isMatch ? "Match" : isMismatch ? "Mismatch" : "Info",
-            field.notes || "-",
-          ]);
+          ];
+          if (!isCleanMode) {
+            rowCells.push(field.notes || "-");
+          }
+
+          const r = detailSheet.addRow(rowCells);
           r.height = 22;
 
           // Col 1: No
@@ -619,12 +634,12 @@ async function handleExcelExport(opts: ExportQueryOptions) {
           cF.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FF1E293B" } };
           cF.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
 
-          // Col 4: Nilai PIB
+          // Col 4: Nilai PIB (Acuan Utama - original webhook value)
           const cPibV = r.getCell(4);
           cPibV.font = { name: "Consolas", size: 9.5, color: { argb: "FF0F172A" } };
           cPibV.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
 
-          // Col 5: Nilai Pembanding
+          // Col 5: Nilai Dokumen Pembanding (original webhook value)
           const cCompV = r.getCell(5);
           cCompV.font = {
             name: "Consolas",
@@ -634,7 +649,7 @@ async function handleExcelExport(opts: ExportQueryOptions) {
           };
           cCompV.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
 
-          // Col 6: Status Badge
+          // Col 6: Status Badge (final Match/Mismatch status)
           const cStat = r.getCell(6);
           cStat.font = {
             name: "Calibri",
@@ -649,10 +664,12 @@ async function handleExcelExport(opts: ExportQueryOptions) {
           };
           cStat.alignment = { vertical: "middle", horizontal: "center" };
 
-          // Col 7: Keterangan / Verifikasi
-          const cNotes = r.getCell(7);
-          cNotes.font = { name: "Calibri", size: 9.5, color: { argb: "FF475569" } };
-          cNotes.alignment = { vertical: "middle", horizontal: "left", indent: 1, wrapText: true };
+          // Col 7: Keterangan / Verifikasi (only in with_action_log mode)
+          if (!isCleanMode) {
+            const cNotes = r.getCell(7);
+            cNotes.font = { name: "Calibri", size: 9.5, color: { argb: "FF475569" } };
+            cNotes.alignment = { vertical: "middle", horizontal: "left", indent: 1, wrapText: true };
+          }
 
           r.eachCell({ includeEmpty: true }, (c, colNum) => {
             if (colNum !== 6) {

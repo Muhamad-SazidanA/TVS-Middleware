@@ -428,6 +428,52 @@ export function extractFieldValue(
   return applyPibCoordFallback(res, keys, docCode);
 }
 
+/**
+ * Extracts the authentic untouched raw Nanonets webhook value (before any Data Actions or Manual Edits).
+ */
+export function extractRawWebhookValue(docIsi: ParsedIsi, keys: string[]): string {
+  const isActionKey = (k: string) =>
+    k.toLowerCase().endsWith("_action") || k.toLowerCase().endsWith(" action");
+  const norm = (k: string) => k.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  const pickFromRecord = (rec?: Record<string, unknown>): string | null => {
+    if (!rec || typeof rec !== "object") return null;
+
+    for (const k of keys) {
+      if (isActionKey(k)) continue;
+      const v = rec[k];
+      if (v !== undefined && v !== null && String(v).trim() !== "") {
+        return String(v).trim();
+      }
+    }
+
+    const normMap: Record<string, unknown> = {};
+    for (const [rk, rv] of Object.entries(rec)) {
+      if (isActionKey(rk)) continue;
+      if (rv === undefined || rv === null || String(rv).trim() === "") continue;
+      const nk = norm(rk);
+      if (normMap[nk] === undefined) {
+        normMap[nk] = rv;
+      }
+    }
+
+    for (const k of keys) {
+      if (isActionKey(k)) continue;
+      const matchVal = normMap[norm(k)];
+      if (matchVal !== undefined && matchVal !== null && String(matchVal).trim() !== "") {
+        return String(matchVal).trim();
+      }
+    }
+    return null;
+  };
+
+  return (
+    pickFromRecord(docIsi?.fields) ??
+    pickFromRecord(docIsi?.table?.[0]) ??
+    "-"
+  );
+}
+
 export function checkFieldMatch(
   v1: string,
   v2: string,
@@ -800,6 +846,8 @@ export function buildComparisonFields(
     const supKeys = [d.fieldName, ...d.supportingKeys];
     const pibRes = extractFieldValue(pibIsi, pibKeys, d.pibPageDefault, "PIB");
     const supRes = extractFieldValue(supIsi, supKeys, d.supPageDefault, supportingDoc.code);
+    const pibRawVal = extractRawWebhookValue(pibIsi, pibKeys);
+    const supRawVal = extractRawWebhookValue(supIsi, supKeys);
 
     // If supporting document has no value, mark as fallback
     let supportingVal = supRes.value;
@@ -856,6 +904,7 @@ export function buildComparisonFields(
       manualConfirmedBy,
       manualConfirmedAt,
       pibValue: pibRes.value,
+      pibRawValue: pibRawVal,
       pibPage: pibRes.page,
       pibBbox: pibRes.bbox,
       pibIsManual: pibRes.isManual,
@@ -865,6 +914,7 @@ export function buildComparisonFields(
       pibManualNotes: pibNotes,
       pibDetailId: pibDoc.id,
       supportingValue: supportingVal,
+      supportingRawValue: supRawVal,
       supportingPage: supRes.page,
       supportingBbox: supRes.bbox,
       supportingIsManual: supRes.isManual,
@@ -949,6 +999,8 @@ export interface BatchComparisonEvaluationResult {
     fieldName: string;
     pibValue: string;
     targetValue: string;
+    rawPibValue?: string;
+    rawTargetValue?: string;
     status: "MATCH" | "MISMATCH";
     notes?: string;
     kamusReason?: string;
@@ -977,15 +1029,7 @@ export function evaluateBatchComparison(
     }
   > = {};
 
-  const allFields: Array<{
-    documentType: string;
-    fieldName: string;
-    pibValue: string;
-    targetValue: string;
-    status: "MATCH" | "MISMATCH";
-    notes?: string;
-    kamusReason?: string;
-  }> = [];
+  const allFields: BatchComparisonEvaluationResult["allFields"] = [];
 
   const details = Array.isArray(rawBatch?.details) ? rawBatch.details : [];
   if (details.length === 0) {
@@ -1066,6 +1110,8 @@ export function evaluateBatchComparison(
         fieldName: f.label,
         pibValue: f.pibValue,
         targetValue: f.supportingValue,
+        rawPibValue: f.pibRawValue || "-",
+        rawTargetValue: f.supportingRawValue || "-",
         status: f.status === "MATCH" ? "MATCH" : "MISMATCH",
         notes: richNotes,
         kamusReason: f.kamusReason,
