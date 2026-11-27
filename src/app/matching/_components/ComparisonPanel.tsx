@@ -17,6 +17,7 @@ import {
   FolderUp,
   History,
   ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 import type {
   BatchDocumentModel,
@@ -104,6 +105,8 @@ export interface ComparisonPanelProps {
   onEditManualNote?: (noteId: string, text: string) => Promise<void>;
   onDeleteManualNote?: (noteId: string) => Promise<void>;
   onManageDocuments?: () => void;
+  onRefreshDetail?: () => void;
+  isRefreshingDetail?: boolean;
   onNotify?: (message: string, type?: "success" | "info" | "warning" | "error") => void;
   batchChangeLogs?: FieldChangeEvent[];
   workflowStatus?: "Pending" | "Pending Validation" | "Approved" | "Exported" | "Failed";
@@ -130,6 +133,8 @@ export default function ComparisonPanel({
   onEditManualNote,
   onDeleteManualNote,
   onManageDocuments,
+  onRefreshDetail,
+  isRefreshingDetail = false,
   onNotify,
   batchChangeLogs = [],
   workflowStatus = "Pending Validation",
@@ -581,6 +586,22 @@ export default function ComparisonPanel({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            {onRefreshDetail && (
+              <button
+                type="button"
+                onClick={onRefreshDetail}
+                disabled={isRefreshingDetail}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-700 hover:text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                title="Muat ulang data detail terbaru (dokumen, Kamus Ekuivalensi, Data Actions)"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 text-slate-500 ${
+                    isRefreshingDetail ? "animate-spin text-slate-900" : ""
+                  }`}
+                />
+                <span>{isRefreshingDetail ? "Memuat..." : "Load Detail"}</span>
+              </button>
+            )}
             {batchChangeLogs.length > 0 && (
               <button
                 type="button"

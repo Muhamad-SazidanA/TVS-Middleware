@@ -19,6 +19,7 @@ import {
   normalizeCategoryCode,
 } from "~/config/documentCategories";
 import type { DocumentUpdateRecord } from "./detailTypes";
+import ConfirmDialog from "@/app/_components/ui/ConfirmDialog";
 
 interface RawDetailItem {
   id: number;
@@ -42,6 +43,7 @@ export interface BatchDocumentsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDocumentsChanged?: (batchId: string, newStatus?: string, message?: string) => void;
+  onReturnToTable?: () => void;
 }
 
 interface ParsedDetailView {
@@ -121,10 +123,17 @@ export default function BatchDocumentsModal({
   isOpen,
   onClose,
   onDocumentsChanged,
+  onReturnToTable,
 }: BatchDocumentsModalProps) {
   const [batch, setBatch] = useState<RawBatchData | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [returnNotice, setReturnNotice] = useState<{
+    mode: "add" | "replace";
+    fileName: string;
+    categoryTitle: string;
+    ocrPending: boolean;
+  } | null>(null);
 
   // Replace state for an existing document
   const [pendingReplace, setPendingReplace] = useState<{
@@ -168,6 +177,7 @@ export default function BatchDocumentsModal({
       setPendingReplace(null);
       setShowAddForm(false);
       setAddFile(null);
+      setReturnNotice(null);
       loadBatchDetails(false);
     }
   }, [isOpen, batchId, loadBatchDetails]);
@@ -205,12 +215,12 @@ export default function BatchDocumentsModal({
   }, [batch?.status, uploadedDocs]);
 
   useEffect(() => {
-    if (!isOpen || !batchId || !hasPendingOcr) return;
+    if (!isOpen || !batchId || !hasPendingOcr || Boolean(returnNotice)) return;
     const timer = setInterval(() => {
       loadBatchDetails(true);
     }, 3000);
     return () => clearInterval(timer);
-  }, [isOpen, batchId, hasPendingOcr, loadBatchDetails]);
+  }, [isOpen, batchId, hasPendingOcr, returnNotice, loadBatchDetails]);
 
   if (!isOpen || !batchId) return null;
 
@@ -220,15 +230,60 @@ export default function BatchDocumentsModal({
   const isReadOnly = isApproved || isExported;
   const isLockedForMutation = isReadOnly || hasPendingOcr;
 
-  const handleConfirmReplace = async () => {
-    if (isLockedForMutation || !pendingReplace || submittingDetailId !== null) return;
-    setSubmittingDetailId(pendingReplace.detailId);
+  const handleReturnToTable = () => {
+    setReturnNotice(null);
+    onClose();
+    onReturnToTable?.();
+  };
+
+  if (returnNotice) {
+    return (
+      <ConfirmDialog
+        isOpen
+        isAlert
+        variant={returnNotice.ocrPending ? "warning" : "success"}
+        onClose={handleReturnToTable}
+        onConfirm={handleReturnToTable}
+        title={
+          returnNotice.mode === "add"
+            ? "Dokumen Pendukung Ditambahkan"
+            : "Dokumen Berhasil Diganti"
+        }
+        confirmText="Kembali ke Tabel"
+        description={
+          <div className="space-y-1.5">
+            <p>
+              File{" "}
+              <strong className="text-slate-900 break-all">
+                {returnNotice.fileName}
+              </strong>{" "}
+              ({returnNotice.categoryTitle}) telah berhasil dikirim ke sistem.
+            </p>
+            <p className="text-slate-500">
+              {returnNotice.ocrPending
+                ? "Dokumen sedang diproses OCR Nanonets sehingga status batch kembali menjadi Pending hingga selesai."
+                : "Data ekstraksi OCR telah diperbarui. Silakan kembali ke tabel untuk melihat atau membuka detail terbaru."}
+            </p>
+          </div>
+        }
+      />
+    );
+  }
+
+  const submitDocumentUpload = async (params: {
+    mode: "add" | "replace";
+    file: File;
+    categoryTitle: string;
+    detailId?: number;
+  }): Promise<boolean> => {
     setErrorMsg(null);
     try {
       const fd = new FormData();
-      fd.append("file", pendingReplace.file, pendingReplace.file.name);
-      fd.append("category", pendingReplace.categoryTitle);
-      fd.append("detailId", String(pendingReplace.detailId));
+      fd.append("file", params.file, params.file.name);
+      fd.append("category", params.categoryTitle);
+      if (params.detailId !== undefined) {
+        fd.append("detailId", String(params.detailId));
+      }
 
       const res = await fetch(`/api/batches/${batchId}/documents`, {
         method: "POST",
@@ -236,19 +291,51 @@ export default function BatchDocumentsModal({
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Gagal mengganti dokumen.");
+        throw new Error(
+          data.error ||
+            (params.mode === "add"
+              ? "Gagal menambahkan dokumen."
+              : "Gagal mengganti dokumen.")
+        );
       }
 
-      const newName = pendingReplace.file.name;
-      setPendingReplace(null);
-      await loadBatchDetails(true);
-      onDocumentsChanged?.(
-        batchId,
-        data.status,
-        `Dokumen "${pendingReplace.categoryTitle}" diperbarui ke "${newName}".`
-      );
+      const uploadedName = params.file.name;
+      const actionMsg =
+        params.mode === "add"
+          ? `Dokumen "${uploadedName}" (${params.categoryTitle}) berhasil ditambahkan.`
+          : `Dokumen "${params.categoryTitle}" diperbarui ke "${uploadedName}".`;
+
+      onDocumentsChanged?.(batchId, data.status, actionMsg);
+      setReturnNotice({
+        mode: params.mode,
+        fileName: uploadedName,
+        categoryTitle: params.categoryTitle,
+        ocrPending: Boolean(data.ocrPending),
+      });
+      return true;
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Gagal mengganti dokumen.");
+      setErrorMsg(
+        err instanceof Error
+          ? err.message
+          : params.mode === "add"
+          ? "Gagal menambahkan dokumen."
+          : "Gagal mengganti dokumen."
+      );
+      return false;
+    }
+  };
+
+  const handleConfirmReplace = async () => {
+    if (isLockedForMutation || !pendingReplace || submittingDetailId !== null) return;
+    setSubmittingDetailId(pendingReplace.detailId);
+    try {
+      const ok = await submitDocumentUpload({
+        mode: "replace",
+        file: pendingReplace.file,
+        categoryTitle: pendingReplace.categoryTitle,
+        detailId: pendingReplace.detailId,
+      });
+      if (ok) setPendingReplace(null);
     } finally {
       setSubmittingDetailId(null);
     }
@@ -257,33 +344,16 @@ export default function BatchDocumentsModal({
   const handleConfirmAdd = async () => {
     if (isLockedForMutation || !addFile || !selectedAddCategory || isSubmittingAdd) return;
     setIsSubmittingAdd(true);
-    setErrorMsg(null);
     try {
-      const fd = new FormData();
-      fd.append("file", addFile, addFile.name);
-      fd.append("category", selectedAddCategory);
-
-      const res = await fetch(`/api/batches/${batchId}/documents`, {
-        method: "POST",
-        body: fd,
+      const ok = await submitDocumentUpload({
+        mode: "add",
+        file: addFile,
+        categoryTitle: selectedAddCategory,
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Gagal menambahkan dokumen.");
+      if (ok) {
+        setAddFile(null);
+        setShowAddForm(false);
       }
-
-      const addedName = addFile.name;
-      const addedCat = selectedAddCategory;
-      setAddFile(null);
-      setShowAddForm(false);
-      await loadBatchDetails(true);
-      onDocumentsChanged?.(
-        batchId,
-        data.status,
-        `Dokumen "${addedName}" (${addedCat}) berhasil ditambahkan.`
-      );
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Gagal menambahkan dokumen.");
     } finally {
       setIsSubmittingAdd(false);
     }

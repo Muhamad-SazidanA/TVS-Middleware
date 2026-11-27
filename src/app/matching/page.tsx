@@ -914,8 +914,11 @@ function MatchingPageContent() {
         batchId={manageFilesBatchId}
         isOpen={Boolean(manageFilesBatchId)}
         onClose={() => setManageFilesBatchId(null)}
-        onDocumentsChanged={(_id, _newStatus, msg) => {
-          if (msg) showToast(msg);
+        onDocumentsChanged={() => {
+          fetchBatches(true);
+        }}
+        onReturnToTable={() => {
+          setManageFilesBatchId(null);
           fetchBatches(true);
         }}
       />

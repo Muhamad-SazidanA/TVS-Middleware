@@ -267,7 +267,7 @@ export default function MatchingDetailView({
   // 2. Fetch Equivalency Groups
   const loadEquivalencies = useCallback(async () => {
     try {
-      const res = await fetch("/api/equivalencies");
+      const res = await fetch("/api/equivalencies", { cache: "no-store" });
       if (res.ok) {
         const d = await res.json();
         if (d.success && Array.isArray(d.groups)) {
@@ -835,13 +835,13 @@ export default function MatchingDetailView({
                 onClick={onClose}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl cursor-pointer"
               >
-                Kembali ke daftar
+                Kembali ke Tabel
               </button>
               <button
                 onClick={() => loadBatch()}
                 className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-xl cursor-pointer transition-colors"
               >
-                Coba lagi
+                Load Detail
               </button>
             </div>
           </div>
@@ -973,6 +973,8 @@ export default function MatchingDetailView({
               onEditManualNote={handleEditManualNote}
               onDeleteManualNote={handleDeleteManualNote}
               onManageDocuments={isDetailReadOnly ? undefined : () => setDocsModalOpen(true)}
+              onRefreshDetail={handleRefreshInPlace}
+              isRefreshingDetail={isRefreshingInPlace}
               onNotify={(msg, type) => showToast(msg, type || "info")}
               batchChangeLogs={batchChangeLogs}
               workflowStatus={workflowStatus}
@@ -1152,17 +1154,12 @@ export default function MatchingDetailView({
         batchId={batchId}
         isOpen={docsModalOpen}
         onClose={() => setDocsModalOpen(false)}
-        onDocumentsChanged={async (_id, newStatus, msg) => {
-          setDismissedPendingSig(null);
-          setReadyOcrUpdate(null);
-          const refreshed = await loadBatch(true);
-          const stillPending = Array.isArray(refreshed?.details)
-            ? refreshed.details.some(isDetailRecordOcrPending)
-            : false;
-          if (!stillPending && msg) {
-            showToast(msg, "success");
-          }
-          onStatusUpdate?.(batchId, newStatus || "UPDATED");
+        onDocumentsChanged={(_id, newStatus) => {
+          onStatusUpdate?.(batchId, newStatus || "PROSES");
+        }}
+        onReturnToTable={() => {
+          setDocsModalOpen(false);
+          onClose();
         }}
       />
 
